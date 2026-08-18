@@ -89,16 +89,27 @@ def _is_soft_404(text, ct):
     return False
 
 def _extract_json_ld(html):
+    if not html: return []
+    from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
-    parsed = []
-    for script in soup.find_all('script', type='application/ld+json'):
-        if script.string:
-            text = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', script.string, flags=re.DOTALL).strip()
-            try:
-                parsed.append(json.loads(text))
-            except json.JSONDecodeError:
-                continue
-    return parsed
+    scripts = soup.find_all('script', type='application/ld+json')
+    nodes = []
+    for s in scripts:
+        raw = s.string
+        if not raw: continue
+        try:
+            clean = raw.replace('&quot;', '"').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+            clean = re.sub(r',(\s*[}\]])', r'\1', clean)
+            clean = re.sub(r'//.*', '', clean)
+            data = json.loads(clean)
+            if isinstance(data, list): nodes.extend(data)
+            else: nodes.append(data)
+        except Exception:
+            type_match = re.search(r'"@type"\s*:\s*"?([A-Za-z,\s]+)"?', raw)
+            if type_match:
+                nodes.append({"@type": type_match.group(1).strip(), "_fallback": True})
+    return nodes
+
 
 def _extract_links(html, base_url):
     soup = BeautifulSoup(html, 'html.parser')
@@ -112,16 +123,25 @@ def _detect_platform(html, headers):
     html_lower = (html or "").lower()
     headers_str = str(headers).lower()
     
-    if any(sig in html_lower or sig in headers_str for sig in ["cdn.shopify.com", "shopify.com", "myshopify.com", "x-shopid", "shopify-section", "shopify.pay"]):
-        return "shopify"
-    if any(sig in html_lower for sig in ["/wp-content/", "/wp-json/", "woocommerce", "wp-emoji-release"]):
-        return "woocommerce"
-    if "bigcommerce.com" in html_lower or "cdn11.bigcommerce.com" in html_lower:
-        return "bigcommerce"
-    if "next" in headers_str or "__next" in html_lower or "nextjs" in html_lower:
-        return "custom_headless"
+    # TIER 1: DEFINITIVE CDNs (Must be checked first to avoid text-based false positives)
+    if any(sig in html_lower or sig in headers_str for sig in ["cdn.shopify.com", "shopify.com", "myshopify.com", "x-shopid", "shopify-section", "shopify.pay", "shopify-checkout"]): return "shopify"
+    if "bigcommerce.com" in html_lower or "cdn11.bigcommerce.com" in html_lower: return "bigcommerce"
+    if "squarespace-cdn.com" in html_lower or "squarespace" in html_lower: return "squarespace"
+    if "wixstatic.com" in html_lower or "wix.com" in html_lower: return "wix"
+    
+    # TIER 2: ENTERPRISE PLATFORMS (Strict JS/Header signatures)
+    if any(sig in html_lower or sig in headers_str for sig in ["demandware", "dw.__version__", "salesforce commerce cloud", "sfcc"]): return "salesforce"
+    if any(sig in html_lower or sig in headers_str for sig in ["vtex", "vtexcommercestable", "vtex.local", "vteximg"]): return "vtex"
+    if any(sig in html_lower or sig in headers_str for sig in ["x-magento-init", "mage/cookies", "mage/"]): return "magento"
+    if "next" in headers_str or "__next" in html_lower or "_next/static" in html_lower: return "custom_headless"
+    
+    # TIER 3: STRICT CMS (Avoid generic text mentions)
+    if any(sig in html_lower for sig in ["/wp-content/plugins/woocommerce/", "wc-block", "woocommerce-json-ld"]): return "woocommerce"
+    if any(sig in html_lower for sig in ["/wp-content/themes/", "/wp-includes/", "wp-emoji-release.min.js"]): return "wordpress"
         
     return 'unknown'
+
+
 
 def _generate_snippet(code_type, domain, sample_name=""):
     if code_type == "organization":
@@ -148,7 +168,21 @@ def _is_policy_link(url: str) -> bool:
 
 def _sample_urls(domain, findings):
     urls = {"homepage": f"https://{domain}/"}
+    # Try default sitemap first
     status, xml, final_url, _ = _fetch_with_retry(f"https://{domain}/sitemap.xml", "sitemap", findings, retries=1)
+    
+    # WAF BYPASS: If default sitemap is blocked (403/429) or missing (404), check robots.txt for alternate sitemaps
+    if status in [403, 404, 429, None]:
+        robots_st, robots_txt, _, _ = _fetch_with_retry(f"https://{domain}/robots.txt", "robots_fallback", findings, retries=0)
+        if robots_st == 200 and robots_txt:
+            sitemap_urls = re.findall(r'(?i)Sitemap:\s*(https?://[^\s]+)', robots_txt)
+            for alt_sitemap in sitemap_urls[:3]: # Try up to 3 alternate sitemaps
+                if "product" in alt_sitemap.lower() or "sitemap" in alt_sitemap.lower():
+                    alt_st, alt_xml, _, _ = _fetch_with_retry(alt_sitemap, "sitemap_alt", findings, retries=0)
+                    if alt_st == 200 and alt_xml and ("<urlset" in alt_xml or "<sitemapindex" in alt_xml):
+                        status, xml, final_url = alt_st, alt_xml, alt_sitemap
+                        findings["notes"] += f"fallback_sitemap_used: {alt_sitemap}. "
+                        break
     
     if status != 200:
         findings["notes"] += f"sitemap_fetch_failed: status={status} url={final_url}. "
@@ -285,9 +319,9 @@ def _check_crawlability(domain, findings):
                         "evidence": "Disallow: / under specific AI user-agents.",
                         "affected_urls": [url],
                         "severity": "high", "confidence": "high",
-                        "business_impact": "Prevents generative engines from indexing the brand for conversational commerce.",
+                        "business_impact": "Your brand is actively hidden from next-generation AI search engines (ChatGPT, Perplexity), ceding market share to competitors.",
                         "difficulty": "Easy",
-                        "fix": "Remove blanket Disallow rules for AI user-agents in robots.txt."
+                        "fix": "Update robots.txt to explicitly allow GPTBot, ClaudeBot, and PerplexityBot."
                     })
         else:
             if name in ["llms.txt", "agents.md", "robots.txt"]:
@@ -351,9 +385,9 @@ def _check_answerability(domain, sample_urls, findings):
             "evidence": f"Found {len(found_policies)} strong policy pages. Weak pages: {len(weak_policies)}.",
             "affected_urls": policy_urls if policy_urls else [sample_urls["homepage"]],
             "severity": "medium", "confidence": "high",
-            "business_impact": "Reduces explicit textual data available for AI systems to resolve pre-purchase customer queries.",
+            "business_impact": "AI engines cannot answer basic pre-purchase questions about your brand, leading to lost conversions in conversational commerce.",
             "difficulty": "Easy",
-            "fix": "Publish comprehensive, text-rich policy pages and ensure they are discoverable via navigation or sitemap."
+            "fix": "Publish comprehensive, text-rich policy and FAQ pages to capture AI-driven customer support queries."
         })
 
     findings["dimensions"]["answerability"] = max(0, score)
@@ -363,21 +397,109 @@ def _check_answerability(domain, sample_urls, findings):
         "weak_policies": len(weak_policies)
     }
 
+
+def _extract_real_assets(html, url, domain):
+    if not html: return {}
+    # WAF GUARD: If this is a challenge page, do not scrape it for brand data
+    html_lower = html[:2000].lower() if html else ""
+    if any(sig in html_lower for sig in ["just a moment", "window._cf_chl_opt", "captcha", "challenge-platform", "enable javascript and cookies"]):
+        return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": domain.split('.')[0].capitalize(), "product_desc": "Premium product offering.", "price": "0.00", "sku": "N/A", "product_url": url}
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
+    assets = {}
+    
+    # Brand/Site Name
+    og_site = soup.find("meta", property="og:site_name")
+    title = soup.find("title")
+    assets["brand_name"] = (og_site["content"] if og_site else (title.text.split('|')[0].split('-')[0].strip() if title else domain))
+    
+    # Logo
+    og_logo = soup.find("meta", property="og:image")
+    icon = soup.find("link", rel=lambda x: x and 'icon' in x.lower())
+    assets["logo_url"] = (og_logo["content"] if og_logo else (icon["href"] if icon else f"https://{domain}/favicon.ico"))
+    
+    # Socials
+    socials = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"].lower()
+        if any(s in href for s in ["facebook.com", "twitter.com", "instagram.com", "linkedin.com", "youtube.com", "tiktok.com"]):
+            if href not in socials: socials.append(href)
+    assets["socials"] = [s for s in socials[:3] if s and s.startswith("http")]
+    
+    # Product Specifics
+    og_title = soup.find("meta", property="og:title")
+    assets["product_name"] = (og_title["content"] if og_title else assets["brand_name"])
+    assets["product_url"] = url
+    desc_meta = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
+    assets["product_desc"] = (desc_meta["content"] if desc_meta else "Premium product offering.")
+    
+    price_meta = soup.find("meta", property="product:price:amount") or soup.find("meta", attrs={"itemprop": "price"})
+    assets["price"] = (price_meta["content"] if price_meta else "0.00")
+    
+    sku_meta = soup.find("meta", property="product:retailer_item_id") or soup.find("meta", attrs={"itemprop": "sku"})
+    assets["sku"] = (sku_meta["content"] if sku_meta else "N/A")
+    
+    return assets
+
+
 def _analyze_entities_and_products(domain, sample_urls, findings):
     entity_score = 10.0
     issues = []
+    platform = findings.get("platform_detected", "unknown")
+    is_commerce = bool(sample_urls.get("products") or sample_urls.get("collection") or platform in ["shopify", "woocommerce", "bigcommerce", "magento", "salesforce", "vtex"])
+    
+    # HTML COMMERCE OVERRIDE: If sitemap failed, check homepage for cart/shopify signals
+    if not is_commerce and sample_urls.get("homepage"):
+        hp_st, hp_html, _, _ = _fetch(sample_urls["homepage"], "hp_commerce_check", findings)
+        if hp_st == 200 and hp_html:
+            hp_lower = hp_html.lower()
+            commerce_signals = ["window.shopify", "shopify.shop", "add-to-cart", "addtobag", "add to bag", "product-card", "woocommerce", "product_type", "dw.__version__", "vtex", "salesforce", "buy now", "price", "cart", "checkout", "shop"]
+            if any(sig in hp_lower for sig in commerce_signals):
+                is_commerce = True
+                findings["notes"] += "commerce_detected_via_html_signals. "
+            else:
+                # ENTERPRISE LINK SCRAPE: Check <a href="..."> for /product/, /cart/, /shop/
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(hp_html, 'html.parser')
+                links = [a.get('href', '') for a in soup.find_all('a', href=True)]
+                commerce_urls = [l for l in links if any(p in l.lower() for p in ["/product/", "/products/", "/cart", "/checkout", "/shop/", "/collections/", "/categories/"])]
+                if commerce_urls:
+                    is_commerce = True
+                    findings["notes"] += f"commerce_detected_via_link_scrape ({len(commerce_urls)} URLs). "
+                else:
+                    # ROBOTS.TXT COMMERCE FALLBACK (Catches CSR sites where links are JS-injected)
+                    robots_st, robots_txt, _, _ = _fetch(f"https://{domain}/robots.txt", "robots_commerce", findings)
+                    if robots_st == 200 and robots_txt:
+                        robots_lower = robots_txt.lower()
+                        if any(path in robots_lower for path in ["/cart", "/checkout", "/product", "/shop", "/collections"]):
+                            is_commerce = True
+                            findings["notes"] += "commerce_detected_via_robots_txt. "
+
+    # COMMERCE GATE: If no products/cart found, do not audit as e-commerce
+    if not is_commerce:
+        findings["dimensions_measured"]["product_intelligence"] = False
+        findings["dimensions_measured"]["agentic_commerce"] = False
+        issues.append({
+            "code": "non_commerce_profile",
+            "description": "Site appears to be a brand/corporate profile, not a direct e-commerce store.",
+            "evidence": "No product URLs or cart functionality detected in sitemap or navigation.",
+            "affected_urls": [sample_urls.get("homepage", f"https://{domain}/")],
+            "severity": "low", "confidence": "high",
+            "business_impact": "Standard e-commerce revenue leak metrics do not apply.",
+            "difficulty": "N/A", "fix": "N/A"
+        })
+        findings["dimensions"]["entity_intelligence"] = 10.0 # Assume entity is fine if not commerce
+        findings["issues"].extend(issues)
+        return
 
     all_nodes = []
     entity_pages_found = 0
-    faq_pages_found = 0
-    breadcrumb_pages_found = 0
     total_pages_crawled = 0
     csr_pages = 0
     redirect_shell_pages = 0
 
     urls_to_crawl = [sample_urls["homepage"]]
-    if "collection" in sample_urls:
-        urls_to_crawl.append(sample_urls["collection"])
+    if "collection" in sample_urls: urls_to_crawl.append(sample_urls["collection"])
     urls_to_crawl.extend(sample_urls.get("products", []))
 
     for url in urls_to_crawl:
@@ -388,27 +510,28 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             all_nodes.extend(nodes)
 
             is_redirect_shell = False
-            if final_url and urlparse(final_url).netloc != domain:
-                is_redirect_shell = True
+            if final_url:
+                final_netloc = urlparse(final_url).netloc.replace("www.", "")
+                base_domain = domain.replace("www.", "")
+                if final_netloc != base_domain:
+                    is_redirect_shell = True
 
             if len(nodes) == 0:
-                if is_redirect_shell:
-                    redirect_shell_pages += 1
-                else:
-                    csr_pages += 1
+                if is_redirect_shell: redirect_shell_pages += 1
+                else: csr_pages += 1
 
+            # GRAPH-AWARE ENTITY DETECTION
             has_entity = False
             for node in nodes:
                 if isinstance(node, dict):
                     t = node.get("@type", "")
-                    if isinstance(t, list):
-                        t = " ".join(t)
+                    if isinstance(t, list): t = " ".join(t)
+                    # Check for Organization, Brand, or WebSite->publisher
                     if any(x in t for x in ["Organization", "Corporation", "Brand", "WebSite"]):
                         has_entity = True
-                    if "FAQPage" in t: faq_pages_found += 1
-                    if "BreadcrumbList" in t: breadcrumb_pages_found += 1
-            if has_entity:
-                entity_pages_found += 1
+                    # Check Product->brand
+                    if "Product" in t and node.get("brand"): has_entity = True
+            if has_entity: entity_pages_found += 1
 
     if total_pages_crawled > 0:
         if (redirect_shell_pages / total_pages_crawled) > 0.5:
@@ -416,111 +539,72 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "code": "redirect_shell_detected",
                 "description": "Core pages redirect to external shells (e.g., checkout subdomains) with no schema.",
                 "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
-                "affected_urls": urls_to_crawl,
-                "severity": "high", "confidence": "high",
+                "affected_urls": urls_to_crawl, "severity": "high", "confidence": "high",
                 "business_impact": "AI agents are routed to payment/external domains and blocked before seeing catalog data.",
-                "difficulty": "Medium",
-                "fix": "Ensure core merchandising URLs resolve on the primary domain without redirecting to checkout/external shells."
+                "difficulty": "Medium", "fix": "Ensure core merchandising URLs resolve on the primary domain."
             })
         elif (csr_pages / total_pages_crawled) > 0.5:
             issues.append({
                 "code": "csr_schema_leak",
                 "description": "Client-Side Rendering (CSR) is preventing raw HTML schema extraction.",
                 "evidence": f"{csr_pages}/{total_pages_crawled} sampled pages return 0 JSON-LD blocks in raw HTML.",
-                "affected_urls": urls_to_crawl,
-                "severity": "high", "confidence": "high",
+                "affected_urls": urls_to_crawl, "severity": "high", "confidence": "high",
                 "business_impact": "Lightweight AI shopping agents that do not execute JavaScript will see 0% entity and product data.",
-                "difficulty": "Hard",
-                "fix": "Implement Server-Side Rendering (SSR) or Static Site Generation (SSG) for core pages.",
+                "difficulty": "Hard", "fix": "Implement Server-Side Rendering (SSR) or Static Site Generation (SSG).",
                 "fix_snippet": _generate_snippet("organization", domain)
             })
 
     if total_pages_crawled > 0 and (entity_pages_found / total_pages_crawled) < 0.5:
         entity_score -= 3.0
         issues.append({
-            "code": "inconsistent_entity_presence",
-            "description": "Brand/Organization schema is missing from more than 50% of sampled pages.",
+            "code": "incomplete_entity_corroboration",
+            "description": "Brand identity markup is not consistently detected across sampled pages.",
             "evidence": f"Found on {entity_pages_found}/{total_pages_crawled} sampled pages.",
-            "affected_urls": urls_to_crawl,
-            "severity": "medium", "confidence": "high",
-            "business_impact": "Inconsistent entity mapping makes automated brand reconciliation difficult across the site.",
-            "difficulty": "Medium",
-            "fix": "Inject global Organization/Brand structured data into the site's master layout template.",
+            "affected_urls": urls_to_crawl, "severity": "medium", "confidence": "high",
+            "business_impact": "AI search engines struggle to confidently identify and recommend your brand over competitors with stronger digital footprints.",
+            "difficulty": "Medium", "fix": "Deploy global Organization schema to solidify your brand's Knowledge Graph presence.",
             "fix_snippet": _generate_snippet("organization", domain)
         })
 
     flat_nodes = []
     for g in all_nodes:
         if isinstance(g, dict):
-            if "@graph" in g:
-                flat_nodes.extend([n for n in g["@graph"] if isinstance(n, dict)])
-            else:
-                flat_nodes.append(g)
+            if "@graph" in g: flat_nodes.extend([n for n in g["@graph"] if isinstance(n, dict)])
+            else: flat_nodes.append(g)
 
     has_org, has_same_as = False, False
     for node in flat_nodes:
         t = node.get("@type", "")
-        if isinstance(t, list):
-            t = " ".join(t)
+        if isinstance(t, list): t = " ".join(t)
         if any(x in t for x in ["Organization", "Corporation", "Brand"]):
             has_org = True
-            if node.get("sameAs"):
-                has_same_as = True
+            if node.get("sameAs"): has_same_as = True
 
     if not has_org:
         entity_score -= 5.0
         issues.append({
             "code": "missing_organization_entity",
             "description": "Missing Organization/Brand schema in JSON-LD.",
-            "evidence": "No Organization, Corporation, or Brand node found across sampled pages.",
-            "affected_urls": urls_to_crawl,
-            "severity": "high", "confidence": "high",
-            "business_impact": "Reduces explicit machine-readable entity clarity for automated systems.",
-            "difficulty": "Easy",
-            "fix": "Add appropriate Organization/Brand structured data to the site's global template.",
+            "evidence": "No Organization, Corporation, or Brand node found.",
+            "affected_urls": urls_to_crawl, "severity": "high", "confidence": "high",
+            "business_impact": "Reduces explicit machine-readable entity clarity.",
+            "difficulty": "Easy", "fix": "Add Organization/Brand structured data.",
             "fix_snippet": _generate_snippet("organization", domain)
         })
     elif not has_same_as:
         entity_score -= 2.0
         issues.append({
-            "code": "weak_entity_trust_chain",
+            "code": "incomplete_entity_corroboration",
             "description": "Organization exists, but lacks a sameAs trust chain.",
             "evidence": "sameAs array missing or empty.",
-            "affected_urls": urls_to_crawl,
-            "severity": "medium", "confidence": "high",
-            "business_impact": "Knowledge Graph trust score is degraded; automated systems may struggle to disambiguate the brand.",
-            "difficulty": "Easy",
-            "fix": "Add Wikipedia and official social URLs to the sameAs array."
+            "affected_urls": urls_to_crawl, "severity": "medium", "confidence": "high",
+            "business_impact": "Entity corroboration is incomplete.",
+            "difficulty": "Easy", "fix": "Add Wikipedia and social URLs to sameAs."
         })
 
     findings["dimensions"]["entity_intelligence"] = max(0, entity_score)
-
-    if total_pages_crawled > 0 and faq_pages_found == 0:
-        issues.append({
-            "code": "missing_faq_schema",
-            "description": "No FAQPage schema detected. This reduces direct-citation likelihood in AI answers.",
-            "evidence": "0 FAQPage nodes found across sampled pages.",
-            "affected_urls": urls_to_crawl,
-            "severity": "medium", "confidence": "high",
-            "business_impact": "Reduces the probability of the brand's content being cited directly in AI-generated answers.",
-            "difficulty": "Easy",
-            "fix": "Wrap existing Q&A content in FAQPage schema.",
-            "fix_snippet": _generate_snippet("faq", domain)
-        })
-
-    if total_pages_crawled > 0 and breadcrumb_pages_found == 0:
-        issues.append({
-            "code": "missing_breadcrumb_schema",
-            "description": "No BreadcrumbList schema detected.",
-            "evidence": "0 BreadcrumbList nodes found across sampled pages.",
-            "affected_urls": urls_to_crawl,
-            "severity": "low", "confidence": "high",
-            "business_impact": "AI systems lack explicit hierarchical context for page categorization.",
-            "difficulty": "Easy",
-            "fix": "Add BreadcrumbList schema to page templates.",
-            "fix_snippet": _generate_snippet("breadcrumb", domain)
-        })
-
+    
+    # PRODUCT "MONEY LEAK" DETECTOR
     products = sample_urls.get("products", [])
     if products:
         product_scores = []
@@ -529,16 +613,16 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             if st == 200:
                 nodes = _extract_json_ld(html)
                 p_score = 0
-                has_prod = has_name = has_offers = has_price = has_avail = has_var = has_sku = has_review = False
+                has_prod = has_name = has_offers = has_price = has_avail = has_var = has_sku = has_brand = has_review = False
                 for node in nodes:
                     if isinstance(node, dict):
                         t = node.get("@type", "")
-                        if isinstance(t, list):
-                            t = " ".join(t)
+                        if isinstance(t, list): t = " ".join(t)
                         if "Product" in t:
                             has_prod = True
                             if node.get("name"): has_name = True
                             if node.get("sku") or node.get("gtin") or node.get("mpn"): has_sku = True
+                            if node.get("brand"): has_brand = True
                             if node.get("review") or node.get("aggregateRating"): has_review = True
                             if node.get("offers"):
                                 has_offers = True
@@ -548,64 +632,82 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                                     if offers.get("price") or offers.get("lowPrice"): has_price = True
                                     if offers.get("availability"): has_avail = True
                             if node.get("hasVariant") or node.get("variants"): has_var = True
-                if has_prod: p_score += 20
+                
+                # TIER 1 FALLBACK: Check standard meta tags if JSON-LD is missing/empty
+                if p_score == 0 and html:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(html, 'html.parser')
+                    
+                    # Flexible OG/Meta detection
+                    og_type = soup.find("meta", property="og:type")
+                    if og_type and "product" in og_type.get("content", "").lower(): has_prod = True
+                    if soup.find("meta", property=re.compile(r"product:price")): has_price = True
+                    if soup.find("meta", property=re.compile(r"product:availability")): has_avail = True
+                    if soup.find("meta", property=re.compile(r"product:brand")): has_brand = True
+                    if soup.find("meta", property=re.compile(r"product:retailer_item_id")) or soup.find("meta", attrs={"name": "sku"}): has_sku = True
+
+                # ENTERPRISE META-TAG EXTRACTION (Runs in parallel with JSON-LD)
+                if html and p_score < 50:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(html, 'html.parser')
+                    og_type = soup.find("meta", property="og:type")
+                    if og_type and "product" in og_type.get("content", "").lower(): has_prod = True
+                    if soup.find("meta", property=re.compile(r"product:price")) or soup.find("meta", attrs={"itemprop": "price"}): has_price = True
+                    if soup.find("meta", property=re.compile(r"product:availability")) or soup.find("meta", attrs={"itemprop": "availability"}): has_avail = True
+                    if soup.find("meta", property=re.compile(r"product:brand")) or soup.find("meta", attrs={"itemprop": "brand"}): has_brand = True
+                    if soup.find("meta", property=re.compile(r"product:retailer_item_id")) or soup.find("meta", attrs={"itemprop": "sku"}): has_sku = True
+
+                # Tier 1 Scoring
+                if has_prod: 
+                    p_score += 20
                 if has_name: p_score += 10
                 if has_offers: p_score += 15
                 if has_price: p_score += 15
                 if has_avail: p_score += 15
-                if has_var: p_score += 10
-                if has_sku: p_score += 5
+                if has_sku: p_score += 10 # Increased weight for SKU/GTIN
+                if has_brand: p_score += 5
                 if has_review: p_score += 10
                 product_scores.append(min(100, p_score))
 
-        # OG FIX: Prevent ZeroDivisionError if all product pages are blocked/redirected
         if product_scores:
             avg_prod_score = sum(product_scores) / len(product_scores)
             findings["dimensions"]["product_intelligence"] = avg_prod_score / 10.0
             findings["dimensions_measured"]["product_intelligence"] = True
 
             if avg_prod_score < 80:
-                sample_name = ""
-                if product_scores and product_scores[0] > 0: sample_name = "Sample Product"
                 issues.append({
                     "code": "incomplete_product_schema",
                     "description": f"Product schema is {avg_prod_score:.0f}% complete across sampled PDPs.",
-                    "evidence": f"Sampled {len(products)} products. Missing critical attributes like price, availability, variants, or identifiers.",
-                    "affected_urls": products,
-                    "severity": "high", "confidence": "high",
-                    "business_impact": "Automated shopping agents cannot verify stock, cost, or specific SKUs, leading to abandoned machine-checkouts.",
-                    "difficulty": "Medium",
-                    "fix": "Map inventory, pricing, variants, and SKUs to the Product schema properties.",
-                    "fix_snippet": _generate_snippet("product", domain, sample_name)
+                    "evidence": f"Sampled {len(products)} products. Missing critical attributes like price, availability, or identifiers.",
+                    "affected_urls": products, "severity": "high", "confidence": "high",
+                    "business_impact": "AI shopping assistants will bypass your products in favor of competitors who provide complete, machine-readable pricing and inventory data.",
+                    "difficulty": "Medium", "fix": "Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.",
+                    "fix_snippet": _generate_snippet("product", domain, "Sample Product")
                 })
         else:
             findings["dimensions_measured"]["product_intelligence"] = False
             findings["dimensions"]["product_intelligence"] = None
             issues.append({
-                "code": "product_intelligence_unmeasured",
+                "code": "product_intelligence_unknown",
                 "description": "Product pages were found but could not be crawled or returned no schema.",
-                "evidence": f"Sampled {len(products)} products, but 0 returned valid schema data.",
-                "affected_urls": products,
-                "severity": "medium", "confidence": "low",
-                "business_impact": "Product schema quality is unknown.",
-                "difficulty": "N/A",
-                "fix": "Re-run the audit, or manually verify Product schema."
+                "evidence": f"Sampled {len(products)} products, but 0 returned valid schema.",
+                "affected_urls": products, "severity": "medium", "confidence": "low",
+                "business_impact": "Product schema quality is unknown (Audit Limitation).",
+                "difficulty": "N/A", "fix": "Verify product pages are accessible to crawlers."
             })
     else:
         findings["dimensions_measured"]["product_intelligence"] = False
         findings["dimensions"]["product_intelligence"] = None
         issues.append({
-            "code": "product_intelligence_unmeasured",
+            "code": "product_intelligence_unknown",
             "description": "No product pages could be sampled.",
             "evidence": findings["notes"],
-            "affected_urls": [],
-            "severity": "medium", "confidence": "low",
-            "business_impact": "Product schema quality is unknown.",
-            "difficulty": "N/A",
-            "fix": "Re-run the audit, or manually verify Product schema."
+            "affected_urls": [], "severity": "medium", "confidence": "low",
+            "business_impact": "Product schema quality is unknown (Audit Limitation).",
+            "difficulty": "N/A", "fix": "Verify sitemap contains product URLs."
         })
-
     findings["issues"].extend(issues)
+
 
 def _check_agentic_commerce(domain, findings):
     capabilities = {"Discovery": "FAIL", "UCP": "FAIL", "MCP": "FAIL", "Catalog": "FAIL", "Cart/Checkout": "FAIL"}
@@ -667,6 +769,10 @@ def _check_agentic_commerce(domain, findings):
             findings["notes"] += f"MCP exception: {e}. "
 
     findings["dimensions"]["agentic_commerce"] = score
+    # Sanitize Agentic Matrix: "FAIL" -> "NOT_DETECTED" for standard stores
+    plat = findings.get("platform_detected", "unknown")
+    if plat not in ["custom_headless", "api_first"]:
+        capabilities = {k: ("NOT_DETECTED" if v == "FAIL" else v) for k, v in capabilities.items()}
     findings["agentic_capabilities"] = capabilities
     
     if capabilities["UCP"] == "PASS" and (capabilities["Catalog"] == "FAIL" or capabilities["Cart/Checkout"] == "FAIL"):
@@ -767,12 +873,15 @@ def audit_geo(domain: str) -> dict:
     if weight_total == 0:
         overall = 0.0
     else:
-        # Calculate score based only on measured dimensions
+        # Calculate score based only on measured dimensions (Unknown != 0)
         measured_score = sum(dims[k] * active_weights[k] for k in active_weights) / weight_total
         
-        # Fix 2: Penalize overall score if significant dimensions are unmeasured
+        # Confidence Penalty: If >30% of weight is unmeasured, cap the score
         confidence_ratio = weight_total / total_possible_weight
-        overall = measured_score * confidence_ratio
+        if confidence_ratio < 0.7:
+            overall = measured_score * confidence_ratio
+        else:
+            overall = measured_score
 
     findings["overall_geo_score"] = round(overall, 1)
     findings["score_confidence"] = (
@@ -780,13 +889,87 @@ def audit_geo(domain: str) -> dict:
     )
 
     if dims.get("entity_intelligence") is not None and dims["entity_intelligence"] < 8:
-        findings["business_interpretation"].append("The site lacks consistent, machine-readable brand identity mapping, which may introduce retrieval dependencies for AI engines.")
+        findings["business_interpretation"].append("Your brand's digital footprint lacks the structured entity corroboration required for AI search engines to confidently recommend you over competitors.")
     if dims.get("product_intelligence") is not None and dims["product_intelligence"] < 8:
-        findings["business_interpretation"].append("Incomplete product data structures may prevent autonomous agents from verifying inventory and executing transactions.")
+        findings["business_interpretation"].append("Critical commerce data (pricing, inventory, SKUs) is missing from your machine-readable catalog, causing AI shopping assistants to bypass your products in favor of competitors.")
     if dims.get("agentic_commerce") is not None and dims["agentic_commerce"] < 10:
-        findings["business_interpretation"].append("The infrastructure does not fully support standardized agentic commerce protocols, limiting compatibility with next-generation shopping agents.")
+        findings["business_interpretation"].append("Your infrastructure is currently invisible to next-generation agentic commerce protocols, ceding market share in the emerging AI-driven shopping ecosystem.")
 
+    # ENTERPRISE SNIPPET INJECTION: Replace placeholders with real scraped assets
+    hp_st, hp_html, _, _ = _fetch(f"https://{domain}/", "hp_snippet_assets", findings)
+    real_assets = _extract_real_assets(hp_html, f"https://{domain}/", domain)
+    
+    for issue in findings.get("issues", []):
+        if "fix_snippet" in issue and "REPLACE_WITH" in issue["fix_snippet"]:
+            snippet = issue["fix_snippet"]
+            snippet = snippet.replace("REPLACE_WITH_BRAND_NAME", real_assets.get("brand_name", domain).replace('"', '\\"'))
+            snippet = snippet.replace("REPLACE_WITH_LOGO_URL", real_assets.get("logo_url", f"https://{domain}/favicon.ico"))
+            socials_list = [s for s in real_assets.get("socials", []) if s and s.startswith("http")]
+            snippet = snippet.replace("REPLACE_WITH_SOCIAL_URLS", '", "'.join(socials_list) if socials_list else "https://www.linkedin.com/company/REPLACE_WITH_COMPANY")
+            
+            # Product specific replacements
+            if "REPLACE_WITH_IMAGE_URL" in snippet or "Sample Product" in snippet:
+                p_url = issue["affected_urls"][0] if issue.get("affected_urls") else f"https://{domain}/"
+                p_st, p_html, _, _ = _fetch(p_url, "prod_snippet_assets", findings)
+                p_assets = _extract_real_assets(p_html, p_url, domain)
+                snippet = snippet.replace("Sample Product", p_assets.get("product_name", "Premium Product").replace('"', '\"'))
+                snippet = snippet.replace("REPLACE_WITH_IMAGE_URL", p_assets.get("logo_url", f"https://{domain}/logo.png"))
+                snippet = snippet.replace("REPLACE_WITH_DESCRIPTION", p_assets.get("product_desc", "Premium product offering.").replace('"', '\"'))
+                snippet = snippet.replace("REPLACE_WITH_SKU", p_assets.get("sku", "SKU-1001"))
+                snippet = snippet.replace("REPLACE_WITH_PRODUCT_URL", p_url)
+                snippet = snippet.replace(f"https://{domain}/https://{domain}/", f"https://{domain}/")
+                snippet = snippet.replace(f"https://{domain}/https://", "https://")
+                snippet = snippet.replace("REPLACE_WITH_PRICE", p_assets.get("price", "29.99"))
+                
+            issue["fix_snippet"] = snippet
+
+    # ENTERPRISE CLEANUP: Remove non_commerce_profile if commerce signals or WAFs were found
+    notes = findings.get("notes", "")
+    crawl_matrix = str(findings.get("crawlability_matrix", {}))
+    commerce_confirmed = "commerce_detected_via" in notes
+    
+    # WAF HEURISTIC: Sites with aggressive 403/WAF blocks are high-traffic enterprise commerce, not blogs
+    if "403" in crawl_matrix or "WAF" in notes or "bot-challenge" in notes:
+        commerce_confirmed = True
+        
+    platform = findings.get("platform_detected", "unknown")
+    if platform not in ["unknown", "custom_headless"]:
+        commerce_confirmed = True
+
+    if commerce_confirmed or findings.get("dimensions_measured", {}).get("product_intelligence") == True:
+        findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "non_commerce_profile"]
+        
+    # ENTERPRISE CLEANUP: Remove csr_schema_leak if product data was successfully extracted via meta/fallback
+    if findings.get("dimensions", {}).get("product_intelligence") is not None and findings["dimensions"]["product_intelligence"] > 0:
+        findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "csr_schema_leak"]
+
+    # ENTERPRISE SANITIZER: Clean binary garbage and truncate long previews
+    import re as re_san
+    import string
+    printable = set(string.printable)
+    
+    def clean_text(text):
+        if not text: return text
+        # Remove binary headers like Exif, MM*, JFIF
+        text = re_san.sub(r'(?i)(Exif|MM\*|JFIF|\x00|\ufffd)', '', text)
+        # Keep only printable chars
+        text = "".join(c for c in text if c in printable)
+        # Truncate any preview with binary garbage
+        if "preview=" in text:
+            text = re_san.sub(r'preview=.*', 'preview=[BINARY_DATA_DISCARDED].', text)
+        # Strip remaining non-XML garbage patterns
+        text = re_san.sub(r'[A-Za-z]{1,3}\*[A-Za-z0-9$()]{2,}', '', text)
+        text = re_san.sub(r'\s{2,}', ' ', text).strip()
+        return text.strip()
+
+    if "notes" in findings:
+        findings["notes"] = clean_text(findings["notes"])
+    for issue in findings.get("issues", []):
+        if "evidence" in issue:
+            issue["evidence"] = clean_text(issue["evidence"])
+            
     return findings
+
 
 def geo_opportunity_score(geo_findings: dict) -> int:
     return int(geo_findings.get("overall_geo_score", 0))
