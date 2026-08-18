@@ -221,11 +221,12 @@ def _check_crawlability(domain, findings):
     for name, url in resources.items():
         st, text, final_url, ct = _fetch(url, name, findings)
 
-        is_blocked = (st == 200 and _looks_blocked(text)) or st == 403
+        is_blocked = (st == 200 and _looks_blocked(text)) or st == 403 or st == 429
         if is_blocked:
-            results[name] = "BLOCKED" if st == 200 else 403
+            results[name] = "BLOCKED" if st == 200 else st
             blocked_resources.append(name)
-            findings["notes"] += f"{name}: WAF/bot-challenge (status {st}), treated as unreadable. "
+            status_note = "WAF/bot-challenge" if st in [200, 403] else "Rate-Limited (429)"
+            findings["notes"] += f"{name}: {status_note} (status {st}), treated as unreadable. "
             if name in ["llms.txt", "agents.md", "robots.txt"]:
                 score -= 1.0
             continue
@@ -645,6 +646,12 @@ def _check_agentic_commerce(domain, findings):
         })
 
 def audit_geo(domain: str) -> dict:
+    # OG Input Sanitization: Strip protocols and paths from dirty API data
+    if domain.startswith("http://") or domain.startswith("https://"):
+        from urllib.parse import urlparse
+        domain = urlparse(domain).netloc
+    domain = domain.split('/')[0].strip()
+
     findings = {
         "domain": domain,
         "platform_detected": "unknown",

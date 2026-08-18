@@ -1,117 +1,151 @@
-"""
-Runs the full lean pipeline end to end:
-  1. Meta Ad Library search for the niche keywords (ad-running = budget signal)
-  2. Shopify confirmation filter
-  3. Mobile CRO audit (Playwright, evidence-based)
-  4. Client-ready HTML report per lead, scored by opportunity
-  5. Draft outreach email per lead (never auto-sent)
-
-Nothing here sends email or contacts anyone. Every output lands in
-data/leads/, data/reports/, data/screenshots/, and data/logs/ for manual
-review. See docs/ROADMAP.md for the reasoning behind this sequencing.
-"""
 import argparse
 import csv
-
-from revenue_leak_engine.config import (
-    NICHE_PRESETS, DEFAULT_NICHE, LEADS_DIR, SUPPRESSION_LIST_PATH, DEFAULT_COUNTRY,
-)
+from pathlib import Path
+from revenue_leak_engine.config import NICHE_PRESETS, DEFAULT_NICHE, LEADS_DIR, SUPPRESSION_LIST_PATH, DEFAULT_COUNTRY
 from revenue_leak_engine.discovery.meta_ads_search import find_advertiser_domains
 from revenue_leak_engine.qualification.shopify_detect import is_shopify
 from revenue_leak_engine.audit.site_audit import audit_site
+from revenue_leak_engine.audit.geo_audit import audit_geo, geo_opportunity_score
 from revenue_leak_engine.reporting.report_generator import generate_report, opportunity_score
-from revenue_leak_engine.outreach.outreach_draft import draft_email, append_draft_to_log
-
+from revenue_leak_engine.reporting.geo_report_generator import generate_geo_report
+from revenue_leak_engine.outreach.outreach_draft import draft_email, draft_geo_email, append_draft_to_log
 
 def load_suppression_list() -> set[str]:
-    if not SUPPRESSION_LIST_PATH.exists():
-        return set()
+    if not SUPPRESSION_LIST_PATH.exists(): return set()
     with open(SUPPRESSION_LIST_PATH, encoding="utf-8") as f:
         return {row[0].strip().lower() for row in csv.reader(f) if row}
 
+def load_seed_csv(path: str) -> list[dict]:
+    """Allows manual injection of domains found via TikTok/Instagram/Articles."""
+    candidates = []
+    with open(path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if "domain" in row:
+                candidates.append({
+                    "domain": row["domain"].strip().lower(),
+                    "page_name": row.get("brand", "Manual Seed"),
+                    "matched_keyword": "manual",
+                    "ad_snapshot_url": ""
+                })
+    return candidates
 
-def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUNTRY) -> list[dict]:
-    """Runs the full pipeline and returns the ranked, audited leads."""
-    if niche not in NICHE_PRESETS:
-        raise ValueError(f"Unknown niche '{niche}'. Options: {list(NICHE_PRESETS)}")
-
+def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUNTRY, seed_csv: str = None):
     suppressed = load_suppression_list()
-    keywords = NICHE_PRESETS[niche]
-    per_keyword = max(3, limit // len(keywords))
-
-    print(f"[1/4] Searching Meta Ad Library for '{niche}' keywords in {country}...")
-    candidates = find_advertiser_domains(keywords, country=country, per_keyword=per_keyword)
-    print(f"  -> {len(candidates)} unique advertiser domains found")
+    
+    candidates = []
+    if seed_csv and Path(seed_csv).exists():
+        print(f"[1/4] Loading manual seeds from {seed_csv}...")
+        candidates.extend(load_seed_csv(seed_csv))
+    
+    if not seed_csv:
+        print(f"[1/4] Searching Meta Ad Library for '{niche}' in {country}...")
+        keywords = NICHE_PRESETS[niche]
+        per_keyword = max(3, limit // len(keywords))
+        candidates.extend(find_advertiser_domains(keywords, country=country, per_keyword=per_keyword))
+        
+    print(f"  -> {len(candidates)} total candidate domains")
 
     print("[2/4] Confirming Shopify...")
     confirmed = []
+    seen = set()
     for c in candidates:
-        if c["domain"] in suppressed:
-            continue
-        result = is_shopify(c["domain"])
+        domain = c["domain"]
+        if domain in suppressed or domain in seen: continue
+        seen.add(domain)
+        result = is_shopify(domain)
         if result["is_shopify"]:
             confirmed.append({**c, **result})
-    print(f"  -> {len(confirmed)} confirmed Shopify + ad-running leads")
+    print(f"  -> {len(confirmed)} confirmed Shopify leads")
 
-    leads_csv = LEADS_DIR / f"{niche}_leads.csv"
-    with open(leads_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "domain", "page_name", "matched_keyword", "confidence", "ad_snapshot_url"
-        ])
-        writer.writeheader()
-        for c in confirmed:
-            writer.writerow({k: c.get(k, "") for k in writer.fieldnames})
-    print(f"  -> saved {leads_csv}")
-
-    print("[3/4] Running mobile CRO audits + generating reports...")
+    print("[3/4] Running CRO and GEO audits...")
     scored_leads = []
+    healthy_skipped = 0
+    
     for lead in confirmed:
         domain = lead["domain"]
         print(f"  auditing {domain}...")
-        findings = audit_site(domain)
-        if findings.get("error"):
-            print(f"    skipped: {findings['error']}")
+        
+        # 1. Core site audit (CRO)
+        cro_findings = audit_site(domain)
+        if cro_findings.get("error"):
+            print(f"    skipped: CRO audit error - {cro_findings['error']}")
             continue
 
-        score = opportunity_score(findings)
-        report_path = generate_report(findings)
-        print(f"    score {score}/10 -> report {report_path}")
+        # 2. Geo audit
+        geo_findings = audit_geo(domain)
 
-        draft = draft_email(findings, report_url=report_path)
-        append_draft_to_log(draft)
+        # Determine if each audit found issues
+        cro_ok = cro_findings.get("issues") and not cro_findings.get("error")
+        geo_ok = bool(geo_findings.get("issues"))
 
-        scored_leads.append({**lead, "score": score, "report_path": report_path})
+        # Skip if both audits found nothing
+        if not cro_ok and not geo_ok:
+            print(f"    skipped: healthy on both CRO and GEO")
+            healthy_skipped += 1
+            continue
 
-    # Best prospects first — ranking derived from actual evidence found
-    # on-site, not a static list.
-    scored_leads.sort(key=lambda l: l["score"], reverse=True)
+        lead_result = {**lead}
 
+        # Process CRO findings if any
+        if cro_ok:
+            cro_score = opportunity_score(cro_findings)
+            cro_report = generate_report(cro_findings)
+            lead_result.update({
+                "cro_score": cro_score,
+                "cro_report_path": cro_report
+            })
+            print(f"    CRO score {cro_score}/10 -> {cro_report}")
+
+            # Generate CRO outreach draft
+            cro_draft = draft_email(cro_findings, report_url=cro_report)
+            append_draft_to_log(cro_draft)
+
+        # Process GEO findings if any
+        if geo_ok:
+            geo_score = geo_opportunity_score(geo_findings)
+            geo_report = generate_geo_report(geo_findings)
+            lead_result.update({
+                "geo_score": geo_score,
+                "geo_report_path": geo_report
+            })
+            print(f"    GEO score {geo_score}/10 -> {geo_report}")
+
+            # Generate GEO outreach draft
+            geo_draft = draft_geo_email(geo_findings, report_url=geo_report)
+            append_draft_to_log(geo_draft)
+
+        # Combine scores (total will be used for ranking)
+        lead_result["total_score"] = lead_result.get("cro_score", 0) + lead_result.get("geo_score", 0)
+        scored_leads.append(lead_result)
+
+    # Sort by total score descending
+    scored_leads.sort(key=lambda l: l["total_score"], reverse=True)
+
+    # Write ranked CSV with all fields
     ranked_csv = LEADS_DIR / f"{niche}_leads_ranked.csv"
+    fieldnames = [
+        "total_score", "cro_score", "geo_score", "domain", "page_name",
+        "matched_keyword", "cro_report_path", "geo_report_path"
+    ]
     with open(ranked_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "score", "domain", "page_name", "matched_keyword", "report_path"
-        ])
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for lead in scored_leads:
-            writer.writerow({k: lead.get(k, "") for k in writer.fieldnames})
+            row = {k: lead.get(k, "") for k in fieldnames}
+            writer.writerow(row)
 
-    print(f"\n[4/4] Done. {len(scored_leads)} audited leads ranked by opportunity score.")
-    print(f"  -> {ranked_csv}  (highest score = strongest pitch, review these first)")
-    print("Next step: manually review data/reports/ and data/logs/outreach_drafts.csv "
-          "before sending anything.")
-
-    return scored_leads
-
+    print(f"\n[4/4] Done. {len(scored_leads)} audited leads with real leaks (CRO, GEO, or both).")
+    print(f"  -> Skipped {healthy_skipped} completely healthy sites.")
+    print(f"  -> {ranked_csv}")
 
 def cli():
-    parser = argparse.ArgumentParser(description="Revenue Leak Engine — lean pipeline")
+    parser = argparse.ArgumentParser(description="Revenue Leak Engine")
     parser.add_argument("--niche", default=DEFAULT_NICHE, choices=list(NICHE_PRESETS))
-    parser.add_argument("--limit", type=int, default=30, help="approx. candidate domains to pull")
-    parser.add_argument("--country", default=DEFAULT_COUNTRY,
-                         help="US first — see EXPANSION_COUNTRIES in config.py for what's next")
+    parser.add_argument("--limit", type=int, default=30)
+    parser.add_argument("--country", default=DEFAULT_COUNTRY)
+    parser.add_argument("--seed-csv", help="Path to a CSV of manually found domains (columns: domain, brand)")
     args = parser.parse_args()
-    run(args.niche, args.limit, args.country)
-
+    run(args.niche, args.limit, args.country, args.seed_csv)
 
 if __name__ == "__main__":
     cli()
