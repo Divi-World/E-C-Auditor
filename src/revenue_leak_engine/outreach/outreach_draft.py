@@ -48,33 +48,29 @@ def _hook(findings: dict, issue: dict) -> str:
     return f"I was checking out {domain} on mobile and noticed: {issue['description']}"
 
 
-# ---------- NEW: GEO-specific hooks and draft function ----------
+# ---------- GEO-specific hooks and draft function ----------
 def _geo_hook(geo_findings: dict, issue: dict) -> str:
     domain = geo_findings["domain"]
     code = issue["code"]
-    if code == "ai_crawler_blocked":
-        return (f"I checked {domain}'s robots.txt and it's currently blocking AI "
-                f"crawlers like ChatGPT and Perplexity from indexing the site — "
-                f"meaning you're invisible in a growing share of product discovery.")
-    if code == "no_faq_schema":
-        return (f"I checked how AI search engines see {domain} and there's no "
-                f"FAQ structured data on the site — that's the single strongest "
-                f"signal for getting quoted directly in ChatGPT/Perplexity answers, "
-                f"and it's missing.")
-    if code == "no_llms_txt":
-        return (f"{domain} doesn't have an llms.txt file yet — an emerging "
-                f"standard that helps AI systems understand and cite the site "
-                f"correctly.")
-    if code == "no_organization_schema":
-        return (f"{domain} is missing Organization schema, which weakens how "
-                f"confidently AI systems can identify and attribute the brand "
-                f"in answers.")
-    return f"I audited {domain} for AI-search visibility and noticed: {issue['description']}"
+    
+    # Mapped exactly to the v8.3 Engine issue codes
+    hooks = {
+        "ai_crawlers_blocked": f"I checked {domain}'s robots.txt and it's currently blocking AI crawlers like GPTBot and ClaudeBot — meaning you're invisible in a growing share of AI product discovery.",
+        "missing_faq_schema": f"I checked how AI search engines see {domain} and there's no FAQ structured data on the site — that's the single strongest signal for getting quoted directly in ChatGPT/Perplexity answers, and it's missing.",
+        "missing_organization_entity": f"{domain} is missing Organization schema, which weakens how confidently AI systems can identify and attribute the brand in answers.",
+        "incomplete_product_schema": f"I audited {domain}'s product pages and the schema is incomplete — AI shopping agents can't verify your live inventory or pricing, leading to abandoned machine-checkouts.",
+        "redirect_shell_detected": f"I noticed {domain} redirects core merchandising pages to external checkout shells without schema, which blinds AI agents before they can even see your catalog.",
+        "csr_schema_leak": f"{domain} is hiding its product schema behind Client-Side Rendering. Lightweight AI shopping agents that don't execute JavaScript see 0% of your catalog data.",
+        "crawlability_unmeasured": f"{domain}'s aggressive WAF is blocking AI discovery files (like llms.txt and agents.md), which prevents next-gen shopping agents from understanding your catalog policies.",
+        "agentic_commerce_partial": f"{domain} has the UCP discovery file, but the MCP handshake for catalog and cart tools is failing — AI agents can find you but can't transact."
+    }
+    
+    return hooks.get(code, f"I audited {domain} for AI-search visibility and noticed: {issue['description']}")
 
 
 def draft_geo_email(geo_findings: dict, report_url: str = "") -> dict:
     domain = geo_findings["domain"]
-    issue = top_issue(geo_findings)  # reuses the same severity/confidence sort
+    issue = top_issue(geo_findings)
 
     if not issue:
         return {"domain": domain, "subject": None, "body": None,
@@ -86,7 +82,8 @@ def draft_geo_email(geo_findings: dict, report_url: str = "") -> dict:
         f"{_geo_hook(geo_findings, issue)}\n\n"
         f"As more shoppers ask ChatGPT/Perplexity/Google AI Overviews for "
         f"recommendations instead of googling, this directly affects discovery. "
-        f"I put together a short breakdown of what's missing and the exact fix.\n\n"
+        f"I put together a short breakdown of what's missing, and I've even included "
+        f"the exact JSON-LD code snippet your developer needs to paste in to fix it.\n\n"
         f"Mind if I send the link over?\n\n"
         f"{YOUR_NAME or '[Your name]'}"
         f"{' — ' + YOUR_COMPANY if YOUR_COMPANY else ''}\n"

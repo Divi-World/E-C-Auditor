@@ -9,7 +9,7 @@ def generate_geo_report(geo_findings: dict) -> str:
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
     template = env.get_template("geo_report.html")
     from revenue_leak_engine.audit.geo_audit import geo_opportunity_score
-    
+
     issues = sorted(geo_findings.get("issues", []),
                     key=lambda i: {"high": 0, "medium": 1, "low": 2}.get(i.get("severity"), 3))
 
@@ -17,6 +17,11 @@ def generate_geo_report(geo_findings: dict) -> str:
         domain=geo_findings["domain"],
         score=geo_opportunity_score(geo_findings),
         dimensions=geo_findings.get("dimensions", {}),
+        dimensions_measured=geo_findings.get("dimensions_measured", {}),
+        platform_detected=geo_findings.get("platform_detected", "unknown"),
+        score_confidence=geo_findings.get("score_confidence", "partial"),
+        crawlability_matrix=geo_findings.get("crawlability_matrix", {}),
+        agentic_capabilities=geo_findings.get("agentic_capabilities", {}),
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         issues=issues,
         notes=geo_findings.get("notes", ""),
