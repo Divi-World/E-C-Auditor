@@ -221,10 +221,13 @@ def _check_crawlability(domain, findings):
     for name, url in resources.items():
         st, text, final_url, ct = _fetch(url, name, findings)
 
-        if st == 200 and _looks_blocked(text):
-            results[name] = "BLOCKED"
+        is_blocked = (st == 200 and _looks_blocked(text)) or st == 403
+        if is_blocked:
+            results[name] = "BLOCKED" if st == 200 else 403
             blocked_resources.append(name)
-            findings["notes"] += f"{name}: bot-challenge page returned, treated as unreadable. "
+            findings["notes"] += f"{name}: WAF/bot-challenge (status {st}), treated as unreadable. "
+            if name in ["llms.txt", "agents.md", "robots.txt"]:
+                score -= 1.0
             continue
 
         results[name] = st
@@ -632,11 +635,11 @@ def _check_agentic_commerce(domain, findings):
     if capabilities["UCP"] == "PASS" and (capabilities["Catalog"] == "FAIL" or capabilities["Cart/Checkout"] == "FAIL"):
         findings["issues"].append({
             "code": "agentic_commerce_partial",
-            "description": "UCP is active but the catalog/cart handshake fails.",
+            "description": "UCP discovery file exists, but the MCP tool handshake for Catalog/Cart failed.",
             "evidence": f"Capabilities: {capabilities}",
             "affected_urls": [f"https://{domain}/.well-known/ucp"],
             "severity": "medium", "confidence": "high",
-            "business_impact": "AI shopping agents can discover the store but cannot actually browse or transact.",
+            "business_impact": "AI shopping agents can discover the store via UCP but cannot execute MCP tool calls to browse or transact.",
             "difficulty": "Medium",
             "fix": "Check product feed completeness and MCP endpoint health."
         })
@@ -644,6 +647,7 @@ def _check_agentic_commerce(domain, findings):
 def audit_geo(domain: str) -> dict:
     findings = {
         "domain": domain,
+        "platform_detected": "unknown",
         "issues": [],
         "notes": "",
         "business_interpretation": [],
@@ -687,24 +691,36 @@ def audit_geo(domain: str) -> dict:
 
     dims = findings["dimensions"]
     measured = findings["dimensions_measured"]
+    
+    # Fix 1: No perfect score for unknown data
+    for k in WEIGHTS:
+        if not measured.get(k, True):
+            dims[k] = None
+
     active_weights = {k: WEIGHTS[k] for k in WEIGHTS if measured.get(k, True)}
     weight_total = sum(active_weights.values())
+    total_possible_weight = sum(WEIGHTS.values())
 
     if weight_total == 0:
         overall = 0.0
     else:
-        overall = sum(dims[k] * active_weights[k] for k in active_weights) / weight_total
+        # Calculate score based only on measured dimensions
+        measured_score = sum(dims[k] * active_weights[k] for k in active_weights) / weight_total
+        
+        # Fix 2: Penalize overall score if significant dimensions are unmeasured
+        confidence_ratio = weight_total / total_possible_weight
+        overall = measured_score * confidence_ratio
 
     findings["overall_geo_score"] = round(overall, 1)
     findings["score_confidence"] = (
         "full" if weight_total == sum(WEIGHTS.values()) else "partial"
     )
 
-    if dims["entity_intelligence"] < 8:
+    if dims.get("entity_intelligence") is not None and dims["entity_intelligence"] < 8:
         findings["business_interpretation"].append("The site lacks consistent, machine-readable brand identity mapping, which may introduce retrieval dependencies for AI engines.")
-    if dims["product_intelligence"] < 8 and measured.get("product_intelligence", False):
+    if dims.get("product_intelligence") is not None and dims["product_intelligence"] < 8:
         findings["business_interpretation"].append("Incomplete product data structures may prevent autonomous agents from verifying inventory and executing transactions.")
-    if dims["agentic_commerce"] < 10:
+    if dims.get("agentic_commerce") is not None and dims["agentic_commerce"] < 10:
         findings["business_interpretation"].append("The infrastructure does not fully support standardized agentic commerce protocols, limiting compatibility with next-generation shopping agents.")
 
     return findings
