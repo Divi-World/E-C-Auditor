@@ -169,7 +169,10 @@ def _is_policy_link(url: str) -> bool:
 def _sample_urls(domain, findings):
     urls = {"homepage": f"https://{domain}/"}
     # Try default sitemap first
+    # Try main sitemap, then enterprise index sitemaps
     status, xml, final_url, _ = _fetch_with_retry(f"https://{domain}/sitemap.xml", "sitemap", findings, retries=1)
+    if status in [404, None]:
+        status, xml, final_url, _ = _fetch_with_retry(f"https://{domain}/sitemap_index.xml", "sitemap_index", findings, retries=0)
     
     # WAF BYPASS: If default sitemap is blocked (403/429) or missing (404), check robots.txt for alternate sitemaps
     if status in [403, 404, 429, None]:
