@@ -72,6 +72,22 @@ def _looks_blocked(text):
     if "captcha" in lower_text: return True
     return False
 
+def _is_soft_404(text, ct):
+    if not text: return True
+    try:
+        # Bulletproof extraction: handles strings, dicts, and curl_cffi Headers objects
+        if hasattr(ct, 'get'):
+            ct_str = str(ct.get('content-type', '') or ct.get('Content-Type', ''))
+        else:
+            ct_str = str(ct or "")
+        if "text/html" in ct_str.lower(): return True
+    except Exception:
+        pass
+        
+    lower_text = text[:500].lower()
+    if "<!doctype html" in lower_text or "<html" in lower_text: return True
+    return False
+
 def _extract_json_ld(html):
     soup = BeautifulSoup(html, 'html.parser')
     parsed = []
@@ -272,7 +288,7 @@ def _check_crawlability(domain, findings):
                         "fix": "Remove blanket Disallow rules for AI user-agents in robots.txt."
                     })
         else:
-            if name in ["llms.txt", "agents.md"]:
+            if name in ["llms.txt", "agents.md", "robots.txt"]:
                 score -= 1.0
 
     if len(blocked_resources) == len(resources):
@@ -313,6 +329,8 @@ def _check_answerability(domain, sample_urls, findings):
     weak_policies = []
 
     for url in policy_urls[:4]:
+        if url.rstrip('/') == sample_urls["homepage"].rstrip('/'):
+            continue
         st, text, final_url, _ = _fetch(url, "policy", findings)
         if st == 200:
             soup = BeautifulSoup(text, 'html.parser')
@@ -575,8 +593,8 @@ def _check_agentic_commerce(domain, findings):
     capabilities = {"Discovery": "FAIL", "UCP": "FAIL", "MCP": "FAIL", "Catalog": "FAIL", "Cart/Checkout": "FAIL"}
     score = 0.0
 
-    st_ucp, ucp_body, final_url, _ = _fetch(f"https://{domain}/.well-known/ucp", "ucp", findings)
-    if st_ucp == 200:
+    st_ucp, ucp_body, final_url, ct_ucp = _fetch(f"https://{domain}/.well-known/ucp", "ucp", findings)
+    if st_ucp == 200 and not _is_soft_404(ucp_body, ct_ucp):
         capabilities["Discovery"] = "PASS"
         capabilities["UCP"] = "PASS"
         score += 4.0
