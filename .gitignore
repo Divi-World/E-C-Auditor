@@ -1,0 +1,56 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# generated data — keep the folders (.gitkeep) but not their contents
+data/leads/*.csv
+data/reports/*.html
+data/screenshots/*.png
+data/logs/*.csv
+!data/**/.gitkeep
+
+# playwright
+.playwright-cache/
+
+# Virtual environment
+.venv/
+
+# Logs
+*.log
+logs/
+
+# Data directories (raw data, backups, prospects)
+data/
+APIs-App/data/
+APIs-App/data/Prospects_Backup/
+
+# Backup files
+*.bak
+*-backup.md
+*.backup
+
+# OS junk
+.DS_Store
+Thumbs.db
+# Seed CSVs (contain domain data)
+*.csv
+test_seed*.csv
+
+# APIs-App (not wanted in public repo)
+APIs-App/
+
+# Backup / temporary files
+*.bak
+*-backup.md
+*-Backup
+*.log
+
+# Data directories (if you don't want them tracked)
+data/

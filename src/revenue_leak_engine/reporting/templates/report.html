@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Revenue Leak Audit — {{ domain }}</title>
+<style>
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; max-width: 720px;
+         margin: 40px auto; padding: 0 16px; color: #1a1a1a; line-height: 1.5; }
+  h1 { font-size: 22px; margin-bottom: 0; }
+  .subtitle { color: #666; margin-top: 4px; margin-bottom: 24px; }
+  .meta { color: #888; font-size: 13px; margin-bottom: 24px; }
+  .shot { max-width: 280px; border: 1px solid #ddd; border-radius: 6px; margin: 4px 8px 4px 0; }
+  .issue { border-left: 4px solid #ddd; padding: 12px 16px; margin-bottom: 16px; background: #fafafa; }
+  .issue.high { border-color: #d64545; }
+  .issue.medium { border-color: #d69e45; }
+  .issue.low { border-color: #45a1d6; }
+  .tag { text-transform: uppercase; font-size: 11px; font-weight: 600;
+         letter-spacing: 0.5px; color: #888; margin-right: 10px; }
+  .fix { margin-top: 8px; font-size: 14px; }
+  .notes { font-size: 13px; color: #666; background: #f2f6f2; padding: 10px 14px;
+           border-radius: 6px; margin-bottom: 20px; }
+  .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee;
+            font-size: 13px; color: #888; }
+  .no-issues { color: #2a7a2a; }
+</style>
+</head>
+<body>
+
+<h1>Revenue Leak Audit</h1>
+<div class="subtitle">{{ domain }} — mobile conversion, speed, tracking &amp; trust review</div>
+<div class="meta">
+  Product page audited: {{ product_url }}<br>
+  Mobile load time: {{ load_time_ms }}ms<br>
+  Opportunity score: {{ score }}/10<br>
+  Generated: {{ generated_at }}
+</div>
+
+{% if popup_b64 or screenshot_b64 %}
+<div>
+  {% if popup_b64 %}<img class="shot" src="{{ popup_b64 }}" alt="Overlay on load"><br>{% endif %}
+  {% if screenshot_b64 %}<img class="shot" src="{{ screenshot_b64 }}" alt="Mobile product page">{% endif %}
+</div>
+{% endif %}
+
+{% if notes %}<div class="notes"><strong>Audit notes:</strong> {{ notes }}</div>{% endif %}
+
+{% if issues %}
+  {% for issue in issues %}
+  <div class="issue {{ issue.severity }}">
+    <span class="tag">{{ issue.severity }} priority</span>
+    <span class="tag">{{ issue.confidence|default('high') }} confidence</span>
+    <div><strong>{{ issue.description }}</strong></div>
+    <div class="fix"><strong>Evidence:</strong> {{ issue.evidence }}</div>
+    <div class="fix"><strong>Recommended fix:</strong> {{ issue.fix|default('Manual review recommended.') }}</div>
+  </div>
+  {% endfor %}
+{% else %}
+  <p class="no-issues">No major issues detected in this automated pass — this
+  site would need a manual deep-dive review before any outreach.</p>
+{% endif %}
+
+<div class="footer">
+  This audit reflects an automated pass reviewed by a human before sending.
+  We don't guarantee revenue outcomes — this is a prioritized starting point,
+  not a diagnosis.
+  {% if your_name %}<br><br>{{ your_name }}{% if your_company %} — {{ your_company }}{% endif %}{% endif %}
+</div>
+
+</body>
+</html>
