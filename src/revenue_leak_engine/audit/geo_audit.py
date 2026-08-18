@@ -109,16 +109,18 @@ def _extract_links(html, base_url):
 
 def _detect_platform(html, headers):
     headers = headers or {}
-    if "cdn.shopify.com" in html or headers.get("x-shopify-stage"):
+    html_lower = (html or "").lower()
+    headers_str = str(headers).lower()
+    
+    if any(sig in html_lower or sig in headers_str for sig in ["cdn.shopify.com", "shopify.com", "myshopify.com", "x-shopid", "shopify-section", "shopify.pay"]):
         return "shopify"
-    if "/wp-content/" in html or "/wp-json/" in html:
+    if any(sig in html_lower for sig in ["/wp-content/", "/wp-json/", "woocommerce", "wp-emoji-release"]):
         return "woocommerce"
-    if headers.get("x-powered-by", "").lower().startswith("next.js") or "__next" in html:
+    if "bigcommerce.com" in html_lower or "cdn11.bigcommerce.com" in html_lower:
+        return "bigcommerce"
+    if "next" in headers_str or "__next" in html_lower or "nextjs" in html_lower:
         return "custom_headless"
-    for k, v in headers.items():
-        if 'shopify' in str(v).lower() or k.lower() == 'x-shopid': return 'shopify'
-    if 'myshopify.com' in html or 'shopify.com' in html: return 'shopify'
-    if 'wp-content' in html or 'woocommerce' in html or 'wp-json' in html: return 'woocommerce'
+        
     return 'unknown'
 
 def _generate_snippet(code_type, domain, sample_name=""):
@@ -556,26 +558,42 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 if has_review: p_score += 10
                 product_scores.append(min(100, p_score))
 
-        avg_prod_score = sum(product_scores) / len(product_scores)
-        findings["dimensions"]["product_intelligence"] = avg_prod_score / 10.0
-        findings["dimensions_measured"]["product_intelligence"] = True
+        # OG FIX: Prevent ZeroDivisionError if all product pages are blocked/redirected
+        if product_scores:
+            avg_prod_score = sum(product_scores) / len(product_scores)
+            findings["dimensions"]["product_intelligence"] = avg_prod_score / 10.0
+            findings["dimensions_measured"]["product_intelligence"] = True
 
-        if avg_prod_score < 80:
-            sample_name = ""
-            if product_scores and product_scores[0] > 0: sample_name = "Sample Product"
+            if avg_prod_score < 80:
+                sample_name = ""
+                if product_scores and product_scores[0] > 0: sample_name = "Sample Product"
+                issues.append({
+                    "code": "incomplete_product_schema",
+                    "description": f"Product schema is {avg_prod_score:.0f}% complete across sampled PDPs.",
+                    "evidence": f"Sampled {len(products)} products. Missing critical attributes like price, availability, variants, or identifiers.",
+                    "affected_urls": products,
+                    "severity": "high", "confidence": "high",
+                    "business_impact": "Automated shopping agents cannot verify stock, cost, or specific SKUs, leading to abandoned machine-checkouts.",
+                    "difficulty": "Medium",
+                    "fix": "Map inventory, pricing, variants, and SKUs to the Product schema properties.",
+                    "fix_snippet": _generate_snippet("product", domain, sample_name)
+                })
+        else:
+            findings["dimensions_measured"]["product_intelligence"] = False
+            findings["dimensions"]["product_intelligence"] = None
             issues.append({
-                "code": "incomplete_product_schema",
-                "description": f"Product schema is {avg_prod_score:.0f}% complete across sampled PDPs.",
-                "evidence": f"Sampled {len(products)} products. Missing critical attributes like price, availability, variants, or identifiers.",
+                "code": "product_intelligence_unmeasured",
+                "description": "Product pages were found but could not be crawled or returned no schema.",
+                "evidence": f"Sampled {len(products)} products, but 0 returned valid schema data.",
                 "affected_urls": products,
-                "severity": "high", "confidence": "high",
-                "business_impact": "Automated shopping agents cannot verify stock, cost, or specific SKUs, leading to abandoned machine-checkouts.",
-                "difficulty": "Medium",
-                "fix": "Map inventory, pricing, variants, and SKUs to the Product schema properties.",
-                "fix_snippet": _generate_snippet("product", domain, sample_name)
+                "severity": "medium", "confidence": "low",
+                "business_impact": "Product schema quality is unknown.",
+                "difficulty": "N/A",
+                "fix": "Re-run the audit, or manually verify Product schema."
             })
     else:
         findings["dimensions_measured"]["product_intelligence"] = False
+        findings["dimensions"]["product_intelligence"] = None
         issues.append({
             "code": "product_intelligence_unmeasured",
             "description": "No product pages could be sampled.",
@@ -708,6 +726,26 @@ def audit_geo(domain: str) -> dict:
         return findings
 
     sample_urls = _sample_urls(domain, findings)
+
+    # OG ROBUST PLATFORM DETECTION (Fallback chain)
+    platform = findings.get("platform_detected", "unknown")
+    if platform == 'unknown':
+        st, html, _, hdrs = _fetch(f"https://{domain}/", "plat_hp", findings)
+        if st == 200 and html: platform = _detect_platform(html, hdrs)
+        
+    if platform == 'unknown':
+        st, html, _, hdrs = _fetch(f"https://www.{domain}/", "plat_www", findings)
+        if st == 200 and html: platform = _detect_platform(html, hdrs)
+        
+    if platform == 'unknown' and sample_urls.get("products"):
+        st, html, _, hdrs = _fetch(sample_urls["products"][0], "plat_prod", findings)
+        if st == 200 and html: platform = _detect_platform(html, hdrs)
+        
+    if platform == 'unknown' and sample_urls.get("collection"):
+        st, html, _, hdrs = _fetch(sample_urls["collection"], "plat_coll", findings)
+        if st == 200 and html: platform = _detect_platform(html, hdrs)
+        
+    findings["platform_detected"] = platform
 
     _check_crawlability(domain, findings)
     _check_answerability(domain, sample_urls, findings)
