@@ -3,7 +3,7 @@ import json
 import xml.etree.ElementTree as ET
 import requests as std_requests
 from urllib.parse import urlparse, urljoin
-from collections import defaultdict
+from bs4 import BeautifulSoup
 
 try:
     from curl_cffi import requests as cffi_requests
@@ -12,7 +12,7 @@ except ImportError:
     USE_STEALTH = False
 
 TIMEOUT = 10
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; RevenueLeakEngine/6.2-Agnostic)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; RevenueLeakEngine/7.0-Enterprise)"}
 
 WEIGHTS = {
     "crawlability": 0.20,
@@ -20,6 +20,12 @@ WEIGHTS = {
     "product_intelligence": 0.30,
     "answerability": 0.15,
     "agentic_commerce": 0.10
+}
+
+PLATFORM_PATTERNS = {
+    "shopify": {"product": "/products/", "collection": "/collections/", "exclude": "/collections/"},
+    "woocommerce": {"product": "/product/", "collection": "/product-category/", "exclude": "/product-category/"},
+    "unknown": {"product": "/product", "collection": "/category", "exclude": "/category"}
 }
 
 def _ensure_primary_domain(url_str, primary_domain):
@@ -37,10 +43,10 @@ def _fetch(url, notes_key, findings):
             r = cffi_requests.get(url, timeout=TIMEOUT, impersonate="chrome120", allow_redirects=True)
         else:
             r = std_requests.get(url, timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
-        return r.status_code, r.text, str(r.url), r.headers.get('content-type', '')
+        return r.status_code, r.text, str(r.url), r.headers
     except Exception as e:
         findings["notes"] += f"{notes_key}: {type(e).__name__}. "
-        return None, "", "", ""
+        return None, "", "", {}
 
 def _fetch_with_retry(url, notes_key, findings, retries=1, base_timeout=TIMEOUT):
     timeouts = [base_timeout, base_timeout + 10]
@@ -50,31 +56,62 @@ def _fetch_with_retry(url, notes_key, findings, retries=1, base_timeout=TIMEOUT)
                 r = cffi_requests.get(url, timeout=tout, impersonate="chrome120", allow_redirects=True)
             else:
                 r = std_requests.get(url, timeout=tout, headers=HEADERS, allow_redirects=True)
-            return r.status_code, r.text, str(r.url), r.headers.get('content-type', '')
+            return r.status_code, r.text, str(r.url), r.headers
         except Exception as e:
             findings["notes"] += f"{notes_key} attempt {idx+1} ({tout}s): {type(e).__name__}. "
             if idx == retries:
-                return None, "", "", ""
-    return None, "", "", ""
+                return None, "", "", {}
+    return None, "", "", {}
 
 def _extract_json_ld(html):
-    blocks = re.findall(r'<script[^>]*type=["\x27]application/ld\+json["\x27][^>]*>(.*?)</script>', html, re.DOTALL | re.I)
+    soup = BeautifulSoup(html, 'html.parser')
     parsed = []
-    for block in blocks:
-        block = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', block, flags=re.DOTALL)
-        try:
-            parsed.append(json.loads(block))
-        except:
-            continue
+    for script in soup.find_all('script', type='application/ld+json'):
+        if script.string:
+            text = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', script.string, flags=re.DOTALL).strip()
+            try:
+                parsed.append(json.loads(text))
+            except json.JSONDecodeError:
+                continue
     return parsed
 
 def _extract_links(html, base_url):
-    hrefs = re.findall(r'href=["\x27]([^"\x27]+)["\x27]', html, re.I)
-    return [urljoin(base_url, h) for h in hrefs]
+    soup = BeautifulSoup(html, 'html.parser')
+    links = []
+    for a in soup.find_all('a', href=True):
+        links.append(urljoin(base_url, a['href']))
+    return links
+
+def _detect_platform(html, headers):
+    headers = headers or {}
+    for k, v in headers.items():
+        if 'shopify' in str(v).lower() or k.lower() == 'x-shopid': return 'shopify'
+    if 'myshopify.com' in html or 'shopify.com' in html: return 'shopify'
+    if 'wp-content' in html or 'woocommerce' in html or 'wp-json' in html: return 'woocommerce'
+    return 'unknown'
+
+def _generate_snippet(code_type, domain, sample_name=""):
+    if code_type == "organization":
+        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "name": "REPLACE_WITH_BRAND_NAME",\n  "url": "https://' + domain + '",\n  "logo": "REPLACE_WITH_LOGO_URL",\n  "sameAs": [ "REPLACE_WITH_SOCIAL_URLS" ]\n}\n</script>'
+    elif code_type == "faq":
+        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "FAQPage",\n  "mainEntity": [{\n    "@type": "Question",\n    "name": "REPLACE_WITH_QUESTION",\n    "acceptedAnswer": {\n      "@type": "Answer",\n      "text": "REPLACE_WITH_ANSWER"\n    }\n  }]\n}\n</script>'
+    elif code_type == "breadcrumb":
+        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "BreadcrumbList",\n  "itemListElement": [{\n    "@type": "ListItem",\n    "position": 1,\n    "name": "Home",\n    "item": "https://' + domain + '"\n  }]\n}\n</script>'
+    elif code_type == "product":
+        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name or 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "REPLACE_WITH_SKU",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "REPLACE_WITH_PRICE",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
+    return ""
 
 def _sample_urls(domain, findings):
     urls = {"homepage": f"https://{domain}/"}
     status, xml, _, _ = _fetch_with_retry(f"https://{domain}/sitemap.xml", "sitemap", findings, retries=1)
+    
+    st_hp, html_hp, _, hp_headers = _fetch(urls["homepage"], "homepage_platform", findings)
+    platform = 'unknown'
+    if st_hp == 200:
+        platform = _detect_platform(html_hp, hp_headers)
+        
+    patterns = PLATFORM_PATTERNS.get(platform, PLATFORM_PATTERNS["unknown"])
+    findings["platform_detected"] = platform
 
     products, collections, policies = [], [], []
 
@@ -86,9 +123,9 @@ def _sample_urls(domain, findings):
                 locs = [loc.text for loc in root.findall('.//loc') if loc.text]
                 for loc in locs:
                     loc = _ensure_primary_domain(loc, domain)
-                    if "/products/" in loc and "/collections/" not in loc:
+                    if patterns['product'] in loc and patterns['exclude'] not in loc:
                         products.append(loc)
-                    elif "/collections/" in loc and not loc.endswith("/collections"):
+                    elif patterns['collection'] in loc and not loc.endswith(patterns['collection']):
                         collections.append(loc)
                     elif any(p in loc.lower() for p in ["/policies/", "/pages/shipping", "/pages/returns", "/pages/faq", "/pages/contact"]):
                         policies.append(loc)
@@ -101,7 +138,7 @@ def _sample_urls(domain, findings):
                 child_locs = [loc.text for loc in root.findall('.//loc') if loc.text]
                 chosen = None
                 for loc in child_locs:
-                    if "products" in loc.lower():
+                    if patterns['product'] in loc.lower():
                         chosen = loc
                         break
                 if chosen is None and child_locs:
@@ -114,26 +151,24 @@ def _sample_urls(domain, findings):
                         locs = [loc.text for loc in root2.findall('.//loc') if loc.text]
                         for loc in locs:
                             loc = _ensure_primary_domain(loc, domain)
-                            if "/products/" in loc and "/collections/" not in loc:
+                            if patterns['product'] in loc and patterns['exclude'] not in loc:
                                 products.append(loc)
-                            elif "/collections/" in loc and not loc.endswith("/collections"):
+                            elif patterns['collection'] in loc and not loc.endswith(patterns['collection']):
                                 collections.append(loc)
                             elif any(p in loc.lower() for p in ["/policies/", "/pages/shipping", "/pages/returns", "/pages/faq", "/pages/contact"]):
                                 policies.append(loc)
             except Exception:
                 findings["notes"] += "sitemapindex parse error. "
 
-    if len(policies) < 2:
-        st, html, homepage_url, _ = _fetch(urls["homepage"], "homepage_links", findings)
-        if st == 200:
-            links = _extract_links(html, homepage_url)
-            for link in links:
-                link = _ensure_primary_domain(link, domain)
-                if any(p in link.lower() for p in ["shipping", "return", "refund", "faq", "contact"]):
-                    if link not in policies:
-                        policies.append(link)
-                        if len(policies) >= 4:
-                            break
+    if len(policies) < 2 and st_hp == 200:
+        links = _extract_links(html_hp, urls["homepage"])
+        for link in links:
+            link = _ensure_primary_domain(link, domain)
+            if any(p in link.lower() for p in ["shipping", "return", "refund", "faq", "contact"]):
+                if link not in policies:
+                    policies.append(link)
+                    if len(policies) >= 4:
+                        break
 
     urls["products"] = products[:3]
     if collections:
@@ -151,14 +186,13 @@ def _check_crawlability(domain, findings):
         "llms-full.txt": f"https://{domain}/llms-full.txt",
         "agents.md": f"https://{domain}/agents.md"
     }
-
     results = {}
 
     for name, url in resources.items():
         st, text, final_url, ct = _fetch(url, name, findings)
         results[name] = st
 
-        if st == 200 and ("text" in ct or "markdown" in ct or name == "robots.txt"):
+        if st == 200 and ("text" in str(ct) or "markdown" in str(ct) or name == "robots.txt"):
             if name == "llms.txt":
                 parsed_final = urlparse(final_url or "")
                 if parsed_final.netloc.lower() != domain and "checkout" in parsed_final.netloc.lower():
@@ -227,7 +261,8 @@ def _check_answerability(domain, sample_urls, findings):
     for url in policy_urls[:4]:
         st, text, final_url, _ = _fetch(url, "policy", findings)
         if st == 200:
-            clean_text = re.sub(r'<[^>]+>', ' ', text)
+            soup = BeautifulSoup(text, 'html.parser')
+            clean_text = soup.get_text(separator=' ', strip=True)
             word_count = len(clean_text.split())
             if word_count > 100:
                 found_policies.append(final_url)
@@ -260,8 +295,11 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
 
     all_nodes = []
     entity_pages_found = 0
+    faq_pages_found = 0
+    breadcrumb_pages_found = 0
     total_pages_crawled = 0
-    pages_with_zero_schema = 0
+    csr_pages = 0
+    redirect_shell_pages = 0
 
     urls_to_crawl = [sample_urls["homepage"]]
     if "collection" in sample_urls:
@@ -275,8 +313,15 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             nodes = _extract_json_ld(html)
             all_nodes.extend(nodes)
 
+            is_redirect_shell = False
+            if final_url and urlparse(final_url).netloc != domain:
+                is_redirect_shell = True
+
             if len(nodes) == 0:
-                pages_with_zero_schema += 1
+                if is_redirect_shell:
+                    redirect_shell_pages += 1
+                else:
+                    csr_pages += 1
 
             has_entity = False
             for node in nodes:
@@ -286,21 +331,35 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                         t = " ".join(t)
                     if any(x in t for x in ["Organization", "Corporation", "Brand", "WebSite"]):
                         has_entity = True
-                        break
+                    if "FAQPage" in t: faq_pages_found += 1
+                    if "BreadcrumbList" in t: breadcrumb_pages_found += 1
             if has_entity:
                 entity_pages_found += 1
 
-    if total_pages_crawled > 0 and (pages_with_zero_schema / total_pages_crawled) > 0.5:
-        issues.append({
-            "code": "csr_schema_leak",
-            "description": "Client-Side Rendering (CSR) is preventing raw HTML schema extraction.",
-            "evidence": f"{pages_with_zero_schema}/{total_pages_crawled} sampled pages return 0 JSON-LD blocks in raw HTML.",
-            "affected_urls": urls_to_crawl,
-            "severity": "high", "confidence": "high",
-            "business_impact": "Lightweight AI shopping agents that do not execute JavaScript will see 0% entity and product data, leading to abandoned machine-checkouts.",
-            "difficulty": "Hard",
-            "fix": "Implement Server-Side Rendering (SSR) or Static Site Generation (SSG) for core pages to ensure JSON-LD is present in the initial HTTP response."
-        })
+    if total_pages_crawled > 0:
+        if (redirect_shell_pages / total_pages_crawled) > 0.5:
+            issues.append({
+                "code": "redirect_shell_detected",
+                "description": "Core pages redirect to external shells (e.g., checkout subdomains) with no schema.",
+                "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
+                "affected_urls": urls_to_crawl,
+                "severity": "high", "confidence": "high",
+                "business_impact": "AI agents are routed to payment/external domains and blocked before seeing catalog data.",
+                "difficulty": "Medium",
+                "fix": "Ensure core merchandising URLs resolve on the primary domain without redirecting to checkout/external shells."
+            })
+        elif (csr_pages / total_pages_crawled) > 0.5:
+            issues.append({
+                "code": "csr_schema_leak",
+                "description": "Client-Side Rendering (CSR) is preventing raw HTML schema extraction.",
+                "evidence": f"{csr_pages}/{total_pages_crawled} sampled pages return 0 JSON-LD blocks in raw HTML.",
+                "affected_urls": urls_to_crawl,
+                "severity": "high", "confidence": "high",
+                "business_impact": "Lightweight AI shopping agents that do not execute JavaScript will see 0% entity and product data.",
+                "difficulty": "Hard",
+                "fix": "Implement Server-Side Rendering (SSR) or Static Site Generation (SSG) for core pages.",
+                "fix_snippet": _generate_snippet("organization", domain)
+            })
 
     if total_pages_crawled > 0 and (entity_pages_found / total_pages_crawled) < 0.5:
         entity_score -= 3.0
@@ -312,7 +371,8 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "severity": "medium", "confidence": "high",
             "business_impact": "Inconsistent entity mapping makes automated brand reconciliation difficult across the site.",
             "difficulty": "Medium",
-            "fix": "Inject global Organization/Brand structured data into the site's master layout template."
+            "fix": "Inject global Organization/Brand structured data into the site's master layout template.",
+            "fix_snippet": _generate_snippet("organization", domain)
         })
 
     flat_nodes = []
@@ -343,7 +403,8 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "severity": "high", "confidence": "high",
             "business_impact": "Reduces explicit machine-readable entity clarity for automated systems.",
             "difficulty": "Easy",
-            "fix": "Add appropriate Organization/Brand structured data to the site's global template."
+            "fix": "Add appropriate Organization/Brand structured data to the site's global template.",
+            "fix_snippet": _generate_snippet("organization", domain)
         })
     elif not has_same_as:
         entity_score -= 2.0
@@ -359,6 +420,32 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         })
 
     findings["dimensions"]["entity_intelligence"] = max(0, entity_score)
+
+    if total_pages_crawled > 0 and faq_pages_found == 0:
+        issues.append({
+            "code": "missing_faq_schema",
+            "description": "No FAQPage schema detected. This reduces direct-citation likelihood in AI answers.",
+            "evidence": "0 FAQPage nodes found across sampled pages.",
+            "affected_urls": urls_to_crawl,
+            "severity": "medium", "confidence": "high",
+            "business_impact": "Reduces the probability of the brand's content being cited directly in AI-generated answers.",
+            "difficulty": "Easy",
+            "fix": "Wrap existing Q&A content in FAQPage schema.",
+            "fix_snippet": _generate_snippet("faq", domain)
+        })
+
+    if total_pages_crawled > 0 and breadcrumb_pages_found == 0:
+        issues.append({
+            "code": "missing_breadcrumb_schema",
+            "description": "No BreadcrumbList schema detected.",
+            "evidence": "0 BreadcrumbList nodes found across sampled pages.",
+            "affected_urls": urls_to_crawl,
+            "severity": "low", "confidence": "high",
+            "business_impact": "AI systems lack explicit hierarchical context for page categorization.",
+            "difficulty": "Easy",
+            "fix": "Add BreadcrumbList schema to page templates.",
+            "fix_snippet": _generate_snippet("breadcrumb", domain)
+        })
 
     products = sample_urls.get("products", [])
     if products:
@@ -402,6 +489,8 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         findings["dimensions_measured"]["product_intelligence"] = True
 
         if avg_prod_score < 80:
+            sample_name = ""
+            if product_scores and product_scores[0] > 0: sample_name = "Sample Product"
             issues.append({
                 "code": "incomplete_product_schema",
                 "description": f"Product schema is {avg_prod_score:.0f}% complete across sampled PDPs.",
@@ -410,13 +499,14 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "severity": "high", "confidence": "high",
                 "business_impact": "Automated shopping agents cannot verify stock, cost, or specific SKUs, leading to abandoned machine-checkouts.",
                 "difficulty": "Medium",
-                "fix": "Map inventory, pricing, variants, and SKUs to the Product schema properties."
+                "fix": "Map inventory, pricing, variants, and SKUs to the Product schema properties.",
+                "fix_snippet": _generate_snippet("product", domain, sample_name)
             })
     else:
         findings["dimensions_measured"]["product_intelligence"] = False
         issues.append({
             "code": "product_intelligence_unmeasured",
-            "description": "No product pages could be sampled - sitemap failed or returned no product URLs.",
+            "description": "No product pages could be sampled.",
             "evidence": findings["notes"],
             "affected_urls": [],
             "severity": "medium", "confidence": "low",
@@ -498,7 +588,7 @@ def _check_agentic_commerce(domain, findings):
             "severity": "medium", "confidence": "high",
             "business_impact": "AI shopping agents can discover the store but cannot actually browse or transact.",
             "difficulty": "Medium",
-            "fix": "Check product feed completeness and MCP endpoint health via your platform's Agentic Storefronts settings."
+            "fix": "Check product feed completeness and MCP endpoint health."
         })
 
 def audit_geo(domain: str) -> dict:
