@@ -63,6 +63,15 @@ def _fetch_with_retry(url, notes_key, findings, retries=1, base_timeout=TIMEOUT)
                 return None, "", "", {}
     return None, "", "", {}
 
+def _looks_blocked(text):
+    if not text: return False
+    lower_text = text.lower()
+    if "just a moment..." in lower_text: return True
+    if "window._cf_chl_opt" in lower_text: return True
+    if "cloudflare" in lower_text and "challenge" in lower_text: return True
+    if "captcha" in lower_text: return True
+    return False
+
 def _extract_json_ld(html):
     soup = BeautifulSoup(html, 'html.parser')
     parsed = []
@@ -84,6 +93,12 @@ def _extract_links(html, base_url):
 
 def _detect_platform(html, headers):
     headers = headers or {}
+    if "cdn.shopify.com" in html or headers.get("x-shopify-stage"):
+        return "shopify"
+    if "/wp-content/" in html or "/wp-json/" in html:
+        return "woocommerce"
+    if headers.get("x-powered-by", "").lower().startswith("next.js") or "__next" in html:
+        return "custom_headless"
     for k, v in headers.items():
         if 'shopify' in str(v).lower() or k.lower() == 'x-shopid': return 'shopify'
     if 'myshopify.com' in html or 'shopify.com' in html: return 'shopify'
@@ -101,79 +116,93 @@ def _generate_snippet(code_type, domain, sample_name=""):
         return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name or 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "REPLACE_WITH_SKU",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "REPLACE_WITH_PRICE",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
     return ""
 
+
+def _check_domain_reachable(domain: str, findings: dict) -> bool:
+    st, _, _, _ = _fetch(f"https://{domain}/", "reachability_check", findings)
+    if st is None:
+        findings["notes"] += "Domain unreachable (DNS/connection failure) - audit aborted. "
+        return False
+    return True
+
+def _is_policy_link(url: str) -> bool:
+    path = urlparse(url).path.lower()
+    return any(p in path for p in ["/shipping", "/return", "/refund", "/faq", "/contact"])
+
 def _sample_urls(domain, findings):
     urls = {"homepage": f"https://{domain}/"}
-    status, xml, _, _ = _fetch_with_retry(f"https://{domain}/sitemap.xml", "sitemap", findings, retries=1)
+    status, xml, final_url, _ = _fetch_with_retry(f"https://{domain}/sitemap.xml", "sitemap", findings, retries=1)
     
-    st_hp, html_hp, _, hp_headers = _fetch(urls["homepage"], "homepage_platform", findings)
-    platform = 'unknown'
-    if st_hp == 200:
-        platform = _detect_platform(html_hp, hp_headers)
-        
-    patterns = PLATFORM_PATTERNS.get(platform, PLATFORM_PATTERNS["unknown"])
-    findings["platform_detected"] = platform
+    if status != 200:
+        findings["notes"] += f"sitemap_fetch_failed: status={status} url={final_url}. "
+    elif not xml or len(xml.strip()) == 0:
+        findings["notes"] += "sitemap_empty_response. "
 
     products, collections, policies = [], [], []
 
+    def parse_locs(xml_text):
+        clean_xml = re.sub(r'\sxmlns(:[a-zA-Z0-9]+)?="[^"]+"', '', xml_text)
+        clean_xml = re.sub(r'([<\/])[a-zA-Z0-9]+:', r'', clean_xml)
+        try:
+            root = ET.fromstring(clean_xml)
+            return [loc.text for loc in root.findall('.//loc') if loc.text]
+        except ET.ParseError:
+            # Fallback to bulletproof regex if XML is malformed (e.g., unescaped ampersands)
+            return re.findall(r'<loc>(.*?)</loc>', clean_xml, re.IGNORECASE | re.DOTALL)
+
     if status == 200 and xml:
-        if "<urlset" in xml:
+        if "<sitemapindex" in xml:
             try:
-                clean_xml = re.sub(r'\sxmlns="[^"]+"', '', xml, count=1)
-                root = ET.fromstring(clean_xml)
-                locs = [loc.text for loc in root.findall('.//loc') if loc.text]
+                child_locs = parse_locs(xml)
+                for child_loc in child_locs:
+                    if "product" in child_loc.lower() or "collection" in child_loc.lower() or "category" in child_loc.lower():
+                        st_child, xml_child, _, _ = _fetch_with_retry(child_loc, "sitemap_child", findings, retries=0)
+                        if st_child == 200 and xml_child and "<urlset" in xml_child:
+                            locs = parse_locs(xml_child)
+                            for loc in locs:
+                                loc = _ensure_primary_domain(loc, domain)
+                                if "/products/" in loc or "/product/" in loc:
+                                    products.append(loc)
+                                elif "/collections/" in loc or "/product-category/" in loc:
+                                    collections.append(loc)
+                                elif any(p in loc.lower() for p in ["/policies/", "/pages/shipping", "/pages/returns", "/pages/faq", "/pages/contact"]):
+                                    policies.append(loc)
+            except ET.ParseError as e:
+                findings["notes"] += f"sitemapindex_parse_error: {str(e)[:100]}. "
+        elif "<urlset" in xml:
+            try:
+                locs = parse_locs(xml)
                 for loc in locs:
                     loc = _ensure_primary_domain(loc, domain)
-                    if patterns['product'] in loc and patterns['exclude'] not in loc:
+                    if "/products/" in loc or "/product/" in loc:
                         products.append(loc)
-                    elif patterns['collection'] in loc and not loc.endswith(patterns['collection']):
+                    elif "/collections/" in loc or "/product-category/" in loc:
                         collections.append(loc)
                     elif any(p in loc.lower() for p in ["/policies/", "/pages/shipping", "/pages/returns", "/pages/faq", "/pages/contact"]):
                         policies.append(loc)
-            except ET.ParseError:
-                findings["notes"] += "sitemap parse error. "
-        elif "<sitemapindex" in xml:
-            try:
-                clean_xml = re.sub(r'\sxmlns="[^"]+"', '', xml, count=1)
-                root = ET.fromstring(clean_xml)
-                child_locs = [loc.text for loc in root.findall('.//loc') if loc.text]
-                chosen = None
-                for loc in child_locs:
-                    if patterns['product'] in loc.lower():
-                        chosen = loc
-                        break
-                if chosen is None and child_locs:
-                    chosen = child_locs[0]
-                if chosen:
-                    status2, xml2, _, _ = _fetch_with_retry(chosen, "sitemap_child", findings, retries=1)
-                    if status2 == 200 and xml2:
-                        clean_xml2 = re.sub(r'\sxmlns="[^"]+"', '', xml2, count=1)
-                        root2 = ET.fromstring(clean_xml2)
-                        locs = [loc.text for loc in root2.findall('.//loc') if loc.text]
-                        for loc in locs:
-                            loc = _ensure_primary_domain(loc, domain)
-                            if patterns['product'] in loc and patterns['exclude'] not in loc:
-                                products.append(loc)
-                            elif patterns['collection'] in loc and not loc.endswith(patterns['collection']):
-                                collections.append(loc)
-                            elif any(p in loc.lower() for p in ["/policies/", "/pages/shipping", "/pages/returns", "/pages/faq", "/pages/contact"]):
-                                policies.append(loc)
-            except Exception:
-                findings["notes"] += "sitemapindex parse error. "
+            except ET.ParseError as e:
+                findings["notes"] += f"sitemap_parse_error: {str(e)[:100]}. "
+        else:
+            findings["notes"] += f"sitemap_unrecognized_format: len={len(xml)} preview={xml[:100]}. "
 
-    if len(policies) < 2 and st_hp == 200:
-        links = _extract_links(html_hp, urls["homepage"])
-        for link in links:
-            link = _ensure_primary_domain(link, domain)
-            if any(p in link.lower() for p in ["shipping", "return", "refund", "faq", "contact"]):
-                if link not in policies:
-                    policies.append(link)
-                    if len(policies) >= 4:
-                        break
+    if len(policies) < 2:
+        st_hp, html_hp, homepage_url, _ = _fetch(urls["homepage"], "homepage_links", findings)
+        if st_hp == 200:
+            links = _extract_links(html_hp, homepage_url)
+            for link in links:
+                link = _ensure_primary_domain(link, domain)
+                if _is_policy_link(link):
+                    if link not in policies:
+                        policies.append(link)
+                        if len(policies) >= 4:
+                            break
 
     urls["products"] = products[:3]
     if collections:
         urls["collection"] = collections[0]
     urls["policies_discovered"] = policies
+
+    if not products:
+        findings["notes"] += "sitemap_failed_to_yield_products. "
 
     return urls
 
@@ -187,9 +216,17 @@ def _check_crawlability(domain, findings):
         "agents.md": f"https://{domain}/agents.md"
     }
     results = {}
+    blocked_resources = []
 
     for name, url in resources.items():
         st, text, final_url, ct = _fetch(url, name, findings)
+
+        if st == 200 and _looks_blocked(text):
+            results[name] = "BLOCKED"
+            blocked_resources.append(name)
+            findings["notes"] += f"{name}: bot-challenge page returned, treated as unreadable. "
+            continue
+
         results[name] = st
 
         if st == 200 and ("text" in str(ct) or "markdown" in str(ct) or name == "robots.txt"):
@@ -234,9 +271,22 @@ def _check_crawlability(domain, findings):
             if name in ["llms.txt", "agents.md"]:
                 score -= 1.0
 
+    if len(blocked_resources) == len(resources):
+        findings["dimensions_measured"]["crawlability"] = False
+        issues.append({
+            "code": "crawlability_unmeasured",
+            "description": "All crawlability resources returned bot-challenge pages instead of real content.",
+            "evidence": f"Blocked: {', '.join(blocked_resources)}.",
+            "affected_urls": list(resources.values()),
+            "severity": "medium", "confidence": "low",
+            "business_impact": "Crawlability is unknown. The site's WAF may also be blocking legitimate AI crawlers (e.g. GPTBot).",
+            "difficulty": "N/A",
+            "fix": "Manually verify robots.txt/llms.txt accessibility, and check WAF bot-protection rules.",
+        })
+
     findings["dimensions"]["crawlability"] = max(0, score)
     findings["issues"].extend(issues)
-    findings["crawlability_matrix"] = {name: "PASS" if st == 200 else "FAIL" for name, st in results.items()}
+    findings["crawlability_matrix"] = results
 
 def _check_answerability(domain, sample_urls, findings):
     score = 10.0
@@ -249,7 +299,7 @@ def _check_answerability(domain, sample_urls, findings):
             links = _extract_links(html, homepage_url)
             for link in links:
                 link = _ensure_primary_domain(link, domain)
-                if any(p in link.lower() for p in ["shipping", "return", "refund", "faq", "contact"]):
+                if _is_policy_link(link):
                     if link not in policy_urls:
                         policy_urls.append(link)
                         if len(policy_urls) >= 4:
@@ -612,6 +662,21 @@ def audit_geo(domain: str) -> dict:
             "agentic_commerce": True
         }
     }
+
+    if not _check_domain_reachable(domain, findings):
+        findings["overall_geo_score"] = None
+        findings["score_confidence"] = "unreachable"
+        findings["issues"] = [{
+            "code": "domain_unreachable",
+            "description": f"{domain} did not respond to any request - ikely wrong domain, DNS failure, or site offline.",
+            "evidence": findings["notes"],
+            "affected_urls": [],
+            "severity": "high", "confidence": "high",
+            "business_impact": "Cannot audit a site that cannot be reached.",
+            "difficulty": "N/A",
+            "fix": "Verify the domain is correct and the site is live before re-running.",
+        }]
+        return findings
 
     sample_urls = _sample_urls(domain, findings)
 
