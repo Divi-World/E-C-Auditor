@@ -1093,6 +1093,15 @@ def audit_geo(domain: str) -> dict:
     # TIER 4 FILTER: Remove technical polish issues from headline revenue leaks
     findings["issues"] = [i for i in findings["issues"] if i.get("code") not in ["missing_breadcrumb_schema", "missing_faq_schema"]]
     
+    # Evidence-Driven Confidence Calculation (Partner Directive #5)
+    notes = findings.get("notes", "")
+    if "timeout" in notes or "WAF" in notes or "bot-challenge" in notes or "binary_image" in notes or "unrecognized_format" in notes:
+        findings["score_confidence"] = "partial"
+    elif not findings.get("dimensions_measured", {}).get("product_intelligence", True):
+        findings["score_confidence"] = "low"
+    else:
+        findings["score_confidence"] = "full"
+
     return findings
 
 

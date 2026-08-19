@@ -173,6 +173,19 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
 
         # Combine scores (total will be used for ranking)
         lead_result["total_score"] = lead_result.get("cro_score", 0) + lead_result.get("geo_score", 0)
+        
+        # Lead Status Classification (Partner Directive #2)
+        geo_score_val = geo_findings.get("overall_geo_score", 0) or 0
+        geo_issues_count = len(geo_findings.get("issues", []))
+        cro_stat = lead_result.get("cro_status", "unknown")
+        conf = geo_findings.get("score_confidence", "full")
+        
+        if geo_issues_count == 0 and geo_score_val >= 9.0:
+            lead_result["lead_status"] = "HEALTHY"
+        elif cro_stat == "error" and conf in ["partial", "low"]:
+            lead_result["lead_status"] = "INCONCLUSIVE"
+        else:
+            lead_result["lead_status"] = "QUALIFIED_LEAK"
         scored_leads.append(lead_result)
 
     # Sort by total score descending
@@ -181,7 +194,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
     # Write ranked CSV with all fields
     ranked_csv = LEADS_DIR / f"{niche}_leads_ranked.csv"
     fieldnames = [
-        "opportunity_score", "total_score", "cro_score", "geo_score", "primary_leak", "fix_effort", "cro_status", "domain", "page_name",
+        "lead_status", "opportunity_score", "total_score", "cro_score", "geo_score", "primary_leak", "fix_effort", "cro_status", "domain", "page_name",
         "platform_detected", "matched_keyword", "cro_report_path", "geo_report_path"
     ]
     with open(ranked_csv, "w", newline="", encoding="utf-8") as f:
