@@ -104,6 +104,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         lead_result["platform_detected"] = geo_findings.get("platform_detected", "unknown")
 
         # Process CRO findings if any
+        lead_result["cro_status"] = "complete" if cro_ok else ("error" if cro_findings.get("error") else "healthy")
         if cro_ok:
             cro_score = opportunity_score(cro_findings)
             cro_report = generate_report(cro_findings)
@@ -120,6 +121,15 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         # Process GEO findings if any
         if geo_ok:
             geo_score = geo_opportunity_score(geo_findings)
+            
+            # ENTERPRISE SNIPPET INJECTION: Force JSON-LD into the HTML report
+            for issue in geo_findings.get("issues", []):
+                if "fix_snippet" in issue:
+                    # Escape HTML characters to prevent breaking the page layout
+                    safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    snippet_html = f'<br><br><strong>📋 Copy-Paste JSON-LD Snippet:</strong><pre style="background:#2d2d2d;color:#f8f8f2;padding:15px;border-radius:5px;overflow-x:auto;font-size:13px;line-height:1.5;"><code>{safe_snippet}</code></pre>'
+                    issue["fix"] = issue.get("fix", "") + snippet_html
+
             geo_report = generate_geo_report(geo_findings)
             lead_result.update({
                 "geo_score": geo_score,
@@ -141,7 +151,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
     # Write ranked CSV with all fields
     ranked_csv = LEADS_DIR / f"{niche}_leads_ranked.csv"
     fieldnames = [
-        "total_score", "cro_score", "geo_score", "domain", "page_name",
+        "total_score", "cro_score", "geo_score", "cro_status", "domain", "page_name",
         "platform_detected", "matched_keyword", "cro_report_path", "geo_report_path"
     ]
     with open(ranked_csv, "w", newline="", encoding="utf-8") as f:

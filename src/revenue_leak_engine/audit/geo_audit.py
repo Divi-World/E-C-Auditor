@@ -431,7 +431,7 @@ def _check_answerability(domain, sample_urls, findings):
             "evidence": f"Found {len(found_policies)} strong policy pages. Weak pages: {len(weak_policies)}.",
             "affected_urls": policy_urls if policy_urls else [sample_urls["homepage"]],
             "severity": "medium", "confidence": "high",
-            "business_impact": "AI engines cannot answer basic pre-purchase questions about your brand, leading to lost conversions in conversational commerce.",
+            "business_impact": "Missing structured answers may reduce visibility and trust in conversational commerce and AI-assisted discovery.",
             "difficulty": "Easy",
             "fix": "Publish comprehensive, text-rich policy and FAQ pages to capture AI-driven customer support queries."
         })
@@ -600,17 +600,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "fix_snippet": _generate_snippet("organization", domain)
             })
 
-    if total_pages_crawled > 0 and (entity_pages_found / total_pages_crawled) < 0.5:
-        entity_score -= 3.0
-        issues.append({
-            "code": "incomplete_entity_corroboration",
-            "description": "Brand identity markup is not consistently detected across sampled pages.",
-            "evidence": f"Found on {entity_pages_found}/{total_pages_crawled} sampled pages.",
-            "affected_urls": urls_to_crawl, "severity": "medium", "confidence": "high",
-            "business_impact": "AI search engines struggle to confidently identify and recommend your brand over competitors with stronger digital footprints.",
-            "difficulty": "Medium", "fix": "Deploy global Organization schema to solidify your brand's Knowledge Graph presence.",
-            "fix_snippet": _generate_snippet("organization", domain)
-        })
+    # DEDUPLICATION: Removed redundant entity consistency check to prevent double-counting.
 
     flat_nodes = []
     for g in all_nodes:
@@ -723,10 +713,10 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             if avg_prod_score < 80:
                 issues.append({
                     "code": "incomplete_product_schema",
-                    "description": f"Product schema is {avg_prod_score:.0f}% complete across sampled PDPs.",
+                    "description": f"Product schema is {avg_prod_score:.0f}% complete. (Scoring Weights: Name 10pts, Offers 15pts, Price 15pts, Avail 15pts, SKU 10pts, Brand 5pts, Review 10pts). Missing attributes reduce this score.",
                     "evidence": f"Sampled {len(products)} products. Missing critical attributes like price, availability, or identifiers.",
                     "affected_urls": products, "severity": "high", "confidence": "high",
-                    "business_impact": "AI shopping assistants will bypass your products in favor of competitors who provide complete, machine-readable pricing and inventory data.",
+                    "business_impact": "Incomplete machine-readable product data may reduce eligibility and reliability for search, shopping surfaces, and emerging AI-assisted discovery systems.",
                     "difficulty": "Medium", "fix": "Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.",
                     "fix_snippet": _generate_snippet("product", domain, "Sample Product")
                 })
@@ -1051,6 +1041,9 @@ def audit_geo(domain: str) -> dict:
         findings["dimensions"]["entity_intelligence"] = 5.0
         findings["notes"] += "entity_score_capped_insufficient_data. "
 
+    # TIER 4 FILTER: Remove technical polish issues from headline revenue leaks
+    findings["issues"] = [i for i in findings["issues"] if i.get("code") not in ["missing_breadcrumb_schema", "missing_faq_schema"]]
+    
     return findings
 
 

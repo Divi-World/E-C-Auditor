@@ -31,60 +31,77 @@ def load_seed_csv(path: str) -> list[dict]:
 
 def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUNTRY, seed_csv: str = None):
     suppressed = load_suppression_list()
-    
+
     candidates = []
     if seed_csv and Path(seed_csv).exists():
         print(f"[1/4] Loading manual seeds from {seed_csv}...")
         candidates.extend(load_seed_csv(seed_csv))
-    
+
     if not seed_csv:
         print(f"[1/4] Searching Meta Ad Library for '{niche}' in {country}...")
         keywords = NICHE_PRESETS[niche]
         per_keyword = max(3, limit // len(keywords))
         candidates.extend(find_advertiser_domains(keywords, country=country, per_keyword=per_keyword))
-        
+
     print(f"  -> {len(candidates)} total candidate domains")
 
-    print("[2/4] Confirming Shopify...")
+    print("[2/4] Validating domains (Platform-Agnostic Mode)...")
     confirmed = []
     seen = set()
     for c in candidates:
         domain = c["domain"]
         if domain in suppressed or domain in seen: continue
         seen.add(domain)
-        result = is_shopify(domain)
-        if result["is_shopify"]:
-            confirmed.append({**c, **result})
-    print(f"  -> {len(confirmed)} confirmed Shopify leads")
+        
+        # OG FIX: We no longer discard non-Shopify stores. 
+        # The v7.5 GEO Auditor is platform-agnostic (WooCommerce, BigCommerce, Headless).
+        # We still tag Shopify if detected, but we keep ALL e-commerce leads.
+        try:
+            result = is_shopify(domain)
+        except Exception:
+            result = {"is_shopify": False, "platform": "unknown"}
+            
+        confirmed.append({**c, **result})
+        
+    print(f"  -> {len(confirmed)} valid e-commerce leads (Shopify + Non-Shopify)")
 
     print("[3/4] Running CRO and GEO audits...")
     scored_leads = []
     healthy_skipped = 0
-    
+
     for lead in confirmed:
         domain = lead["domain"]
         print(f"  auditing {domain}...")
-        
-        # 1. Core site audit (CRO)
-        cro_findings = audit_site(domain)
-        if cro_findings.get("error"):
-            print(f"    skipped: CRO audit error - {cro_findings['error']}")
-            continue
 
-        # 2. Geo audit
-        geo_findings = audit_geo(domain)
+        # 1. Core site audit (CRO) - Wrapped in try/except to prevent pipeline crashes
+        try:
+            cro_findings = audit_site(domain)
+        except Exception as e:
+            print(f"    warning: CRO audit crashed - {e}")
+            cro_findings = {"error": str(e), "issues": []}
+            
+        if cro_findings.get("error"):
+            print(f"    warning: CRO audit error - {cro_findings['error']}")
+
+        # 2. Geo audit (Platform Agnostic) - Wrapped in try/except
+        try:
+            geo_findings = audit_geo(domain)
+        except Exception as e:
+            print(f"    warning: GEO audit crashed - {e}")
+            geo_findings = {"issues": [], "overall_geo_score": 0, "platform_detected": "unknown"}
 
         # Determine if each audit found issues
-        cro_ok = cro_findings.get("issues") and not cro_findings.get("error")
+        cro_ok = bool(cro_findings.get("issues")) and not cro_findings.get("error")
         geo_ok = bool(geo_findings.get("issues"))
 
-        # Skip if both audits found nothing
+        # Skip if both audits found nothing actionable
         if not cro_ok and not geo_ok:
             print(f"    skipped: healthy on both CRO and GEO")
             healthy_skipped += 1
             continue
 
         lead_result = {**lead}
+        lead_result["platform_detected"] = geo_findings.get("platform_detected", "unknown")
 
         # Process CRO findings if any
         if cro_ok:
@@ -125,7 +142,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
     ranked_csv = LEADS_DIR / f"{niche}_leads_ranked.csv"
     fieldnames = [
         "total_score", "cro_score", "geo_score", "domain", "page_name",
-        "matched_keyword", "cro_report_path", "geo_report_path"
+        "platform_detected", "matched_keyword", "cro_report_path", "geo_report_path"
     ]
     with open(ranked_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
