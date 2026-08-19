@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GEO Audit: {{ domain }}</title>
+    <title>AI Discovery & Revenue Risk Report: {{ domain }}</title>
     <style>
         :root {
             --bg-main: #0f172a;
@@ -60,13 +60,13 @@
     <div class="container">
         <div class="header">
             <div>
-                <h1>Enterprise GEO Audit</h1>
+                <h1>AI Discovery & Revenue Risk Report</h1>
                 <div class="domain">{{ domain }}</div>
                 <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Platform: {{ platform_detected | default('Unknown') | title }}</div>
             </div>
             <div class="score-badge">
                 <div class="score-value">{{ overall_geo_score }}<span style="font-size: 24px; color: var(--text-muted);">/10</span></div>
-                <div style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">Commercial Opportunity: <strong style="color: var(--accent-green); font-size: 18px;">HIGH</strong></div>
+                <div style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">Commercial Opportunity: <strong style="color: {{ opp_color|default("#10b981") }}; font-size: 18px;">{{ opp_tier|default("HIGH") }}</strong></div>
                 {% if score_confidence == 'partial' %}
                 <div class="confidence-pill conf-partial">Partial Data</div>
                 {% else %}

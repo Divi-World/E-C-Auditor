@@ -99,6 +99,14 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             print(f"    skipped: healthy on both CRO and GEO")
             healthy_skipped += 1
             continue
+            
+        # Skip if GEO auditor detected it's not actually an e-commerce store
+        geo_issues = geo_findings.get("issues", [])
+        is_non_commerce = any(i.get("code") == "non_commerce_profile" for i in geo_issues)
+        if is_non_commerce:
+            print(f"    skipped: non-commerce profile detected")
+            healthy_skipped += 1
+            continue
 
         lead_result = {**lead}
         lead_result["platform_detected"] = geo_findings.get("platform_detected", "unknown")

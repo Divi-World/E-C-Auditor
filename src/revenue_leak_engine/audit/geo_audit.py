@@ -1,4 +1,5 @@
 import re
+from revenue_leak_engine.audit.copy_bank import ISSUE_COPY
 import json
 import xml.etree.ElementTree as ET
 import requests as std_requests
@@ -635,7 +636,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "description": ent_desc,
             "evidence": "No Organization, Corporation, or Brand node found in JSON-LD.",
             "affected_urls": urls_to_crawl, "severity": ent_severity, "confidence": "high",
-            "business_impact": "Reduces explicit machine-readable entity clarity for AI systems relying strictly on JSON-LD.",
+            "business_impact": ISSUE_COPY.get("missing_organization_entity", {}).get("business_impact", "Reduces explicit machine-readable entity clarity."),
             "difficulty": "Easy", "fix": "Add Organization/Brand structured data.",
             "fix_snippet": _generate_snippet("organization", domain)
         })
@@ -717,12 +718,12 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 # Tier 1 Scoring
                 if has_prod: 
                     p_score += 20
-                if has_name: p_score += 10
-                if has_offers: p_score += 15
-                if has_price: p_score += 15
-                if has_avail: p_score += 15
-                if has_sku: p_score += 10 # Increased weight for SKU/GTIN
-                if has_brand: p_score += 5
+                if has_name: p_score += 15
+                if has_image: p_score += 10
+                if has_price: p_score += 20
+                if has_avail: p_score += 20
+                if has_sku: p_score += 20
+                if has_brand: p_score += 15
                 if has_review: p_score += 10
                 
                 # Accumulate forensic totals
@@ -760,10 +761,10 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             if avg_prod_score < 80:
                 issues.append({
                     "code": "incomplete_product_schema",
-                    "description": f"Product schema is {avg_prod_score:.0f}% complete. (Scoring Weights: Name 10pts, Offers 15pts, Price 15pts, Avail 15pts, SKU 10pts, Brand 5pts, Review 10pts). Missing attributes reduce this score.",
+                    "description": f"Product schema is {avg_prod_score:.0f}% complete. (Scoring Weights: Name 15pts, Image 10pts, Price 20pts, Avail 20pts, SKU 20pts, Brand 15pts). Missing attributes reduce this score.",
                     "evidence": f"Sampled {valid_p_count} products. Forensic Coverage: Name {int(field_totals['name']/max(1,valid_p_count)*100)}% | Image {int(field_totals['image']/max(1,valid_p_count)*100)}% | Price {int(field_totals['price']/max(1,valid_p_count)*100)}% | Avail {int(field_totals['avail']/max(1,valid_p_count)*100)}% | SKU {int(field_totals['sku']/max(1,valid_p_count)*100)}% | Brand {int(field_totals['brand']/max(1,valid_p_count)*100)}%.",
                     "affected_urls": products, "severity": "high", "confidence": "high",
-                    "business_impact": "Incomplete machine-readable product data may reduce eligibility and reliability for search, shopping surfaces, and emerging AI-assisted discovery systems.",
+                    "business_impact": ISSUE_COPY.get("incomplete_product_schema", {}).get("business_impact", "Incomplete machine-readable product data may reduce eligibility."),
                     "difficulty": "Medium", "fix": "Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.",
                     "fix_snippet": _generate_snippet("product", domain, "Sample Product")
                 })
