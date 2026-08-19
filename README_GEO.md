@@ -33,6 +33,10 @@ Use this mode to audit a specific list of domains you have manually sourced (e.g
 1. Create your seed file (seeds.csv):
 csv
 
+python -c "from revenue_leak_engine.audit.geo_audit import audit_geo; import json; print(json.dumps(audit_geo('beautyitis.com'), indent=2))"
+
+For json details, the above is the command, you can change the 'beautyitis.com' to the targeted domain
+
 1234
 2. Run the Pipeline:
 bash

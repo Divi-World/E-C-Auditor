@@ -123,11 +123,20 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             geo_score = geo_opportunity_score(geo_findings)
             
             # ENTERPRISE SNIPPET INJECTION: Force JSON-LD into the HTML report
+            platform = geo_findings.get("platform_detected", "unknown")
+            instructions = {
+                "shopify": "For Shopify: Paste this snippet into your <code>theme.liquid</code> file just before the closing <code>&lt;/head&gt;</code> tag, or use a JSON-LD injection app.",
+                "woocommerce": "For WooCommerce: Add this to your <code>header.php</code> or use an SEO plugin (like Yoast/RankMath) to inject custom schema.",
+                "magento": "For Magento: Inject this via your layout XML (<code>default.xml</code>) or a custom block template.",
+                "bigcommerce": "For BigCommerce: Paste this into your <code>HTMLHead.html</code> or use the Script Manager.",
+                "unknown": "Implementation: Paste this snippet into the <code>&lt;head&gt;</code> section of your website's global template."
+            }
+            inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">💡 <strong>Platform Guide:</strong> {instructions.get(platform, instructions["unknown"])}</div>'
+            
             for issue in geo_findings.get("issues", []):
                 if "fix_snippet" in issue:
-                    # Escape HTML characters to prevent breaking the page layout
                     safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                    snippet_html = f'<br><br><strong>📋 Copy-Paste JSON-LD Snippet:</strong><pre style="background:#2d2d2d;color:#f8f8f2;padding:15px;border-radius:5px;overflow-x:auto;font-size:13px;line-height:1.5;"><code>{safe_snippet}</code></pre>'
+                    snippet_html = f'{inst_html}<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
                     issue["fix"] = issue.get("fix", "") + snippet_html
 
             geo_report = generate_geo_report(geo_findings)
@@ -161,7 +170,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             row = {k: lead.get(k, "") for k in fieldnames}
             writer.writerow(row)
 
-    print(f"\n[4/4] Done. {len(scored_leads)} audited leads with real leaks (CRO, GEO, or both).")
+    print(f"\n[4/4] Done. {len(scored_leads)} e-commerce leads audited. ({healthy_skipped} skipped as healthy/inconclusive).")
     print(f"  -> Skipped {healthy_skipped} completely healthy sites.")
     print(f"  -> {ranked_csv}")
 

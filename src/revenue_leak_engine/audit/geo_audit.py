@@ -462,7 +462,7 @@ def _extract_real_assets(html, url, domain):
     # Logo
     og_logo = soup.find("meta", property="og:image")
     icon = soup.find("link", rel=lambda x: x and 'icon' in x.lower())
-    assets["logo_url"] = (og_logo["content"] if og_logo else (icon["href"] if icon else f"https://{domain}/favicon.ico"))
+    assets["logo_url"] = (og_logo["content"] if og_logo else (icon["href"] if icon else f"https://{domain}/favicon.ico")).replace("http://", "https://")
     
     # Socials
     socials = []
@@ -618,12 +618,24 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
 
     if not has_org:
         entity_score -= 5.0
+        # Check if entity is defined via other schema types (Partner Fix #6)
+        has_other_entity = False
+        for node in flat_nodes:
+            t = node.get("@type", "")
+            if isinstance(t, list): t = " ".join(t)
+            if any(x in t for x in ["WebSite", "WebPage", "Product", "LocalBusiness"]):
+                has_other_entity = True
+                break
+        
+        ent_severity = "medium" if has_other_entity else "high"
+        ent_desc = "Missing explicit Organization JSON-LD (Entity signals detected via other schema types)." if has_other_entity else "Missing Organization/Brand schema in JSON-LD."
+        
         issues.append({
             "code": "missing_organization_entity",
-            "description": "Missing Organization/Brand schema in JSON-LD.",
-            "evidence": "No Organization, Corporation, or Brand node found.",
-            "affected_urls": urls_to_crawl, "severity": "high", "confidence": "high",
-            "business_impact": "Reduces explicit machine-readable entity clarity.",
+            "description": ent_desc,
+            "evidence": "No Organization, Corporation, or Brand node found in JSON-LD.",
+            "affected_urls": urls_to_crawl, "severity": ent_severity, "confidence": "high",
+            "business_impact": "Reduces explicit machine-readable entity clarity for AI systems relying strictly on JSON-LD.",
             "difficulty": "Easy", "fix": "Add Organization/Brand structured data.",
             "fix_snippet": _generate_snippet("organization", domain)
         })
@@ -806,11 +818,15 @@ def _check_agentic_commerce(domain, findings):
         except Exception as e:
             findings["notes"] += f"MCP exception: {e}. "
 
-    findings["dimensions"]["agentic_commerce"] = score
-    # Sanitize Agentic Matrix: "FAIL" -> "NOT_DETECTED" for standard stores
+    # Sanitize Agentic Matrix & Fix Contradiction (Partner Fix #18)
     plat = findings.get("platform_detected", "unknown")
     if plat not in ["custom_headless", "api_first"]:
         capabilities = {k: ("NOT_DETECTED" if v == "FAIL" else v) for k, v in capabilities.items()}
+        # If standard platform and no agentic protocols found, cap score at baseline 5.0
+        if score == 0.0:
+            score = 5.0 
+            findings["notes"] += "agentic_score_capped_at_standard_baseline. "
+    findings["dimensions"]["agentic_commerce"] = score
     findings["agentic_capabilities"] = capabilities
     
     if capabilities["UCP"] == "PASS" and (capabilities["Catalog"] == "FAIL" or capabilities["Cart/Checkout"] == "FAIL"):
@@ -929,7 +945,7 @@ def audit_geo(domain: str) -> dict:
     if dims.get("entity_intelligence") is not None and dims["entity_intelligence"] < 8:
         findings["business_interpretation"].append("Your brand's digital footprint lacks the structured entity corroboration required for AI search engines to confidently recommend you over competitors.")
     if dims.get("product_intelligence") is not None and dims["product_intelligence"] < 8:
-        findings["business_interpretation"].append("Critical commerce data (pricing, inventory, SKUs) is missing from your machine-readable catalog, causing AI shopping assistants to bypass your products in favor of competitors.")
+        findings["business_interpretation"].append("Critical commerce attributes such as pricing, availability, and product identifiers are incomplete in the sampled machine-readable product data, which may reduce eligibility or reliability across search and AI-assisted shopping surfaces.")
     if dims.get("agentic_commerce") is not None and dims["agentic_commerce"] < 10:
         findings["business_interpretation"].append("Your infrastructure is currently invisible to next-generation agentic commerce protocols, ceding market share in the emerging AI-driven shopping ecosystem.")
 
