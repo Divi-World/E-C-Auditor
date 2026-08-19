@@ -656,12 +656,16 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
     products = sample_urls.get("products", [])
     if products:
         product_scores = []
+
+        field_totals = {'name': 0, 'image': 0, 'price': 0, 'avail': 0, 'sku': 0, 'brand': 0}
+
+        valid_p_count = 0
         for p_url in products:
             st, html, final_url, _ = _fetch(p_url, "product", findings)
             if st == 200:
                 nodes = _extract_json_ld(html)
                 p_score = 0
-                has_prod = has_name = has_offers = has_price = has_avail = has_var = has_sku = has_brand = has_review = False
+                has_prod = has_name = has_image = has_offers = has_price = has_avail = has_var = has_sku = has_brand = has_review = False
                 for node in nodes:
                     if isinstance(node, dict):
                         t = node.get("@type", "")
@@ -669,6 +673,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                         if "Product" in t:
                             has_prod = True
                             if node.get("name"): has_name = True
+                            if node.get("image"): has_image = True
                             if node.get("sku") or node.get("gtin") or node.get("mpn"): has_sku = True
                             if node.get("brand"): has_brand = True
                             if node.get("review") or node.get("aggregateRating"): has_review = True
@@ -693,6 +698,8 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                     if soup.find("meta", property=re.compile(r"product:availability")): has_avail = True
                     if soup.find("meta", property=re.compile(r"product:brand")): has_brand = True
                     if soup.find("meta", property=re.compile(r"product:retailer_item_id")) or soup.find("meta", attrs={"name": "sku"}): has_sku = True
+                    if soup.find("meta", property=re.compile(r"og:title")) or soup.find("title"): has_name = True
+                    if soup.find("meta", property=re.compile(r"og:image")): has_image = True
 
                 # ENTERPRISE META-TAG EXTRACTION (Runs in parallel with JSON-LD)
                 if html and p_score < 50:
@@ -704,6 +711,8 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                     if soup.find("meta", property=re.compile(r"product:availability")) or soup.find("meta", attrs={"itemprop": "availability"}): has_avail = True
                     if soup.find("meta", property=re.compile(r"product:brand")) or soup.find("meta", attrs={"itemprop": "brand"}): has_brand = True
                     if soup.find("meta", property=re.compile(r"product:retailer_item_id")) or soup.find("meta", attrs={"itemprop": "sku"}): has_sku = True
+                    if soup.find("meta", property=re.compile(r"og:title")) or soup.find("title"): has_name = True
+                    if soup.find("meta", property=re.compile(r"og:image")): has_image = True
 
                 # Tier 1 Scoring
                 if has_prod: 
@@ -715,6 +724,32 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 if has_sku: p_score += 10 # Increased weight for SKU/GTIN
                 if has_brand: p_score += 5
                 if has_review: p_score += 10
+                
+                # Accumulate forensic totals
+
+                
+                valid_p_count += 1
+
+                
+                if has_name: field_totals['name'] += 1
+
+                
+                if has_image: field_totals['image'] += 1
+
+                
+                if has_price: field_totals['price'] += 1
+
+                
+                if has_avail: field_totals['avail'] += 1
+
+                
+                if has_sku: field_totals['sku'] += 1
+
+                
+                if has_brand: field_totals['brand'] += 1
+
+
+                
                 product_scores.append(min(100, p_score))
 
         if product_scores:
@@ -726,7 +761,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 issues.append({
                     "code": "incomplete_product_schema",
                     "description": f"Product schema is {avg_prod_score:.0f}% complete. (Scoring Weights: Name 10pts, Offers 15pts, Price 15pts, Avail 15pts, SKU 10pts, Brand 5pts, Review 10pts). Missing attributes reduce this score.",
-                    "evidence": f"Sampled {len(products)} products. Missing critical attributes like price, availability, or identifiers.",
+                    "evidence": f"Sampled {valid_p_count} products. Forensic Coverage: Name {int(field_totals['name']/max(1,valid_p_count)*100)}% | Image {int(field_totals['image']/max(1,valid_p_count)*100)}% | Price {int(field_totals['price']/max(1,valid_p_count)*100)}% | Avail {int(field_totals['avail']/max(1,valid_p_count)*100)}% | SKU {int(field_totals['sku']/max(1,valid_p_count)*100)}% | Brand {int(field_totals['brand']/max(1,valid_p_count)*100)}%.",
                     "affected_urls": products, "severity": "high", "confidence": "high",
                     "business_impact": "Incomplete machine-readable product data may reduce eligibility and reliability for search, shopping surfaces, and emerging AI-assisted discovery systems.",
                     "difficulty": "Medium", "fix": "Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.",
@@ -1065,4 +1100,5 @@ def audit_geo(domain: str) -> dict:
 
 
 def geo_opportunity_score(geo_findings: dict) -> int:
-    return int(geo_findings.get("overall_geo_score", 0))
+    score = geo_findings.get("overall_geo_score")
+    return int(score) if score is not None else 0

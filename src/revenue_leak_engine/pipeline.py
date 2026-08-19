@@ -160,7 +160,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
     # Write ranked CSV with all fields
     ranked_csv = LEADS_DIR / f"{niche}_leads_ranked.csv"
     fieldnames = [
-        "total_score", "cro_score", "geo_score", "cro_status", "domain", "page_name",
+        "opportunity_score", "total_score", "cro_score", "geo_score", "primary_leak", "fix_effort", "cro_status", "domain", "page_name",
         "platform_detected", "matched_keyword", "cro_report_path", "geo_report_path"
     ]
     with open(ranked_csv, "w", newline="", encoding="utf-8") as f:

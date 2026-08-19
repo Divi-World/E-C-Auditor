@@ -10,7 +10,7 @@ An enterprise-grade, platform-agnostic auditing engine that mathematically evalu
 python -m venv venv
 
 # Activate (Windows / Git Bash / MINGW64)
-source venv/Scripts/activate
+source .venv/Scripts/activate
 
 # Activate (macOS / Linux)
 source venv/bin/activate
