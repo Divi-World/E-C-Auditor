@@ -125,7 +125,7 @@ def _detect_platform(html, headers):
     
     # TIER 1: DEFINITIVE CDNs (Must be checked first to avoid text-based false positives)
     if any(sig in html_lower or sig in headers_str for sig in ["cdn.shopify.com", "shopify.com", "myshopify.com", "x-shopid", "shopify-section", "shopify.pay", "shopify-checkout"]): return "shopify"
-    if "bigcommerce.com" in html_lower or "cdn11.bigcommerce.com" in html_lower: return "bigcommerce"
+    if "bigcommerce.com" in html_lower or "cdn11.bigcommerce.com" in html_lower or "bc-ray" in headers_str: return "bigcommerce"
     if "squarespace-cdn.com" in html_lower or "squarespace" in html_lower: return "squarespace"
     if "wixstatic.com" in html_lower or "wix.com" in html_lower: return "wix"
     
