@@ -196,15 +196,32 @@ def _sample_urls(domain, findings):
 
     def parse_locs(xml_text):
         clean_xml = re.sub(r'\sxmlns(:[a-zA-Z0-9]+)?="[^"]+"', '', xml_text)
-        clean_xml = re.sub(r'([<\/])[a-zA-Z0-9]+:', r'', clean_xml)
+        clean_xml = re.sub(r'([<\/])[a-zA-Z0-9]+:', r'\1', clean_xml)
         try:
             root = ET.fromstring(clean_xml)
             return [loc.text for loc in root.findall('.//loc') if loc.text]
         except ET.ParseError:
-            # Fallback to bulletproof regex if XML is malformed (e.g., unescaped ampersands)
+            # Fallback to bulletproof regex if XML is malformed
             return re.findall(r'<loc>(.*?)</loc>', clean_xml, re.IGNORECASE | re.DOTALL)
 
     if status == 200 and xml:
+        # BULLETPROOF GZIP FIX: If text is garbage, fetch raw bytes and decompress
+        if not xml.strip().startswith('<?xml') and not xml.strip().startswith('<'):
+            try:
+                if USE_STEALTH:
+                    raw_r = cffi_requests.get(final_url or f"https://{domain}/sitemap.xml", timeout=TIMEOUT, impersonate="chrome120", allow_redirects=True)
+                else:
+                    raw_r = std_requests.get(final_url or f"https://{domain}/sitemap.xml", timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
+                raw_bytes = raw_r.content
+                if raw_bytes[:2] == b'\x1f\x8b':
+                    import gzip
+                    xml = gzip.decompress(raw_bytes).decode('utf-8')
+                    findings["notes"] += "sitemap_gzip_decompressed_successfully. "
+                else:
+                    xml = raw_bytes.decode('utf-8', errors='ignore')
+            except Exception as e:
+                findings["notes"] += f"sitemap_raw_fetch_failed: {type(e).__name__}. "
+
         if "<sitemapindex" in xml:
             try:
                 child_locs = parse_locs(xml)
@@ -251,13 +268,35 @@ def _sample_urls(domain, findings):
                         if len(policies) >= 4:
                             break
 
+    # BULLETPROOF URL FILTER: Remove image/non-HTML files from product list
+    NON_PAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf', '.css', '.js')
+    products = [
+        p for p in products
+        if not any(p.lower().split('?')[0].endswith(ext) for ext in NON_PAGE_EXTENSIONS)
+    ]
     urls["products"] = products[:3]
     if collections:
         urls["collection"] = collections[0]
     urls["policies_discovered"] = policies
 
     if not products:
-        findings["notes"] += "sitemap_failed_to_yield_products. "
+        # EXTRA MILE: Scrape homepage for product links if sitemap failed
+        st_hp, html_hp, _, _ = _fetch(f"https://{domain}/", "hp_product_scrape", findings)
+        if st_hp == 200 and html_hp:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html_hp, 'html.parser')
+            NON_PAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf', '.css', '.js')
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if any(p in href.lower() for p in ['/product/', '/products/', '/catalog/product/', '/p/']):
+                    full_url = urljoin(f"https://{domain}/", href)
+                    if not any(full_url.lower().split('?')[0].endswith(ext) for ext in NON_PAGE_EXTENSIONS):
+                        if full_url not in products:
+                            products.append(full_url)
+                            if len(products) >= 3:
+                                break
+        if not products:
+            findings["notes"] += "sitemap_failed_to_yield_products. "
 
     return urls
 
@@ -437,10 +476,10 @@ def _extract_real_assets(html, url, domain):
     assets["product_desc"] = (desc_meta["content"] if desc_meta else "Premium product offering.")
     
     price_meta = soup.find("meta", property="product:price:amount") or soup.find("meta", attrs={"itemprop": "price"})
-    assets["price"] = (price_meta["content"] if price_meta else "0.00")
+    assets["price"] = (price_meta["content"] if price_meta else "REPLACE_WITH_PRICE")
     
     sku_meta = soup.find("meta", property="product:retailer_item_id") or soup.find("meta", attrs={"itemprop": "sku"})
-    assets["sku"] = (sku_meta["content"] if sku_meta else "N/A")
+    assets["sku"] = (sku_meta["content"] if sku_meta else "REPLACE_WITH_SKU")
     
     return assets
 
@@ -701,6 +740,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
     else:
         findings["dimensions_measured"]["product_intelligence"] = False
         findings["dimensions"]["product_intelligence"] = None
+        
         issues.append({
             "code": "product_intelligence_unknown",
             "description": "No product pages could be sampled.",
@@ -738,7 +778,8 @@ def _check_agentic_commerce(domain, findings):
             pass
 
     if mcp_endpoint:
-        capabilities["MCP"] = "PASS"
+        # FIXED: Moved PASS assignment to successful handshake
+            # capabilities["MCP"] = "PASS"
         score += 2.0
         try:
             payload = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
@@ -971,7 +1012,43 @@ def audit_geo(domain: str) -> dict:
         if "evidence" in issue:
             issue["evidence"] = clean_text(issue["evidence"])
             
+    # MCP CONTRADICTION FIX: If handshake failed with 403/404/Timeout, it's NOT_DETECTED, not broken
+    for issue in findings.get("issues", []):
+        if issue.get("code") in ["mcp_handshake_failed", "ucp_handshake_failed"]:
+            evidence = issue.get("evidence", "")
+            if "403" in evidence or "404" in evidence or "Timeout" in evidence:
+                if "MCP" in findings.get("agentic_capabilities", {}):
+                    findings["agentic_capabilities"]["MCP"] = "NOT_DETECTED"
+                if "UCP" in findings.get("agentic_capabilities", {}):
+                    findings["agentic_capabilities"]["UCP"] = "NOT_DETECTED"
+
+    # Filter out MCP/UCP 403/404 issues (they are just missing endpoints, not broken pipes)
+    findings["issues"] = [
+        i for i in findings.get("issues", []) 
+        if not (i.get("code") in ["mcp_handshake_failed", "ucp_handshake_failed"] and any(x in i.get("evidence", "") for x in ["403", "404", "Timeout"]))
+    ]
+
+    # WAF GUARDS: Suppress answerability hallucinations and infer enterprise platform
+    notes = findings.get("notes", "")
+    crawl_matrix = str(findings.get("crawlability_matrix", {}))
+    is_waf_blocked = "403" in crawl_matrix or "WAF" in notes or "bot-challenge" in notes
+    
+    # REMOVED: Blanket WAF answerability suppression (Partner Fix #4)
+        
+    if findings.get("platform_detected") == "unknown" and is_waf_blocked:
+        findings["platform_detected"] = "enterprise_waf_protected"
+
+    # ENTITY GUARD: If massive timeouts/blocks occurred, entity score cannot be 10.0
+    entity_notes = findings.get("notes", "")
+    entity_matrix = findings.get("crawlability_matrix", {})
+    all_blocked = all(v in [403, 429, "BLOCKED", None] for v in entity_matrix.values()) if entity_matrix else False
+    many_timeouts = entity_notes.count("Timeout") >= 3
+    if (all_blocked or many_timeouts) and findings.get("dimensions", {}).get("entity_intelligence") == 10.0:
+        findings["dimensions"]["entity_intelligence"] = 5.0
+        findings["notes"] += "entity_score_capped_insufficient_data. "
+
     return findings
+
 
 
 def geo_opportunity_score(geo_findings: dict) -> int:
