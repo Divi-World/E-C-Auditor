@@ -256,7 +256,7 @@ def _sample_urls(domain, findings):
         else:
             # WAF/BINARY DETECTION: Catch placeholder images (JPEG/Exif) or binary garbage
             if "Exif" in xml or "JFIF" in xml or (not xml.strip().startswith("<") and len(xml) > 1000):
-                findings["notes"] += "sitemap_returned_binary_image: WAF bot-protection placeholder. "
+                findings["notes"] += "sitemap_returned_non_xml_binary: server returned an image file instead of XML — likely a misconfigured route. "
             else:
                 findings["notes"] += f"sitemap_unrecognized_format: len={len(xml)} preview={xml[:100]}. "
 
