@@ -254,7 +254,11 @@ def _sample_urls(domain, findings):
             except ET.ParseError as e:
                 findings["notes"] += f"sitemap_parse_error: {str(e)[:100]}. "
         else:
-            findings["notes"] += f"sitemap_unrecognized_format: len={len(xml)} preview={xml[:100]}. "
+            # WAF/BINARY DETECTION: Catch placeholder images (JPEG/Exif) or binary garbage
+            if "Exif" in xml or "JFIF" in xml or (not xml.strip().startswith("<") and len(xml) > 1000):
+                findings["notes"] += "sitemap_returned_binary_image: WAF bot-protection placeholder. "
+            else:
+                findings["notes"] += f"sitemap_unrecognized_format: len={len(xml)} preview={xml[:100]}. "
 
     if len(policies) < 2:
         st_hp, html_hp, homepage_url, _ = _fetch(urls["homepage"], "homepage_links", findings)
