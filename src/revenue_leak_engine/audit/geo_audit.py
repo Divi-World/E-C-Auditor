@@ -716,15 +716,12 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                     if soup.find("meta", property=re.compile(r"og:image")): has_image = True
 
                 # Tier 1 Scoring
-                if has_prod: 
-                    p_score += 20
                 if has_name: p_score += 15
                 if has_image: p_score += 10
                 if has_price: p_score += 20
                 if has_avail: p_score += 20
                 if has_sku: p_score += 20
                 if has_brand: p_score += 15
-                if has_review: p_score += 10
                 
                 # Accumulate forensic totals
 

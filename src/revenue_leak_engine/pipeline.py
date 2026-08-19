@@ -6,6 +6,7 @@ from revenue_leak_engine.discovery.meta_ads_search import find_advertiser_domain
 from revenue_leak_engine.qualification.shopify_detect import is_shopify
 from revenue_leak_engine.audit.site_audit import audit_site
 from revenue_leak_engine.audit.geo_audit import audit_geo, geo_opportunity_score
+from revenue_leak_engine.audit.copy_bank import ISSUE_COPY
 from revenue_leak_engine.reporting.report_generator import generate_report, opportunity_score
 from revenue_leak_engine.reporting.geo_report_generator import generate_geo_report
 from revenue_leak_engine.outreach.outreach_draft import draft_email, draft_geo_email, append_draft_to_log
@@ -41,7 +42,10 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         print(f"[1/4] Searching Meta Ad Library for '{niche}' in {country}...")
         keywords = NICHE_PRESETS[niche]
         per_keyword = max(3, limit // len(keywords))
-        candidates.extend(find_advertiser_domains(keywords, country=country, per_keyword=per_keyword))
+        meta_leads = find_advertiser_domains(keywords, country=country, per_keyword=per_keyword)
+        for ml in meta_leads:
+            ml["is_confirmed_advertiser"] = True
+        candidates.extend(meta_leads)
 
     print(f"  -> {len(candidates)} total candidate domains")
 
@@ -125,6 +129,15 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             # Generate CRO outreach draft
             cro_draft = draft_email(cro_findings, report_url=cro_report)
             append_draft_to_log(cro_draft)
+
+        # Advertiser-Aware Copy Branch (Partner Directive)
+        # Meta Ads discovery means they are confirmed advertisers. CSV seeds default to generic.
+        is_advertiser = lead.get("is_confirmed_advertiser", False)
+        for issue in geo_findings.get("issues", []):
+            code = issue.get("code")
+            if code in ISSUE_COPY:
+                key = "business_impact_advertiser" if is_advertiser else "business_impact_generic"
+                issue["business_impact"] = ISSUE_COPY[code].get(key, issue.get("business_impact", ""))
 
         # Process GEO findings if any
         if geo_ok:
