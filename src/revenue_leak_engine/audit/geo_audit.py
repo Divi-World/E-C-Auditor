@@ -43,7 +43,7 @@ def _fetch(url, notes_key, findings):
         if USE_STEALTH:
             r = cffi_requests.get(url, timeout=TIMEOUT, impersonate="chrome120", allow_redirects=True)
         else:
-            r = std_requests.get(url, timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
+            r = requests.get(url, timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
         return r.status_code, r.text, str(r.url), r.headers
     except Exception as e:
         findings["notes"] += f"{notes_key}: {type(e).__name__}. "
@@ -56,7 +56,7 @@ def _fetch_with_retry(url, notes_key, findings, retries=1, base_timeout=TIMEOUT)
             if USE_STEALTH:
                 r = cffi_requests.get(url, timeout=tout, impersonate="chrome120", allow_redirects=True)
             else:
-                r = std_requests.get(url, timeout=tout, headers=HEADERS, allow_redirects=True)
+                r = requests.get(url, timeout=tout, headers=HEADERS, allow_redirects=True)
             return r.status_code, r.text, str(r.url), r.headers
         except Exception as e:
             findings["notes"] += f"{notes_key} attempt {idx+1} ({tout}s): {type(e).__name__}. "
@@ -212,7 +212,7 @@ def _sample_urls(domain, findings):
                 if USE_STEALTH:
                     raw_r = cffi_requests.get(final_url or f"https://{domain}/sitemap.xml", timeout=TIMEOUT, impersonate="chrome120", allow_redirects=True)
                 else:
-                    raw_r = std_requests.get(final_url or f"https://{domain}/sitemap.xml", timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
+                    raw_r = requests.get(final_url or f"https://{domain}/sitemap.xml", timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
                 raw_bytes = raw_r.content
                 if raw_bytes[:2] == b'\x1f\x8b':
                     import gzip
@@ -637,7 +637,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "evidence": "No Organization, Corporation, or Brand node found in JSON-LD.",
             "affected_urls": urls_to_crawl, "severity": ent_severity, "confidence": "high",
             "business_impact": ISSUE_COPY.get("missing_organization_entity", {}).get("business_impact", "Reduces explicit machine-readable entity clarity."),
-            "difficulty": "Easy", "fix": "Add Organization/Brand structured data.",
+            "difficulty": "Easy", "fix": "Add or consolidate Organization/Brand structured data.",
             "fix_snippet": _generate_snippet("organization", domain)
         })
     elif not has_same_as:
@@ -900,7 +900,10 @@ def audit_geo(domain: str) -> dict:
             "product_intelligence": False,
             "answerability": True,
             "agentic_commerce": True
-        }
+        },
+        "crawlability_matrix": {},
+        "agentic_capabilities": {},
+        "answerability_matrix": {"strong_policies": 0, "weak_policies": 0}
     }
 
     if not _check_domain_reachable(domain, findings):
@@ -1106,6 +1109,6 @@ def audit_geo(domain: str) -> dict:
 
 
 
-def geo_opportunity_score(geo_findings: dict) -> int:
+def geo_opportunity_score(geo_findings: dict) -> float:
     score = geo_findings.get("overall_geo_score")
-    return int(score) if score is not None else 0
+    return round(float(score), 1) if score is not None else 0.0

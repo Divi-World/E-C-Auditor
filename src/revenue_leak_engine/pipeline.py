@@ -160,6 +160,24 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     snippet_html = f'{inst_html}<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
                     issue["fix"] = issue.get("fix", "") + snippet_html
 
+            
+                        
+            # DETERMINISTIC OPPORTUNITY TIER (Calculated BEFORE report generation)
+            geo_score_val = float(geo_findings.get("overall_geo_score", 0) or 0)
+            issue_count = len(geo_findings.get("issues", []))
+            if geo_score_val >= 8.0 and issue_count == 0:
+                geo_findings["opp_tier"] = "LOW"
+                geo_findings["opp_color"] = "#10b981"
+            elif geo_score_val >= 8.0 and issue_count > 0:
+                geo_findings["opp_tier"] = "MEDIUM"
+                geo_findings["opp_color"] = "#f59e0b"
+            elif geo_score_val >= 5.0:
+                geo_findings["opp_tier"] = "MEDIUM"
+                geo_findings["opp_color"] = "#f59e0b"
+            else:
+                geo_findings["opp_tier"] = "HIGH"
+                geo_findings["opp_color"] = "#ef4444"
+
             geo_report = generate_geo_report(geo_findings)
             lead_result.update({
                 "geo_score": geo_score,
