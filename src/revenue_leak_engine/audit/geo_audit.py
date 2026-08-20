@@ -169,7 +169,28 @@ def _extract_json_ld(html):
             type_match = re.search(r'"@type"\s*:\s*"?([A-Za-z,\s]+)"?', raw)
             if type_match:
                 nodes.append({"@type": type_match.group(1).strip(), "_fallback": True})
-    return nodes
+    
+    # Canonical Flatten: Ensure @graph and nested arrays are fully expanded
+    flat_nodes = []
+    for n in nodes:
+        if isinstance(n, dict):
+            if "@graph" in n:
+                flat_nodes.extend([g for g in n["@graph"] if isinstance(g, dict)])
+            else:
+                flat_nodes.append(n)
+        elif isinstance(n, list):
+            flat_nodes.extend([g for g in n if isinstance(g, dict)])
+    
+    # Normalize AggregateOffer to standard Offer structure for downstream consistency
+    for n in flat_nodes:
+        if "Product" in str(n.get("@type", "")):
+            offers = n.get("offers")
+            if isinstance(offers, dict) and offers.get("@type") == "AggregateOffer":
+                if "lowPrice" in offers and "price" not in offers:
+                    offers["price"] = offers["lowPrice"]
+                if "highPrice" in offers and "price" not in offers:
+                    offers["price"] = offers["highPrice"]
+    return flat_nodes
 
 
 def _extract_links(html, base_url):
@@ -345,7 +366,7 @@ def _sample_urls(domain, findings):
         p for p in products
         if not any(p.lower().split('?')[0].endswith(ext) for ext in NON_PAGE_EXTENSIONS)
     ]
-    urls["products"] = products[:3]
+    urls["products"] = products[:5]
     if collections:
         urls["collection"] = collections[0]
     urls["policies_discovered"] = policies
@@ -839,10 +860,20 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             findings["dimensions_measured"]["product_intelligence"] = True
 
             if avg_prod_score < 80:
+                # Calculate exact missing counts for traceable evidence
+                missing_fields = []
+                if field_totals['price'] < valid_p_count: missing_fields.append(f"price ({valid_p_count - field_totals['price']}/{valid_p_count})")
+                if field_totals['avail'] < valid_p_count: missing_fields.append(f"availability ({valid_p_count - field_totals['avail']}/{valid_p_count})")
+                if field_totals['sku'] < valid_p_count: missing_fields.append(f"SKU/GTIN ({valid_p_count - field_totals['sku']}/{valid_p_count})")
+                if field_totals['brand'] < valid_p_count: missing_fields.append(f"brand ({valid_p_count - field_totals['brand']}/{valid_p_count})")
+                
                 issues.append({
                     "code": "incomplete_product_schema",
             "finding_id": "GEO-PRD-001",
-                    "description": f"Product schema is {avg_prod_score:.0f}% complete. (Scoring Weights: Name 15pts, Image 10pts, Price 20pts, Avail 20pts, SKU 20pts, Brand 15pts). Missing attributes reduce this score.",
+                    "description": f"Product schema is {avg_prod_score:.0f}% complete. Missing attributes reduce AI-shopping eligibility.",
+                    "finding_id": "GEO-PRD-001",
+                    "dimension": "Product Intelligence",
+                    "observation": f"Sampled {valid_p_count} verified product pages. Missing: {', '.join(missing_fields) if missing_fields else 'None'}.",
                     "evidence": f"Sampled {valid_p_count} products. Forensic Coverage: Name {int(field_totals['name']/max(1,valid_p_count)*100)}% | Image {int(field_totals['image']/max(1,valid_p_count)*100)}% | Price {int(field_totals['price']/max(1,valid_p_count)*100)}% | Avail {int(field_totals['avail']/max(1,valid_p_count)*100)}% | SKU {int(field_totals['sku']/max(1,valid_p_count)*100)}% | Brand {int(field_totals['brand']/max(1,valid_p_count)*100)}%.",
                     "affected_urls": products, "severity": "high", "confidence": "high",
                     "business_impact": ISSUE_COPY.get("incomplete_product_schema", {}).get("business_impact", "Incomplete machine-readable product data may reduce eligibility."),
