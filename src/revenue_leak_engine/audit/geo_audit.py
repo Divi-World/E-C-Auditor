@@ -29,6 +29,15 @@ PLATFORM_PATTERNS = {
     "unknown": {"product": "/product", "collection": "/category", "exclude": "/category"}
 }
 
+# Enterprise Reality: Strict Product URL Blacklist
+_PRODUCT_BLACKLIST = ['gift-card', 'gift_card', '/search', '/policies/', '/cart', '/checkout', '/blogs/', '/account', '/login', '/register', '/password', '/contact-us', '/faq']
+
+def _is_valid_product_url(url):
+    url_lower = url.lower()
+    if any(bl in url_lower for bl in _PRODUCT_BLACKLIST):
+        return False
+    return True
+
 def _ensure_primary_domain(url_str, primary_domain):
     try:
         parsed = urlparse(url_str)
@@ -143,6 +152,12 @@ def _detect_platform(html, headers):
     return 'unknown'
 
 
+
+
+def _sanitize_product_name(name, domain, brand):
+    if not name or name.lower() == domain.lower() or name.lower() == brand.lower() or name == "Sample Product" or name == "Premium Product":
+        return "REPLACE_WITH_PRODUCT_NAME"
+    return name
 
 def _generate_snippet(code_type, domain, sample_name=""):
     if code_type == "organization":
@@ -450,7 +465,7 @@ def _extract_real_assets(html, url, domain):
     # WAF GUARD: If this is a challenge page, do not scrape it for brand data
     html_lower = html[:2000].lower() if html else ""
     if any(sig in html_lower for sig in ["just a moment", "window._cf_chl_opt", "captcha", "challenge-platform", "enable javascript and cookies"]):
-        return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": domain.split('.')[0].capitalize(), "product_desc": "REPLACE_WITH_PRODUCT_DESCRIPTION", "price": "REPLACE_WITH_PRICE", "sku": "REPLACE_WITH_SKU", "product_url": url}
+        return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": "REPLACE_WITH_PRODUCT_NAME", "product_desc": "REPLACE_WITH_PRODUCT_DESCRIPTION", "price": "REPLACE_WITH_PRICE", "sku": "REPLACE_WITH_SKU", "product_url": url}
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
     assets = {}
@@ -475,7 +490,7 @@ def _extract_real_assets(html, url, domain):
     
     # Product Specifics
     og_title = soup.find("meta", property="og:title")
-    assets["product_name"] = (og_title["content"] if og_title else assets["brand_name"])
+    assets["product_name"] = (og_title["content"] if og_title and og_title["content"] != assets["brand_name"] and og_title["content"].lower() != domain.lower() else "REPLACE_WITH_PRODUCT_NAME")
     assets["product_url"] = url
     desc_meta = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
     assets["product_desc"] = (desc_meta["content"] if desc_meta else "REPLACE_WITH_PRODUCT_DESCRIPTION")
@@ -634,7 +649,10 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         issues.append({
             "code": "missing_organization_entity",
             "description": ent_desc,
-            "evidence": "No Organization, Corporation, or Brand node found in JSON-LD.",
+            "observed": "No Organization, Corporation, or Brand node found in JSON-LD.",
+            "evidence": "Parsed JSON-LD structures on homepage and sampled product pages.",
+            "inference": "Adding explicit Organization structured data significantly increases the probability that AI systems will accurately identify and recommend your brand.",
+            "recommendation": "Add or consolidate Organization/Brand structured data.",
             "affected_urls": urls_to_crawl, "severity": ent_severity, "confidence": "high",
             "business_impact": ISSUE_COPY.get("missing_organization_entity", {}).get("business_impact", "Reduces explicit machine-readable entity clarity."),
             "difficulty": "Easy", "fix": "Add or consolidate Organization/Brand structured data.",
@@ -923,6 +941,12 @@ def audit_geo(domain: str) -> dict:
         return findings
 
     sample_urls = _sample_urls(domain, findings)
+    
+    # Enterprise Reality: Strict Product URL Blacklist applied to all sampled URLs
+    _BL = ['gift-card', 'gift_card', '/search', '/policies/', '/cart', '/checkout', '/blogs/', '/account', '/login', '/password', '/contact-us', '/faq', '/apps/']
+    for k in list(sample_urls.keys()):
+        if isinstance(sample_urls[k], list):
+            sample_urls[k] = [u for u in sample_urls[k] if not any(b in u.lower() for b in _BL)]
 
     # OG ROBUST PLATFORM DETECTION (Fallback chain)
     platform = findings.get("platform_detected", "unknown")
@@ -1003,7 +1027,7 @@ def audit_geo(domain: str) -> dict:
                 p_url = issue["affected_urls"][0] if issue.get("affected_urls") else f"https://{domain}/"
                 p_st, p_html, _, _ = _fetch(p_url, "prod_snippet_assets", findings)
                 p_assets = _extract_real_assets(p_html, p_url, domain)
-                snippet = snippet.replace("Sample Product", p_assets.get("product_name", "Premium Product").replace('"', '\"'))
+                snippet = snippet.replace("Sample Product", _sanitize_product_name(p_assets.get("product_name"), domain, real_assets.get("brand_name", "")).replace('"', '\"'))
                 snippet = snippet.replace("REPLACE_WITH_IMAGE_URL", p_assets.get("logo_url", f"https://{domain}/logo.png"))
                 snippet = snippet.replace("REPLACE_WITH_DESCRIPTION", p_assets.get("product_desc", "REPLACE_WITH_PRODUCT_DESCRIPTION").replace('"', '\"'))
                 snippet = snippet.replace("REPLACE_WITH_SKU", p_assets.get("sku", "SKU-1001"))
