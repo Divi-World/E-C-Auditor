@@ -104,13 +104,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             healthy_skipped += 1
             continue
             
-        # Skip if GEO auditor detected it's not actually an e-commerce store
-        geo_issues = geo_findings.get("issues", [])
-        is_non_commerce = any(i.get("code") == "non_commerce_profile" for i in geo_issues)
-        if is_non_commerce:
-            print(f"    skipped: non-commerce profile detected")
-            healthy_skipped += 1
-            continue
+        # Partner Fix: Removed hard-skip for non_commerce_profile. Let it score and route to CSV.
 
         lead_result = {**lead}
         lead_result["platform_detected"] = geo_findings.get("platform_detected", "unknown")
@@ -190,6 +184,14 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             append_draft_to_log(geo_draft)
 
         # Combine scores (total will be used for ranking)
+                # Partner Directive: Flag non-commerce profiles instead of dropping or blindly including
+        is_non_commerce = any(i.get("code") == "non_commerce_profile" for i in geo_findings.get("issues", []))
+        if is_non_commerce:
+            lead_result["flagged_non_commerce"] = True
+            print(f"    note: non-commerce profile detected, included but flagged for manual review")
+        else:
+            lead_result["flagged_non_commerce"] = False
+
         lead_result["total_score"] = lead_result.get("cro_score", 0) + lead_result.get("geo_score", 0)
         
         # Lead Status Classification (Partner Directive #2)

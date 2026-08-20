@@ -32,3 +32,16 @@ for domain in DOMAINS:
 
     status = "OK" if not problems else "ISSUES: " + "; ".join(problems)
     print(f"{domain:20} {status}")
+
+
+# Partner Directive: Regression check for known-good e-commerce domains
+KNOWN_REAL_ECOMMERCE = ["universalyums.com", "beautyitis.com", "thefarmersdog.com"]
+for domain in KNOWN_REAL_ECOMMERCE:
+    try:
+        r = audit_geo(domain)
+        if not r.get("issues") and r.get("overall_geo_score") is None:
+            print(f"{domain}: WARNING — known-good e-commerce domain returned no findings, check for misclassification")
+        else:
+            print(f"{domain}: OK (Score: {r.get('overall_geo_score')})")
+    except Exception as e:
+        print(f"{domain}: ERROR — {e}")
