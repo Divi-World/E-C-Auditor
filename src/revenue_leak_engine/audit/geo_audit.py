@@ -490,7 +490,17 @@ def _extract_real_assets(html, url, domain):
     
     # Product Specifics
     og_title = soup.find("meta", property="og:title")
-    assets["product_name"] = (og_title["content"] if og_title and og_title["content"] != assets["brand_name"] and og_title["content"].lower() != domain.lower() else "REPLACE_WITH_PRODUCT_NAME")
+    h1_tag = soup.find('h1')
+    h1_text = h1_tag.get_text(strip=True) if h1_tag else ""
+    og_text = og_title["content"] if og_title else ""
+    
+    # Industrial Cascade: JSON-LD (handled elsewhere) -> OG Title -> H1 -> UNKNOWN
+    if og_text and og_text != assets["brand_name"] and og_text.lower() != domain.lower():
+        assets["product_name"] = og_text
+    elif h1_text and h1_text != assets["brand_name"] and h1_text.lower() != domain.lower():
+        assets["product_name"] = h1_text
+    else:
+        assets["product_name"] = "REPLACE_WITH_PRODUCT_NAME"
     assets["product_url"] = url
     desc_meta = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
     assets["product_desc"] = (desc_meta["content"] if desc_meta else "REPLACE_WITH_PRODUCT_DESCRIPTION")
