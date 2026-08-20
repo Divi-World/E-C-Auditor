@@ -41,12 +41,9 @@ def _ensure_primary_domain(url_str, primary_domain):
 def _fetch(url, notes_key, findings):
     try:
         if USE_STEALTH:
-            try:
-                r = cffi_requests.get(url, timeout=TIMEOUT, impersonate="chrome120", allow_redirects=True)
-                return r.status_code, r.text, str(r.url), r.headers
-            except Exception:
-                pass  # Fallback to standard requests if stealth fails/blocks
-        r = std_requests.get(url, timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
+            r = cffi_requests.get(url, timeout=TIMEOUT, impersonate="chrome120", allow_redirects=True)
+        else:
+            r = requests.get(url, timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
         return r.status_code, r.text, str(r.url), r.headers
     except Exception as e:
         findings["notes"] += f"{notes_key}: {type(e).__name__}. "
@@ -862,12 +859,6 @@ def _check_agentic_commerce(domain, findings):
         if score == 0.0:
             score = 5.0 
             findings["notes"] += "agentic_score_capped_at_standard_baseline. "
-    
-    # Partner Directive: Agentic Scoring Semantics (MCP NOT_DETECTED caps score at 8.0)
-    if capabilities.get("MCP") == "NOT_DETECTED" and score > 8.0:
-        score = 8.0
-        findings["notes"] += "agentic_score_capped_due_to_missing_mcp. "
-
     findings["dimensions"]["agentic_commerce"] = score
     findings["agentic_capabilities"] = capabilities
     
@@ -988,7 +979,7 @@ def audit_geo(domain: str) -> dict:
     )
 
     if dims.get("entity_intelligence") is not None and dims["entity_intelligence"] < 8:
-        findings["business_interpretation"].append("Your brand's digital footprint lacks explicit machine-readable Organization/Brand signals that can strengthen entity identification and corroboration for AI search engines.")
+        findings["business_interpretation"].append("Your brand's digital footprint lacks the structured entity corroboration required for AI search engines to confidently recommend you over competitors.")
     if dims.get("product_intelligence") is not None and dims["product_intelligence"] < 8:
         findings["business_interpretation"].append("Critical commerce attributes such as pricing, availability, and product identifiers are incomplete in the sampled machine-readable product data, which may reduce eligibility or reliability across search and AI-assisted shopping surfaces.")
     if dims.get("agentic_commerce") is not None and dims["agentic_commerce"] < 10:
@@ -1113,45 +1104,6 @@ def audit_geo(domain: str) -> dict:
         findings["score_confidence"] = "low"
     else:
         findings["score_confidence"] = "full"
-
-
-    # Partner Directive: Dimension-Level Confidence & Answerability Evidence
-    try:
-        findings["dimension_confidence"] = {
-            "crawlability": "full" if findings.get("crawlability_matrix") else "low",
-            "entity_intelligence": "full",
-            "product_intelligence": "full" if findings.get("dimensions_measured", {}).get("product_intelligence") else "partial",
-            "answerability": "full" if findings.get("answerability_matrix", {}).get("strong_policies", 0) > 2 else "partial",
-            "agentic_commerce": "full"
-        }
-        
-        ans_matrix = findings.get("answerability_matrix", {})
-        findings["answerability_evidence"] = {
-            "Privacy Policy": "PASS" if ans_matrix.get("privacy") else "NOT_DETECTED",
-            "Terms of Service": "PASS" if ans_matrix.get("terms") else "NOT_DETECTED",
-            "Shipping Policy": "PASS" if ans_matrix.get("shipping") else "NOT_DETECTED",
-            "Return Policy": "PASS" if ans_matrix.get("returns") else "NOT_DETECTED"
-        }
-    except Exception:
-        pass
-
-
-    # Partner Directive: Proportional Severity Penalty (Never reduces score by more than 50%)
-    try:
-        high_sev = sum(1 for i in findings.get("issues", []) if i.get("severity") == "high")
-        med_sev = sum(1 for i in findings.get("issues", []) if i.get("severity") == "medium")
-        raw_severity_penalty = (high_sev * 1.5) + (med_sev * 0.5)
-        raw_score = float(findings.get("overall_geo_score", 10.0))
-        
-        # Cap penalty at 50% of raw score to prevent complete score wipeout
-        max_penalty = raw_score * 0.5
-        actual_penalty = min(raw_severity_penalty, max_penalty)
-        
-        findings["overall_geo_score"] = max(0.0, round(raw_score - actual_penalty, 1))
-        findings["severity_penalty_applied"] = actual_penalty
-        findings["raw_severity_penalty"] = raw_severity_penalty
-    except Exception:
-        pass
 
     return findings
 

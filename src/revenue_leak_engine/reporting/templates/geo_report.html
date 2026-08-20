@@ -145,29 +145,6 @@
             </div>
         </div>
 
-        
-        <div class="section-title">Observation Confidence & Answerability Evidence</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">
-            <div class="issue-card" style="margin-bottom: 0;">
-                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: var(--accent-blue);">Dimension Confidence</h3>
-                {% for dim, conf in (dimension_confidence | default({})).items() %}
-                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
-                    <span style="color: var(--text-muted);">{{ dim | replace('_', ' ') | title }}</span>
-                    <span style="color: {% if conf == 'full' %}var(--accent-green){% elif conf == 'partial' %}var(--accent-orange){% else %}var(--accent-red){% endif %}; font-weight: 600; text-transform: uppercase;">{{ conf }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            <div class="issue-card" style="margin-bottom: 0;">
-                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: var(--accent-blue);">Answerability (Policies)</h3>
-                {% for policy, status in (answerability_evidence | default({})).items() %}
-                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
-                    <span style="color: var(--text-muted);">{{ policy }}</span>
-                    <span style="color: {% if status == 'PASS' %}var(--accent-green){% else %}var(--text-muted){% endif %}; font-weight: 600;">{{ status }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
         <div class="section-title">Detailed Findings & Fixes</div>
         {% for issue in issues %}
         <div class="issue-card">
