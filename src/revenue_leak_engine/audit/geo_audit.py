@@ -859,6 +859,11 @@ def _check_agentic_commerce(domain, findings):
         if score == 0.0:
             score = 5.0 
             findings["notes"] += "agentic_score_capped_at_standard_baseline. "
+
+    # Partner Directive: Agentic cap - MCP NOT_DETECTED caps score at 8.0
+    if capabilities.get("MCP") == "NOT_DETECTED" and score > 8.0:
+        score = 8.0
+
     findings["dimensions"]["agentic_commerce"] = score
     findings["agentic_capabilities"] = capabilities
     
@@ -979,7 +984,7 @@ def audit_geo(domain: str) -> dict:
     )
 
     if dims.get("entity_intelligence") is not None and dims["entity_intelligence"] < 8:
-        findings["business_interpretation"].append("Your brand's digital footprint lacks the structured entity corroboration required for AI search engines to confidently recommend you over competitors.")
+        findings["business_interpretation"].append("Your brand's digital footprint lacks explicit machine-readable Organization/Brand signals that can strengthen entity identification and corroboration for AI search engines.")
     if dims.get("product_intelligence") is not None and dims["product_intelligence"] < 8:
         findings["business_interpretation"].append("Critical commerce attributes such as pricing, availability, and product identifiers are incomplete in the sampled machine-readable product data, which may reduce eligibility or reliability across search and AI-assisted shopping surfaces.")
     if dims.get("agentic_commerce") is not None and dims["agentic_commerce"] < 10:
@@ -1109,10 +1114,10 @@ def audit_geo(domain: str) -> dict:
     # Partner Directive: Reconcile Answerability Dimension
     try:
         ans_matrix = findings.get("answerability_matrix", {})
-        verified = sum(1 for k, v in ans_matrix.items() if v in [True, "PASS", 200] and k in ["privacy", "terms", "shipping", "returns"])
-        if verified == 0:
+        strong_count = ans_matrix.get("strong_policies", 0)
+        if strong_count == 0:
             findings["dimensions"]["answerability"] = min(findings["dimensions"].get("answerability", 10.0), 4.0)
-        elif verified <= 2:
+        elif strong_count <= 2:
             findings["dimensions"]["answerability"] = min(findings["dimensions"].get("answerability", 10.0), 7.0)
     except Exception:
         pass
