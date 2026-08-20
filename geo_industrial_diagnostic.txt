@@ -1,3 +1,114 @@
+===== PROJECT STATUS =====
+?? geo_industrial_diagnostic.txt
+
+===== GEO AUDIT: KEY FUNCTIONS =====
+23:    "agentic_commerce": 0.10
+32:# Enterprise Reality: Strict Product URL Blacklist
+35:def _is_valid_product_url(url):
+101:def _extract_json_ld(html):
+149:    if any(sig in html_lower for sig in ["/wp-content/plugins/woocommerce/", "wc-block", "woocommerce-json-ld"]): return "woocommerce"
+157:def _sanitize_product_name(name, domain, brand):
+158:    if not name or name.lower() == domain.lower() or name.lower() == brand.lower() or name == "Sample Product" or name == "Premium Product":
+162:def _generate_snippet(code_type, domain, sample_name=""):
+170:        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "REPLACE_WITH_SKU",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "REPLACE_WITH_PRICE",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
+185:def _sample_urls(domain, findings):
+363:                        "fix": "Host AI discovery files on the primary brand CDN."
+384:                        "business_impact": "Your brand is actively hidden from next-generation AI search engines (ChatGPT, Perplexity), ceding market share to competitors.",
+465:    # WAF GUARD: If this is a challenge page, do not scrape it for brand data
+468:        return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": "REPLACE_WITH_PRODUCT_NAME", "product_desc": "REPLACE_WITH_PRODUCT_DESCRIPTION", "price": "REPLACE_WITH_PRICE", "sku": "REPLACE_WITH_SKU", "product_url": url}
+476:    assets["brand_name"] = (og_site["content"] if og_site else (title.text.split('|')[0].split('-')[0].strip() if title else domain))
+491:    # Product Specifics
+497:    # Industrial Cascade: JSON-LD (handled elsewhere) -> OG Title -> H1 -> UNKNOWN
+498:    if og_text and og_text != assets["brand_name"] and og_text.lower() != domain.lower():
+499:        assets["product_name"] = og_text
+500:    elif h1_text and h1_text != assets["brand_name"] and h1_text.lower() != domain.lower():
+501:        assets["product_name"] = h1_text
+503:        assets["product_name"] = "REPLACE_WITH_PRODUCT_NAME"
+508:    price_meta = soup.find("meta", property="product:price:amount") or soup.find("meta", attrs={"itemprop": "price"})
+509:    assets["price"] = (price_meta["content"] if price_meta else "REPLACE_WITH_PRICE")
+511:    sku_meta = soup.find("meta", property="product:retailer_item_id") or soup.find("meta", attrs={"itemprop": "sku"})
+512:    assets["sku"] = (sku_meta["content"] if sku_meta else "REPLACE_WITH_SKU")
+517:def _analyze_entities_and_products(domain, sample_urls, findings):
+528:            commerce_signals = ["window.shopify", "shopify.shop", "add-to-cart", "addtobag", "add to bag", "product-card", "woocommerce", "product_type", "dw.__version__", "vtex", "salesforce", "buy now", "price", "cart", "checkout", "shop"]
+553:        findings["dimensions_measured"]["agentic_commerce"] = False
+556:            "description": "Site appears to be a brand/corporate profile, not a direct e-commerce store.",
+581:            nodes = _extract_json_ld(html)
+604:                    # Check Product->brand
+605:                    if "Product" in t and node.get("brand"): has_entity = True
+622:                "evidence": f"{csr_pages}/{total_pages_crawled} sampled pages return 0 JSON-LD blocks in raw HTML.",
+652:            if any(x in t for x in ["WebSite", "WebPage", "Product", "LocalBusiness"]):
+657:        ent_desc = "Missing explicit Organization JSON-LD (Entity signals detected via other schema types)." if has_other_entity else "Missing Organization/Brand schema in JSON-LD."
+662:            "observed": "No Organization, Corporation, or Brand node found in JSON-LD.",
+663:            "evidence": "Parsed JSON-LD structures on homepage and sampled product pages.",
+664:            "inference": "Adding explicit Organization structured data significantly increases the probability that AI systems will accurately identify and recommend your brand.",
+689:        field_totals = {'name': 0, 'image': 0, 'price': 0, 'avail': 0, 'sku': 0, 'brand': 0}
+695:                nodes = _extract_json_ld(html)
+697:                has_prod = has_name = has_image = has_offers = has_price = has_avail = has_var = has_sku = has_brand = has_review = False
+702:                        if "Product" in t:
+706:                            if node.get("sku") or node.get("gtin") or node.get("mpn"): has_sku = True
+707:                            if node.get("brand"): has_brand = True
+714:                                    if offers.get("price") or offers.get("lowPrice"): has_price = True
+715:                                    if offers.get("availability"): has_avail = True
+718:                # TIER 1 FALLBACK: Check standard meta tags if JSON-LD is missing/empty
+726:                    if soup.find("meta", property=re.compile(r"product:price")): has_price = True
+727:                    if soup.find("meta", property=re.compile(r"product:availability")): has_avail = True
+728:                    if soup.find("meta", property=re.compile(r"product:brand")): has_brand = True
+729:                    if soup.find("meta", property=re.compile(r"product:retailer_item_id")) or soup.find("meta", attrs={"name": "sku"}): has_sku = True
+733:                # ENTERPRISE META-TAG EXTRACTION (Runs in parallel with JSON-LD)
+739:                    if soup.find("meta", property=re.compile(r"product:price")) or soup.find("meta", attrs={"itemprop": "price"}): has_price = True
+740:                    if soup.find("meta", property=re.compile(r"product:availability")) or soup.find("meta", attrs={"itemprop": "availability"}): has_avail = True
+741:                    if soup.find("meta", property=re.compile(r"product:brand")) or soup.find("meta", attrs={"itemprop": "brand"}): has_brand = True
+742:                    if soup.find("meta", property=re.compile(r"product:retailer_item_id")) or soup.find("meta", attrs={"itemprop": "sku"}): has_sku = True
+749:                if has_price: p_score += 20
+751:                if has_sku: p_score += 20
+752:                if has_brand: p_score += 15
+766:                if has_price: field_totals['price'] += 1
+772:                if has_sku: field_totals['sku'] += 1
+775:                if has_brand: field_totals['brand'] += 1
+789:                    "description": f"Product schema is {avg_prod_score:.0f}% complete. (Scoring Weights: Name 15pts, Image 10pts, Price 20pts, Avail 20pts, SKU 20pts, Brand 15pts). Missing attributes reduce this score.",
+790:                    "evidence": f"Sampled {valid_p_count} products. Forensic Coverage: Name {int(field_totals['name']/max(1,valid_p_count)*100)}% | Image {int(field_totals['image']/max(1,valid_p_count)*100)}% | Price {int(field_totals['price']/max(1,valid_p_count)*100)}% | Avail {int(field_totals['avail']/max(1,valid_p_count)*100)}% | SKU {int(field_totals['sku']/max(1,valid_p_count)*100)}% | Brand {int(field_totals['brand']/max(1,valid_p_count)*100)}%.",
+793:                    "difficulty": "Medium", "fix": "Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.",
+794:                    "fix_snippet": _generate_snippet("product", domain, "Sample Product")
+801:                "description": "Product pages were found but could not be crawled or returned no schema.",
+804:                "business_impact": "Product schema quality is unknown (Audit Limitation).",
+816:            "business_impact": "Product schema quality is unknown (Audit Limitation).",
+822:def _check_agentic_commerce(domain, findings):
+823:    capabilities = {"Discovery": "FAIL", "UCP": "FAIL", "MCP": "FAIL", "Catalog": "FAIL", "Cart/Checkout": "FAIL"}
+849:            # capabilities["MCP"] = "PASS"
+871:                    "description": "MCP endpoint returned error during JSON-RPC handshake.",
+877:                    "fix": "Debug MCP server routing and ensure public JSON-RPC access."
+880:            findings["notes"] += f"MCP exception: {e}. "
+886:        # If standard platform and no agentic protocols found, cap score at baseline 5.0
+889:            findings["notes"] += "agentic_score_capped_at_standard_baseline. "
+891:    findings["dimensions"]["agentic_commerce"] = score
+892:    findings["agentic_capabilities"] = capabilities
+896:            "code": "agentic_commerce_partial",
+897:            "description": "UCP discovery file exists, but the MCP tool handshake for Catalog/Cart failed.",
+901:            "business_impact": "AI shopping agents can discover the store via UCP but cannot execute MCP tool calls to browse or transact.",
+903:            "fix": "Check product feed completeness and MCP endpoint health."
+924:            "agentic_commerce": 0.0
+931:            "agentic_commerce": True
+934:        "agentic_capabilities": {},
+955:    # Enterprise Reality: Strict Product URL Blacklist applied to all sampled URLs
+984:    _check_agentic_commerce(domain, findings)
+1017:        findings["business_interpretation"].append("While your brand has strong market presence, adding explicit machine-readable Organization signals significantly increases the probability and accuracy of AI systems recommending you over competitors.")
+1019:        findings["business_interpretation"].append("Critical commerce attributes such as pricing, availability, and product identifiers are incomplete in the sampled machine-readable product data, which may reduce eligibility or reliability across search and AI-assisted shopping surfaces.")
+1020:    if dims.get("agentic_commerce") is not None and dims["agentic_commerce"] < 10:
+1021:        findings["business_interpretation"].append("Your infrastructure is currently invisible to next-generation agentic commerce protocols, ceding market share in the emerging AI-driven shopping ecosystem.")
+1030:            snippet = snippet.replace("REPLACE_WITH_BRAND_NAME", real_assets.get("brand_name", domain).replace('"', '\\"'))
+1035:            # Product specific replacements
+1036:            if "REPLACE_WITH_IMAGE_URL" in snippet or "Sample Product" in snippet:
+1040:                snippet = snippet.replace("Sample Product", _sanitize_product_name(p_assets.get("product_name"), domain, real_assets.get("brand_name", "")).replace('"', '\"'))
+1043:                snippet = snippet.replace("REPLACE_WITH_SKU", p_assets.get("sku", "SKU-1001"))
+1047:                snippet = snippet.replace("REPLACE_WITH_PRICE", p_assets.get("price", "29.99"))
+1096:    # MCP CONTRADICTION FIX: If handshake failed with 403/404/Timeout, it's NOT_DETECTED, not broken
+1101:                if "MCP" in findings.get("agentic_capabilities", {}):
+1102:                    findings["agentic_capabilities"]["MCP"] = "NOT_DETECTED"
+1103:                if "UCP" in findings.get("agentic_capabilities", {}):
+1104:                    findings["agentic_capabilities"]["UCP"] = "NOT_DETECTED"
+1106:    # Filter out MCP/UCP 403/404 issues (they are just missing endpoints, not broken pipes)
+
+===== FULL GEO AUDIT SOURCE =====
 import re
 from revenue_leak_engine.audit.copy_bank import ISSUE_COPY
 import json
@@ -11,57 +122,6 @@ try:
     USE_STEALTH = True
 except ImportError:
     USE_STEALTH = False
-
-import sqlite3, hashlib, time, os
-CACHE_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data', 'http_cache.db')
-os.makedirs(os.path.dirname(CACHE_DB), exist_ok=True)
-
-def _init_cache():
-    try:
-        conn = sqlite3.connect(CACHE_DB)
-        conn.execute("CREATE TABLE IF NOT EXISTS http_cache (url_hash TEXT PRIMARY KEY, status INTEGER, text TEXT, final_url TEXT, headers TEXT, timestamp REAL)")
-        conn.commit()
-        conn.close()
-    except Exception: pass
-_init_cache()
-
-class MockResp:
-    def __init__(self, status, text, url, headers_str):
-        self.status_code = status
-        self.text = text or ""
-        self.url = url
-        self.headers = headers_str
-        self.content = self.text.encode("utf-8", errors="ignore")
-
-_orig_cffi_get = cffi_requests.get if USE_STEALTH else None
-_orig_std_get = std_requests.get
-
-def _cached_get(url, **kwargs):
-    url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
-    try:
-        conn = sqlite3.connect(CACHE_DB)
-        c = conn.cursor()
-        c.execute("SELECT status, text, final_url, headers, timestamp FROM http_cache WHERE url_hash=?", (url_hash,))
-        row = c.fetchone()
-        conn.close()
-        if row and (time.time() - row[4]) < 43200: # 12 hour cache
-            return MockResp(row[0], row[1], row[2], row[3])
-    except Exception: pass
-    
-    r = _orig_cffi_get(url, **kwargs) if (USE_STEALTH and _orig_cffi_get) else _orig_std_get(url, **kwargs)
-    
-    try:
-        conn = sqlite3.connect(CACHE_DB)
-        c = conn.cursor()
-        c.execute("INSERT OR REPLACE INTO http_cache VALUES (?,?,?,?,?,?)",
-                  (url_hash, r.status_code, r.text, str(r.url), str(r.headers), time.time()))
-        conn.commit()
-        conn.close()
-    except Exception: pass
-    return r
-
-if USE_STEALTH: cffi_requests.get = _cached_get
-std_requests.get = _cached_get
 
 TIMEOUT = 10
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; RevenueLeakEngine/7.0-Enterprise)"}
@@ -206,7 +266,7 @@ def _detect_platform(html, headers):
 
 
 def _sanitize_product_name(name, domain, brand):
-    if not name or name.lower() == domain.lower() or name.lower() == brand.lower() or name == "NOT_DETECTED" or name == "Premium Product":
+    if not name or name.lower() == domain.lower() or name.lower() == brand.lower() or name == "Sample Product" or name == "Premium Product":
         return "REPLACE_WITH_PRODUCT_NAME"
     return name
 
@@ -218,7 +278,7 @@ def _generate_snippet(code_type, domain, sample_name=""):
     elif code_type == "breadcrumb":
         return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "BreadcrumbList",\n  "itemListElement": [{\n    "@type": "ListItem",\n    "position": 1,\n    "name": "Home",\n    "item": "https://' + domain + '"\n  }]\n}\n</script>'
     elif code_type == "product":
-        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "NOT_DETECTED",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "NOT_DETECTED",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
+        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "REPLACE_WITH_SKU",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "REPLACE_WITH_PRICE",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
     return ""
 
 
@@ -405,7 +465,6 @@ def _check_crawlability(domain, findings):
                     score -= 1.0
                     issues.append({
                         "code": "llms_txt_checkout_routing",
-            "finding_id": "GEO-CRW-002",
                         "description": "llms.txt redirected to a checkout subdomain.",
                         "evidence": f"Final URL: {final_url}",
                         "affected_urls": [final_url],
@@ -517,7 +576,7 @@ def _extract_real_assets(html, url, domain):
     # WAF GUARD: If this is a challenge page, do not scrape it for brand data
     html_lower = html[:2000].lower() if html else ""
     if any(sig in html_lower for sig in ["just a moment", "window._cf_chl_opt", "captcha", "challenge-platform", "enable javascript and cookies"]):
-        return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": "REPLACE_WITH_PRODUCT_NAME", "product_desc": "REPLACE_WITH_PRODUCT_DESCRIPTION", "price": "NOT_DETECTED", "sku": "NOT_DETECTED", "product_url": url}
+        return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": "REPLACE_WITH_PRODUCT_NAME", "product_desc": "REPLACE_WITH_PRODUCT_DESCRIPTION", "price": "REPLACE_WITH_PRICE", "sku": "REPLACE_WITH_SKU", "product_url": url}
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
     assets = {}
@@ -661,7 +720,6 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         if (redirect_shell_pages / total_pages_crawled) > 0.5:
             issues.append({
                 "code": "redirect_shell_detected",
-            "finding_id": "GEO-CRW-001",
                 "description": "Core pages redirect to external shells (e.g., checkout subdomains) with no schema.",
                 "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "high",
@@ -671,7 +729,6 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         elif (csr_pages / total_pages_crawled) > 0.5:
             issues.append({
                 "code": "csr_schema_leak",
-            "finding_id": "GEO-CSR-001",
                 "description": "Client-Side Rendering (CSR) is preventing raw HTML schema extraction.",
                 "evidence": f"{csr_pages}/{total_pages_crawled} sampled pages return 0 JSON-LD blocks in raw HTML.",
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "high",
@@ -712,7 +769,6 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         
         issues.append({
             "code": "missing_organization_entity",
-            "finding_id": "GEO-ENT-001",
             "description": ent_desc,
             "observed": "No Organization, Corporation, or Brand node found in JSON-LD.",
             "evidence": "Parsed JSON-LD structures on homepage and sampled product pages.",
@@ -841,13 +897,12 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             if avg_prod_score < 80:
                 issues.append({
                     "code": "incomplete_product_schema",
-            "finding_id": "GEO-PRD-001",
                     "description": f"Product schema is {avg_prod_score:.0f}% complete. (Scoring Weights: Name 15pts, Image 10pts, Price 20pts, Avail 20pts, SKU 20pts, Brand 15pts). Missing attributes reduce this score.",
                     "evidence": f"Sampled {valid_p_count} products. Forensic Coverage: Name {int(field_totals['name']/max(1,valid_p_count)*100)}% | Image {int(field_totals['image']/max(1,valid_p_count)*100)}% | Price {int(field_totals['price']/max(1,valid_p_count)*100)}% | Avail {int(field_totals['avail']/max(1,valid_p_count)*100)}% | SKU {int(field_totals['sku']/max(1,valid_p_count)*100)}% | Brand {int(field_totals['brand']/max(1,valid_p_count)*100)}%.",
                     "affected_urls": products, "severity": "high", "confidence": "high",
                     "business_impact": ISSUE_COPY.get("incomplete_product_schema", {}).get("business_impact", "Incomplete machine-readable product data may reduce eligibility."),
                     "difficulty": "Medium", "fix": "Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.",
-                    "fix_snippet": _generate_snippet("product", domain, "NOT_DETECTED")
+                    "fix_snippet": _generate_snippet("product", domain, "Sample Product")
                 })
         else:
             findings["dimensions_measured"]["product_intelligence"] = False
@@ -1034,23 +1089,10 @@ def audit_geo(domain: str) -> dict:
         
     findings["platform_detected"] = platform
 
-    try:
-        _check_crawlability(domain, findings)
-    except Exception as e:
-        findings["notes"] += f"crawlability_crash: {type(e).__name__}. "
-    try:
-        _check_answerability(domain, sample_urls, findings)
-    except Exception as e:
-        findings["notes"] += f"answerability_crash: {type(e).__name__}. "
-    try:
-        _analyze_entities_and_products(domain, sample_urls, findings)
-    except Exception as e:
-        findings["notes"] += f"entity_product_crash: {type(e).__name__}. "
-    try:
-        _check_agentic_commerce(domain, findings)
-    except Exception as e:
-        findings["notes"] += f"agentic_crash: {type(e).__name__}. "
-
+    _check_crawlability(domain, findings)
+    _check_answerability(domain, sample_urls, findings)
+    _analyze_entities_and_products(domain, sample_urls, findings)
+    _check_agentic_commerce(domain, findings)
 
     dims = findings["dimensions"]
     measured = findings["dimensions_measured"]
@@ -1102,18 +1144,18 @@ def audit_geo(domain: str) -> dict:
             snippet = snippet.replace("REPLACE_WITH_SOCIAL_URLS", '", "'.join(socials_list) if socials_list else "https://www.linkedin.com/company/REPLACE_WITH_COMPANY")
             
             # Product specific replacements
-            if "REPLACE_WITH_IMAGE_URL" in snippet or "NOT_DETECTED" in snippet:
+            if "REPLACE_WITH_IMAGE_URL" in snippet or "Sample Product" in snippet:
                 p_url = issue["affected_urls"][0] if issue.get("affected_urls") else f"https://{domain}/"
                 p_st, p_html, _, _ = _fetch(p_url, "prod_snippet_assets", findings)
                 p_assets = _extract_real_assets(p_html, p_url, domain)
-                snippet = snippet.replace("NOT_DETECTED", _sanitize_product_name(p_assets.get("product_name"), domain, real_assets.get("brand_name", "")).replace('"', '\"'))
+                snippet = snippet.replace("Sample Product", _sanitize_product_name(p_assets.get("product_name"), domain, real_assets.get("brand_name", "")).replace('"', '\"'))
                 snippet = snippet.replace("REPLACE_WITH_IMAGE_URL", p_assets.get("logo_url", f"https://{domain}/logo.png"))
                 snippet = snippet.replace("REPLACE_WITH_DESCRIPTION", p_assets.get("product_desc", "REPLACE_WITH_PRODUCT_DESCRIPTION").replace('"', '\"'))
-                snippet = snippet.replace("REPLACE_WITH_SKU", p_assets.get("sku", "NOT_DETECTED"))
+                snippet = snippet.replace("REPLACE_WITH_SKU", p_assets.get("sku", "SKU-1001"))
                 snippet = snippet.replace("REPLACE_WITH_PRODUCT_URL", p_url)
                 snippet = snippet.replace(f"https://{domain}/https://{domain}/", f"https://{domain}/")
                 snippet = snippet.replace(f"https://{domain}/https://", "https://")
-                snippet = snippet.replace("REPLACE_WITH_PRICE", p_assets.get("price", "NOT_DETECTED"))
+                snippet = snippet.replace("REPLACE_WITH_PRICE", p_assets.get("price", "29.99"))
                 
             issue["fix_snippet"] = snippet
 
@@ -1227,3 +1269,494 @@ def audit_geo(domain: str) -> dict:
 def geo_opportunity_score(geo_findings: dict) -> float:
     score = geo_findings.get("overall_geo_score")
     return round(float(score), 1) if score is not None else 0.0
+===== GEO FIXTURE TESTS =====
+"""
+Industrial GEO Regression & Fixture Suite
+Tests extraction quality, positive identification, and edge cases.
+"""
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from bs4 import BeautifulSoup
+
+def test_extraction_cascade():
+    """Tests the JSON-LD -> OG -> H1 -> UNKNOWN extraction cascade."""
+    html = """<html><head><title>Gymshark</title></head><body><h1>Flex Fleece Hoodie</h1></body></html>"""
+    soup = BeautifulSoup(html, 'html.parser')
+    
+    og_title = soup.find('meta', property='og:title')
+    h1_tag = soup.find('h1')
+    h1_text = h1_tag.get_text(strip=True) if h1_tag else ""
+    og_text = og_title["content"] if og_title else ""
+    brand = "Gymshark"
+    domain = "gymshark.com"
+    
+    if og_text and og_text != brand and og_text.lower() != domain.lower():
+        name = og_text
+    elif h1_text and h1_text != brand and h1_text.lower() != domain.lower():
+        name = h1_text
+    else:
+        name = "REPLACE_WITH_PRODUCT_NAME"
+        
+    assert name == "Flex Fleece Hoodie", f"Extraction cascade failed. Got: {name}"
+    print("PASS: Extraction cascade correctly falls back to H1 tag.")
+
+def test_positive_identification():
+    """Tests that non-product pages are rejected."""
+    html_policy = """<html><body><h1>Shipping Policy</h1><p>We ship worldwide.</p></body></html>"""
+    html_product = """<html><body><h1>Shoes</h1><form action="/cart/add"><button>Add to Cart</button></form></body></html>"""
+    
+    has_schema_p = '"@type": "Product"' in html_policy
+    has_cart_p = 'action="/cart/add"' in html_policy or 'product-form' in html_policy
+    
+    has_schema_pr = '"@type": "Product"' in html_product
+    has_cart_pr = 'action="/cart/add"' in html_product or 'product-form' in html_product
+    
+    assert not (has_schema_p or has_cart_p), "Policy page falsely identified as product."
+    assert (has_schema_pr or has_cart_pr), "Valid product page rejected."
+    print("PASS: Positive product identification logic is sound.")
+
+def test_domain_as_name_rejection():
+    """Tests that domain names are never accepted as product names."""
+    domain = "gymshark.com"
+    brand = "Gymshark"
+    og_text = "gymshark.com"
+    
+    if og_text and og_text != brand and og_text.lower() != domain.lower():
+        name = og_text
+    else:
+        name = "REPLACE_WITH_PRODUCT_NAME"
+        
+    assert name == "REPLACE_WITH_PRODUCT_NAME", "Domain name leaked as product name!"
+    print("PASS: Domain-as-name rejection is active.")
+
+if __name__ == "__main__":
+    test_extraction_cascade()
+    test_positive_identification()
+    test_domain_as_name_rejection()
+    print("\nALL INDUSTRIAL FIXTURE TESTS PASSED.")
+
+===== CURRENT GYMSHARK GEO REPORT =====
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Discovery & Revenue Risk Report: gymshark.com</title>
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --bg-code: #020617;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --border: #334155;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
+        .header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 40px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+        .header .domain { color: var(--accent-blue); font-size: 16px; font-weight: 500; margin-top: 4px; }
+        .score-badge { text-align: right; }
+        .score-value { font-size: 48px; font-weight: 800; line-height: 1; color: var(--text-main); }
+        .confidence-pill { display: inline-block; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-top: 8px; }
+        .conf-full { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .conf-partial { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); border: 1px solid var(--accent-orange); }
+        .section-title { font-size: 18px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; margin-top: 40px; }
+        .matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 40px; }
+        .matrix-card { background: var(--bg-card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); }
+        .matrix-label { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; text-transform: capitalize; }
+        .matrix-score { font-size: 24px; font-weight: 700; }
+        .summary-box { background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); padding: 24px; border-radius: 12px; margin-bottom: 40px; }
+        .summary-box ul { margin: 0; padding-left: 20px; }
+        .summary-box li { margin-bottom: 8px; color: var(--text-main); }
+        .issue-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+        .issue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .issue-title { font-size: 18px; font-weight: 600; margin: 0; }
+        .severity-pill { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+        .sev-high { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+        .sev-medium { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+        .sev-low { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+        .issue-meta { display: flex; gap: 24px; margin-bottom: 16px; font-size: 14px; color: var(--text-muted); }
+        .issue-meta strong { color: var(--text-main); }
+        .issue-impact { background: rgba(239, 68, 68, 0.05); border-left: 3px solid var(--accent-red); padding: 12px 16px; margin-bottom: 20px; font-size: 14px; color: #fca5a5; }
+        .code-block { background: var(--bg-code); border: 1px solid var(--border); border-radius: 8px; padding: 20px; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.5; color: #e2e8f0; white-space: pre; margin-top: 12px; }
+        .footer { text-align: center; margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>AI Discovery & Revenue Risk Report</h1>
+                <div class="domain">gymshark.com</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Platform: Shopify</div>
+            </div>
+            <div class="score-badge">
+                <div class="score-value">5.2<span style="font-size: 24px; color: var(--text-muted);">/10</span></div>
+                <div style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">Commercial Opportunity: <strong style="color: #f59e0b; font-size: 18px;">MEDIUM</strong></div>
+                
+                <div class="confidence-pill conf-full">Full Confidence</div>
+                
+            </div>
+        </div>
+
+        
+        <div class="section-title">Executive Summary</div>
+        <div class="summary-box">
+            <ul>
+                
+                <li>While your brand has strong market presence, adding explicit machine-readable Organization signals significantly increases the probability and accuracy of AI systems recommending you over competitors.</li>
+                
+                <li>Critical commerce attributes such as pricing, availability, and product identifiers are incomplete in the sampled machine-readable product data, which may reduce eligibility or reliability across search and AI-assisted shopping surfaces.</li>
+                
+            </ul>
+        </div>
+        
+
+        
+        <div class="section-title" style="margin-top: 20px;">🎯 Priority Opportunities (What to Fix First)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">
+            
+            
+            <div class="issue-card" style="border-left: 4px solid var(--accent-blue); margin-bottom: 0;">
+                <div style="font-size: 12px; color: var(--accent-blue); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Priority #1</div>
+                <h3 style="margin: 0 0 12px 0; font-size: 18px;">llms.txt redirected to a checkout subdomain.</h3>
+                <div style="display: flex; gap: 16px; font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+                    <span>Impact: <strong style="color: var(--accent-red);">MEDIUM</strong></span>
+                    <span>Effort: <strong style="color: var(--text-main);">Medium</strong></span>
+                </div>
+                <p style="font-size: 14px; color: var(--text-muted); margin: 0;">
+                    AI agents hitting payment domains may encounter strict bot-protection before catalog discovery.
+                </p>
+            </div>
+            
+            
+            
+            <div class="issue-card" style="border-left: 4px solid var(--accent-blue); margin-bottom: 0;">
+                <div style="font-size: 12px; color: var(--accent-blue); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Priority #2</div>
+                <h3 style="margin: 0 0 12px 0; font-size: 18px;">Core commercial policies (Shipping, Returns, FAQ) are missing or lack substantive content.</h3>
+                <div style="display: flex; gap: 16px; font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+                    <span>Impact: <strong style="color: var(--accent-red);">MEDIUM</strong></span>
+                    <span>Effort: <strong style="color: var(--text-main);">Easy</strong></span>
+                </div>
+                <p style="font-size: 14px; color: var(--text-muted); margin: 0;">
+                    Missing structured answers may reduce visibility and trust in conversational commerce and AI-assisted discovery.
+                </p>
+            </div>
+            
+            
+        </div>
+
+        <div class="section-title">Dimensional Readiness</div>
+        <div class="matrix">
+            
+            <div class="matrix-card">
+                <div class="matrix-label">crawlability</div>
+                <div class="matrix-score">
+                    
+                        9.0
+                    
+                </div>
+            </div>
+            
+            <div class="matrix-card">
+                <div class="matrix-label">entity intelligence</div>
+                <div class="matrix-score">
+                    
+                        5.0
+                    
+                </div>
+            </div>
+            
+            <div class="matrix-card">
+                <div class="matrix-label">product intelligence</div>
+                <div class="matrix-score">
+                    
+                        1.0
+                    
+                </div>
+            </div>
+            
+            <div class="matrix-card">
+                <div class="matrix-label">answerability</div>
+                <div class="matrix-score">
+                    
+                        4.0
+                    
+                </div>
+            </div>
+            
+            <div class="matrix-card">
+                <div class="matrix-label">agentic commerce</div>
+                <div class="matrix-score">
+                    
+                        10.0
+                    
+                </div>
+            </div>
+            
+        </div>
+
+        
+        <div class="section-title">Evidence Matrices (Why these scores?)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">
+            <div class="issue-card" style="margin-bottom: 0;">
+                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: var(--accent-blue);">Crawlability Endpoints</h3>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">robots.txt</span>
+                    <span style="color: var(--accent-green); font-weight: 600;">200</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">llms.txt</span>
+                    <span style="color: var(--accent-green); font-weight: 600;">200</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">llms-full.txt</span>
+                    <span style="color: var(--accent-green); font-weight: 600;">200</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">agents.md</span>
+                    <span style="color: var(--accent-green); font-weight: 600;">200</span>
+                </div>
+                
+            </div>
+            <div class="issue-card" style="margin-bottom: 0;">
+                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: var(--accent-blue);">Agentic Capabilities</h3>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">Discovery</span>
+                    <span style="color: var(--accent-green); font-weight: 600;">PASS</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">UCP</span>
+                    <span style="color: var(--accent-green); font-weight: 600;">PASS</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">MCP</span>
+                    <span style="color: var(--text-muted); font-weight: 600;">NOT_DETECTED</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">Catalog</span>
+                    <span style="color: var(--accent-green); font-weight: 600;">PASS</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
+                    <span style="color: var(--text-muted);">Cart/Checkout</span>
+                    <span style="color: var(--accent-green); font-weight: 600;">PASS</span>
+                </div>
+                
+            </div>
+        </div>
+
+        <div class="section-title">Detailed Findings & Fixes</div>
+        
+        <div class="issue-card">
+            <div class="issue-header">
+                <h3 class="issue-title">llms.txt redirected to a checkout subdomain.</h3>
+                <span class="severity-pill sev-medium">medium</span>
+            </div>
+            
+            <div class="issue-meta">
+                <div>Difficulty: <strong>Medium</strong></div>
+                <div>Confidence: <strong>high</strong></div>
+            </div>
+
+            <div class="issue-impact">
+                <strong>Business Impact:</strong> AI agents hitting payment domains may encounter strict bot-protection before catalog discovery.
+            </div>
+
+            <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Evidence:</strong> Final URL: https://us.checkout.gymshark.com/llms.txt
+            </div>
+
+            
+            <div style="margin-top: 20px;">
+                <strong style="color: var(--accent-green);">📋 Recommended Fix & Implementation:</strong>
+                <div style="font-size: 14px; margin-top: 8px; margin-bottom: 12px;">Host AI discovery files on the primary brand CDN.</div>
+            </div>
+            
+        </div>
+        
+        <div class="issue-card">
+            <div class="issue-header">
+                <h3 class="issue-title">Core commercial policies (Shipping, Returns, FAQ) are missing or lack substantive content.</h3>
+                <span class="severity-pill sev-medium">medium</span>
+            </div>
+            
+            <div class="issue-meta">
+                <div>Difficulty: <strong>Easy</strong></div>
+                <div>Confidence: <strong>high</strong></div>
+            </div>
+
+            <div class="issue-impact">
+                <strong>Business Impact:</strong> Missing structured answers may reduce visibility and trust in conversational commerce and AI-assisted discovery.
+            </div>
+
+            <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Evidence:</strong> Found 0 strong policy pages. Weak pages: 0.
+            </div>
+
+            
+            <div style="margin-top: 20px;">
+                <strong style="color: var(--accent-green);">📋 Recommended Fix & Implementation:</strong>
+                <div style="font-size: 14px; margin-top: 8px; margin-bottom: 12px;">Publish comprehensive, text-rich policy and FAQ pages to capture AI-driven customer support queries.</div>
+            </div>
+            
+        </div>
+        
+        <div class="issue-card">
+            <div class="issue-header">
+                <h3 class="issue-title">Core pages redirect to external shells (e.g., checkout subdomains) with no schema.</h3>
+                <span class="severity-pill sev-high">high</span>
+            </div>
+            
+            <div class="issue-meta">
+                <div>Difficulty: <strong>Medium</strong></div>
+                <div>Confidence: <strong>high</strong></div>
+            </div>
+
+            <div class="issue-impact">
+                <strong>Business Impact:</strong> AI agents are routed to payment/external domains and blocked before seeing catalog data.
+            </div>
+
+            <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Evidence:</strong> 4/4 pages redirected to external domains without returning schema.
+            </div>
+
+            
+            <div style="margin-top: 20px;">
+                <strong style="color: var(--accent-green);">📋 Recommended Fix & Implementation:</strong>
+                <div style="font-size: 14px; margin-top: 8px; margin-bottom: 12px;">Ensure core merchandising URLs resolve on the primary domain.</div>
+            </div>
+            
+        </div>
+        
+        <div class="issue-card">
+            <div class="issue-header">
+                <h3 class="issue-title">Missing Organization/Brand schema in JSON-LD.</h3>
+                <span class="severity-pill sev-high">high</span>
+            </div>
+            
+            <div class="issue-meta">
+                <div>Difficulty: <strong>Easy</strong></div>
+                <div>Confidence: <strong>high</strong></div>
+            </div>
+
+            <div class="issue-impact">
+                <strong>Business Impact:</strong> Adding explicit Organization structured data significantly increases the probability that AI systems will accurately identify and recommend your brand in conversational commerce.
+            </div>
+
+            <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Evidence:</strong> Parsed JSON-LD structures on homepage and sampled product pages.
+            </div>
+
+            
+            <div style="margin-top: 20px;">
+                <strong style="color: var(--accent-green);">📋 Recommended Fix & Implementation:</strong>
+                <div style="font-size: 14px; margin-top: 8px; margin-bottom: 12px;">Add or consolidate Organization/Brand structured data.<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">💡 <strong>Platform Guide:</strong> For Shopify: Paste this snippet into your <code>theme.liquid</code> file just before the closing <code>&lt;/head&gt;</code> tag, or use a JSON-LD injection app.</div><pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "gymshark.com",
+  "url": "https://gymshark.com",
+  "logo": "https://cdn.shopify.com/s/files/1/0156/6146/files/Full_Black_Logo.png?height=628&amp;pad_color=ffffff&amp;v=1613146420&amp;width=1200",
+  "sameAs": [ "https://www.linkedin.com/company/REPLACE_WITH_COMPANY" ]
+}
+&lt;/script&gt;</code></pre></div>
+            </div>
+            
+        </div>
+        
+        <div class="issue-card">
+            <div class="issue-header">
+                <h3 class="issue-title">Product schema is 10% complete. (Scoring Weights: Name 15pts, Image 10pts, Price 20pts, Avail 20pts, SKU 20pts, Brand 15pts). Missing attributes reduce this score.</h3>
+                <span class="severity-pill sev-high">high</span>
+            </div>
+            
+            <div class="issue-meta">
+                <div>Difficulty: <strong>Medium</strong></div>
+                <div>Confidence: <strong>high</strong></div>
+            </div>
+
+            <div class="issue-impact">
+                <strong>Business Impact:</strong> Incomplete machine-readable product data may reduce eligibility and reliability for search, shopping surfaces, and emerging AI-assisted discovery systems.
+            </div>
+
+            <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Evidence:</strong> Sampled 2 products. Forensic Coverage: Name 0% | Image 100% | Price 0% | Avail 0% | SKU 0% | Brand 0%.
+            </div>
+
+            
+            <div style="margin-top: 20px;">
+                <strong style="color: var(--accent-green);">📋 Recommended Fix & Implementation:</strong>
+                <div style="font-size: 14px; margin-top: 8px; margin-bottom: 12px;">Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">💡 <strong>Platform Guide:</strong> For Shopify: Paste this snippet into your <code>theme.liquid</code> file just before the closing <code>&lt;/head&gt;</code> tag, or use a JSON-LD injection app.</div><pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "REPLACE_WITH_PRODUCT_NAME",
+  "image": "https://cdn.shopify.com/s/files/1/0156/6146/products/SPORT_SHORTS-_CHARCOAL.A-Edit_HK.jpg?v=1581617627",
+  "description": "REPLACE_WITH_PRODUCT_DESCRIPTION",
+  "sku": "REPLACE_WITH_SKU",
+  "offers": {
+    "@type": "Offer",
+    "url": "https://gymshark.com/products/gymshark-sport-shorts-charcoal",
+    "priceCurrency": "USD",
+    "price": "REPLACE_WITH_PRICE",
+    "availability": "https://schema.org/InStock"
+  }
+}
+&lt;/script&gt;</code></pre></div>
+            </div>
+            
+        </div>
+        
+
+        <div class="footer">
+            Generated by Revenue Leak Engine v16.1 Industrial
+        </div>
+    </div>
+</body>
+</html>
+===== CURRENT PIPELINE GEO OUTPUT =====
+[1/4] Loading manual seeds from test_seeds.csv...
+  -> 5 total candidate domains
+[2/4] Validating domains (Platform-Agnostic Mode)...
+  -> 5 valid e-commerce leads (Shopify + Non-Shopify)
+[3/4] Running CRO and GEO audits...
+  auditing beautyitis.com...
+    warning: CRO audit error - timeout
+    GEO score 8.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\beautyitis_com_geo.html
+  auditing universalyums.com...
+    warning: CRO audit error - no_product_url_found
+    GEO score 3.4/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com_geo.html
+  auditing thebeautystore.com...
+    CRO score 10/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com.html
+    GEO score 7.2/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com_geo.html
+  auditing gymshark.com...
+    CRO score 10/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com.html
+    GEO score 5.2/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com_geo.html
+  auditing allbirds.com...
+    CRO score 10/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com.html
+    GEO score 5.9/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com_geo.html
+
+[4/4] Done. 5 e-commerce leads audited. (0 skipped as healthy/inconclusive).
+  -> Skipped 0 completely healthy sites.
+  -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\leads\beauty_leads_ranked.csv
