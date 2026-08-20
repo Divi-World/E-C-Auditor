@@ -5,8 +5,8 @@ Strictly defensible, evidence-based language.
 
 ISSUE_COPY = {
     "missing_organization_entity": {
-        "business_impact_advertiser": "Missing explicit Organization/Brand structured data can reduce machine-readable entity clarity for systems that rely on structured signals when identifying and corroborating a brand, potentially diluting the ROI of your paid traffic.",
-        "business_impact_generic": "Missing explicit Organization/Brand structured data can reduce machine-readable entity clarity for systems that rely on structured signals when identifying and corroborating a brand.",
+        "business_impact_advertiser": "Adding explicit Organization structured data significantly increases the probability that AI systems will accurately identify and recommend your brand, protecting the ROI of your paid traffic.",
+        "business_impact_generic": "Adding explicit Organization structured data significantly increases the probability that AI systems will accurately identify and recommend your brand in conversational commerce.",
     },
     "incomplete_product_schema": {
         "business_impact_advertiser": "Incomplete machine-readable product data may reduce eligibility and reliability for search, shopping surfaces, and emerging AI-assisted discovery systems, meaning your ad spend drives traffic to pages that automated systems cannot fully verify.",

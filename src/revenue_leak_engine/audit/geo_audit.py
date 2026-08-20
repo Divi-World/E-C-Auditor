@@ -152,7 +152,7 @@ def _generate_snippet(code_type, domain, sample_name=""):
     elif code_type == "breadcrumb":
         return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "BreadcrumbList",\n  "itemListElement": [{\n    "@type": "ListItem",\n    "position": 1,\n    "name": "Home",\n    "item": "https://' + domain + '"\n  }]\n}\n</script>'
     elif code_type == "product":
-        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name or 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "REPLACE_WITH_SKU",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "REPLACE_WITH_PRICE",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
+        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "REPLACE_WITH_SKU",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "REPLACE_WITH_PRICE",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
     return ""
 
 
@@ -860,10 +860,6 @@ def _check_agentic_commerce(domain, findings):
             score = 5.0 
             findings["notes"] += "agentic_score_capped_at_standard_baseline. "
 
-    # Partner Directive: Agentic cap - MCP NOT_DETECTED caps score at 8.0
-    if capabilities.get("MCP") == "NOT_DETECTED" and score > 8.0:
-        score = 8.0
-
     findings["dimensions"]["agentic_commerce"] = score
     findings["agentic_capabilities"] = capabilities
     
@@ -984,7 +980,7 @@ def audit_geo(domain: str) -> dict:
     )
 
     if dims.get("entity_intelligence") is not None and dims["entity_intelligence"] < 8:
-        findings["business_interpretation"].append("Your brand's digital footprint lacks explicit machine-readable Organization/Brand signals that can strengthen entity identification and corroboration for AI search engines.")
+        findings["business_interpretation"].append("While your brand has strong market presence, adding explicit machine-readable Organization signals significantly increases the probability and accuracy of AI systems recommending you over competitors.")
     if dims.get("product_intelligence") is not None and dims["product_intelligence"] < 8:
         findings["business_interpretation"].append("Critical commerce attributes such as pricing, availability, and product identifiers are incomplete in the sampled machine-readable product data, which may reduce eligibility or reliability across search and AI-assisted shopping surfaces.")
     if dims.get("agentic_commerce") is not None and dims["agentic_commerce"] < 10:
