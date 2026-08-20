@@ -383,7 +383,7 @@ def _check_crawlability(domain, findings):
             "affected_urls": list(resources.values()),
             "severity": "medium", "confidence": "low",
             "business_impact": "Crawlability is unknown. The site's WAF may also be blocking legitimate AI crawlers (e.g. GPTBot).",
-            "difficulty": "N/A",
+            "difficulty": "REPLACE_WITH_SKU",
             "fix": "Manually verify robots.txt/llms.txt accessibility, and check WAF bot-protection rules.",
         })
 
@@ -450,7 +450,7 @@ def _extract_real_assets(html, url, domain):
     # WAF GUARD: If this is a challenge page, do not scrape it for brand data
     html_lower = html[:2000].lower() if html else ""
     if any(sig in html_lower for sig in ["just a moment", "window._cf_chl_opt", "captcha", "challenge-platform", "enable javascript and cookies"]):
-        return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": domain.split('.')[0].capitalize(), "product_desc": "Premium product offering.", "price": "0.00", "sku": "N/A", "product_url": url}
+        return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": domain.split('.')[0].capitalize(), "product_desc": "REPLACE_WITH_PRODUCT_DESCRIPTION", "price": "REPLACE_WITH_PRICE", "sku": "REPLACE_WITH_SKU", "product_url": url}
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
     assets = {}
@@ -478,7 +478,7 @@ def _extract_real_assets(html, url, domain):
     assets["product_name"] = (og_title["content"] if og_title else assets["brand_name"])
     assets["product_url"] = url
     desc_meta = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
-    assets["product_desc"] = (desc_meta["content"] if desc_meta else "Premium product offering.")
+    assets["product_desc"] = (desc_meta["content"] if desc_meta else "REPLACE_WITH_PRODUCT_DESCRIPTION")
     
     price_meta = soup.find("meta", property="product:price:amount") or soup.find("meta", attrs={"itemprop": "price"})
     assets["price"] = (price_meta["content"] if price_meta else "REPLACE_WITH_PRICE")
@@ -533,7 +533,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "affected_urls": [sample_urls.get("homepage", f"https://{domain}/")],
             "severity": "low", "confidence": "high",
             "business_impact": "Standard e-commerce revenue leak metrics do not apply.",
-            "difficulty": "N/A", "fix": "N/A"
+            "difficulty": "REPLACE_WITH_SKU", "fix": "REPLACE_WITH_SKU"
         })
         findings["dimensions"]["entity_intelligence"] = 10.0 # Assume entity is fine if not commerce
         findings["issues"].extend(issues)
@@ -774,7 +774,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "evidence": f"Sampled {len(products)} products, but 0 returned valid schema.",
                 "affected_urls": products, "severity": "medium", "confidence": "low",
                 "business_impact": "Product schema quality is unknown (Audit Limitation).",
-                "difficulty": "N/A", "fix": "Verify product pages are accessible to crawlers."
+                "difficulty": "REPLACE_WITH_SKU", "fix": "Verify product pages are accessible to crawlers."
             })
     else:
         findings["dimensions_measured"]["product_intelligence"] = False
@@ -786,7 +786,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "evidence": findings["notes"],
             "affected_urls": [], "severity": "medium", "confidence": "low",
             "business_impact": "Product schema quality is unknown (Audit Limitation).",
-            "difficulty": "N/A", "fix": "Verify sitemap contains product URLs."
+            "difficulty": "REPLACE_WITH_SKU", "fix": "Verify sitemap contains product URLs."
         })
     findings["issues"].extend(issues)
 
@@ -916,7 +916,7 @@ def audit_geo(domain: str) -> dict:
             "affected_urls": [],
             "severity": "high", "confidence": "high",
             "business_impact": "Cannot audit a site that cannot be reached.",
-            "difficulty": "N/A",
+            "difficulty": "REPLACE_WITH_SKU",
             "fix": "Verify the domain is correct and the site is live before re-running.",
         }]
         return findings
@@ -1004,7 +1004,7 @@ def audit_geo(domain: str) -> dict:
                 p_assets = _extract_real_assets(p_html, p_url, domain)
                 snippet = snippet.replace("Sample Product", p_assets.get("product_name", "Premium Product").replace('"', '\"'))
                 snippet = snippet.replace("REPLACE_WITH_IMAGE_URL", p_assets.get("logo_url", f"https://{domain}/logo.png"))
-                snippet = snippet.replace("REPLACE_WITH_DESCRIPTION", p_assets.get("product_desc", "Premium product offering.").replace('"', '\"'))
+                snippet = snippet.replace("REPLACE_WITH_DESCRIPTION", p_assets.get("product_desc", "REPLACE_WITH_PRODUCT_DESCRIPTION").replace('"', '\"'))
                 snippet = snippet.replace("REPLACE_WITH_SKU", p_assets.get("sku", "SKU-1001"))
                 snippet = snippet.replace("REPLACE_WITH_PRODUCT_URL", p_url)
                 snippet = snippet.replace(f"https://{domain}/https://{domain}/", f"https://{domain}/")
@@ -1105,6 +1105,17 @@ def audit_geo(domain: str) -> dict:
     else:
         findings["score_confidence"] = "full"
 
+
+    # Partner Directive: Reconcile Answerability Dimension
+    try:
+        ans_matrix = findings.get("answerability_matrix", {})
+        verified = sum(1 for k, v in ans_matrix.items() if v in [True, "PASS", 200] and k in ["privacy", "terms", "shipping", "returns"])
+        if verified == 0:
+            findings["dimensions"]["answerability"] = min(findings["dimensions"].get("answerability", 10.0), 4.0)
+        elif verified <= 2:
+            findings["dimensions"]["answerability"] = min(findings["dimensions"].get("answerability", 10.0), 7.0)
+    except Exception:
+        pass
     return findings
 
 
