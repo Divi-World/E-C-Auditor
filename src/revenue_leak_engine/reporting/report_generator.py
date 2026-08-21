@@ -1,7 +1,14 @@
 import os
 import base64
+import io
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from datetime import datetime, timezone
+
+try:
+    from PIL import Image, ImageDraw
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 env = Environment(
@@ -21,11 +28,36 @@ def opportunity_score(findings: dict) -> float:
         score = min(score, 2.0)
     return max(0.0, round(score, 1))
 
-def _img_to_base64(path_str):
+def _process_screenshot(path_str, annotations=None):
+    """Resizes, compresses to JPEG, and draws red bounding boxes on evidence."""
     if not path_str or not os.path.exists(path_str): return None
     try:
-        with open(path_str, "rb") as f:
-            return base64.b64encode(f.read()).decode('utf-8')
+        if HAS_PIL:
+            img = Image.open(path_str)
+            orig_w, orig_h = img.size
+            max_w = 600  # Industrial limit to prevent HTML bloat
+            ratio = 1.0
+            if orig_w > max_w:
+                ratio = max_w / orig_w
+                img = img.resize((max_w, int(orig_h * ratio)), Image.LANCZOS)
+            
+            if annotations:
+                draw = ImageDraw.Draw(img)
+                for box in annotations:
+                    x1 = box.get('x', 0) * ratio
+                    y1 = box.get('y', 0) * ratio
+                    x2 = (box.get('x', 0) + box.get('width', 0)) * ratio
+                    y2 = (box.get('y', 0) + box.get('height', 0)) * ratio
+                    # Draw high-visibility red evidence box
+                    draw.rectangle([x1, y1, x2, y2], outline="#ef4444", width=4)
+                    
+            buffer = io.BytesIO()
+            img = img.convert('RGB')
+            img.save(buffer, format="JPEG", quality=75, optimize=True)
+            return base64.b64encode(buffer.getvalue()).decode('utf-8')
+        else:
+            with open(path_str, "rb") as f:
+                return base64.b64encode(f.read()).decode('utf-8')
     except Exception: return None
 
 def generate_report(findings: dict) -> str:
@@ -45,8 +77,9 @@ def generate_report(findings: dict) -> str:
     med_issues = [i for i in findings.get("issues", []) if i.get("severity") == "medium"]
     low_issues = [i for i in findings.get("issues", []) if i.get("severity") == "low"]
     
-    screenshot_b64 = _img_to_base64(findings.get("screenshot_path"))
-    popup_b64 = _img_to_base64(findings.get("popup_screenshot_path"))
+    popup_ann = findings.get("popup_annotation")
+    screenshot_b64 = _process_screenshot(findings.get("screenshot_path"))
+    popup_b64 = _process_screenshot(findings.get("popup_screenshot_path"), popup_ann)
     
     html_out = template.render(
         domain=domain, score=score, load_time=findings.get("load_time_ms", "N/A"),

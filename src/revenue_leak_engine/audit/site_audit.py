@@ -276,6 +276,26 @@ def audit_site(domain: str) -> dict:
             # ---- overlays: evidence first, then dismiss ----
             overlay = detect_overlay(page)
             if overlay.get("blocked"):
+                # P1 VISUAL PROOF: Capture bounding box for annotation before dismissal
+                try:
+                    overlay_box = page.evaluate("""
+                        () => {
+                            const el = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+                            let node = el;
+                            while(node && node !== document.documentElement) {
+                                const cs = getComputedStyle(node);
+                                if (cs.position === 'fixed' || cs.position === 'absolute') {
+                                    const r = node.getBoundingClientRect();
+                                    return {x: r.x, y: r.y, width: r.width, height: r.height};
+                                }
+                                node = node.parentElement;
+                            }
+                            return null;
+                        }
+                    """)
+                    if overlay_box:
+                        findings["popup_annotation"] = [overlay_box]
+                except Exception: pass
                 kind = classify_overlay(overlay)
                 popup_shot = SCREENSHOTS_DIR / f"{safe}_popup.png"
                 page.screenshot(path=str(popup_shot), full_page=False)
