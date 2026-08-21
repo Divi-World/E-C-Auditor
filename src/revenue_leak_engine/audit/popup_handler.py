@@ -62,8 +62,8 @@ REMOVE_OVERLAY_JS = """
     const style = document.createElement('style');
     style.id = 'revenue-leak-nuke';
     style.innerHTML = `
-        [class*="modal" i], [class*="popup" i], [class*="overlay" i], [class*="dialog" i], 
-        [id*="modal" i], [id*="popup" i], [role="dialog"], [aria-modal="true"],
+        [class*="modal" i]:not([class*="cart" i]):not([id*="cart" i]), [class*="popup" i]:not([class*="cart" i]), [class*="overlay" i]:not([class*="cart" i]), [class*="dialog" i]:not([class*="cart" i]), 
+        [id*="modal" i]:not([id*="cart" i]), [id*="popup" i]:not([id*="cart" i]), [role="dialog"]:not([class*="cart" i]), [aria-modal="true"]:not([class*="cart" i]),
         .klaviyo-modal, .klaviyo-form, .shopify-section-announcement-bar,
         [class*="consent" i], [id*="consent" i], [class*="cookie" i],
         [class*="newsletter" i], [class*="subscribe" i] {
@@ -87,7 +87,7 @@ REMOVE_OVERLAY_JS = """
     }
     
     // Also remove from DOM for good measure
-    document.querySelectorAll('[class*="modal"], [class*="popup"], [class*="overlay"], [role="dialog"], [aria-modal="true"]').forEach(el => {
+    document.querySelectorAll('[class*="modal"], [class*="popup"], [class*="overlay"], [role="dialog"]:not([class*="cart" i]), [aria-modal="true"]:not([class*="cart" i])').forEach(el => {
         if (el.tagName !== 'BODY' && el.tagName !== 'HTML') el.remove();
     });
     return true;
@@ -117,7 +117,7 @@ CLOSE_SELECTORS = [
     '[data-close="true"]',
     '.modal-close',
     '.popup-close',
-    '[role="dialog"] [aria-label*="close" i]',
+    '[role="dialog"]:not([class*="cart" i]) [aria-label*="close" i]',
     '[aria-label*="close" i]',
     '[aria-label*="dismiss" i]',
     '.klaviyo-form-close',
