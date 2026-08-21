@@ -625,6 +625,14 @@ def audit_site(domain: str) -> dict:
                     "[id*='cart-drawer' i], [class*='cart-drawer' i], [class*='mini-cart' i], [class*='cart-modal' i], "
                     "cart-drawer, [id*='slide-cart' i], [class*='slide-cart' i], [class*='drawer' i][class*='cart' i]"
                 )
+                # Wait for dynamic drawer injection (common in headless/Shopify Plus)
+                if not drawer:
+                    try:
+                        page.wait_for_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]", state="attached", timeout=3000)
+                        drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]")
+                    except Exception:
+                        pass
+                        
                 if navigated or not (drawer and drawer.is_visible()):
                     findings["issues"].append({
                         "code": "no_cart_drawer",
@@ -910,15 +918,20 @@ def _check_script_bloat(page, findings):
 
 
 def _check_console_errors(findings, console_errors):
-    if console_errors:
+    # INDUSTRIAL FILTER: Ignore DNS blocks, CORS policies, and network noise
+    real_js_errors = [
+        err for err in console_errors 
+        if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties"])
+    ]
+    if real_js_errors:
         findings["issues"].append({
             "code": "console_errors",
-            "description": f"{len(console_errors)} JavaScript error(s) fired during page load.",
-            "evidence": "; ".join(console_errors[:3])[:300],
-            "severity": "low", "confidence": "high",
-            "fix": "Fix or remove the throwing script/app — JS errors often mean a broken widget or a tracking tag misfire.",
+            "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.",
+            "evidence": "; ".join(real_js_errors[:3])[:300],
+            "severity": "medium", "confidence": "VERIFIED",
+            "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.",
+            "fix": "Debug the throwing script — execution errors break the purchase path or pixel tracking."
         })
-
 
 def _check_seo(page, findings):
     seo = page.evaluate("""
