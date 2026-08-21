@@ -32,7 +32,9 @@ OVERLAY_DETECT_JS = """
                            parseFloat(cs.opacity || '1') === 0;
             const fixedish = cs.position === 'fixed' || cs.position === 'absolute';
             const big = r.width >= innerWidth * 0.5 && r.height >= innerHeight * 0.25;
-            if (!hidden && fixedish && big) {
+            const is_bottom_nav = r.bottom >= innerHeight - 10 && r.height < innerHeight * 0.35;
+            const is_top_header = r.top <= 10 && r.height < innerHeight * 0.35;
+            if (!hidden && fixedish && big && !is_bottom_nav && !is_top_header) {
                 seen.add(node);
                 const area = r.width * r.height;
                 if (!best || area > best.area) best = { node, area };
@@ -56,24 +58,37 @@ OVERLAY_DETECT_JS = """
 
 REMOVE_OVERLAY_JS = """
 () => {
-    const x = innerWidth / 2, y = innerHeight / 2;
-    const el = document.elementFromPoint(x, y);
-    if (!el) return false;
-    let node = el, target = null;
-    while (node && node !== document.documentElement) {
-        const cs = getComputedStyle(node);
-        const r = node.getBoundingClientRect();
-        if (r.width >= innerWidth * 0.5 && r.height >= innerHeight * 0.25 &&
-            (cs.position === 'fixed' || cs.position === 'absolute')) { target = node; break; }
-        node = node.parentElement;
+    // INDUSTRIAL CSS NUKE: Survives React/Vue/Shopify virtual DOM re-renders
+    const style = document.createElement('style');
+    style.id = 'revenue-leak-nuke';
+    style.innerHTML = `
+        [class*="modal" i], [class*="popup" i], [class*="overlay" i], [class*="dialog" i], 
+        [id*="modal" i], [id*="popup" i], [role="dialog"], [aria-modal="true"],
+        .klaviyo-modal, .klaviyo-form, .shopify-section-announcement-bar,
+        [class*="consent" i], [id*="consent" i], [class*="cookie" i],
+        [class*="newsletter" i], [class*="subscribe" i] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -9999 !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+        html, body {
+            overflow: auto !important;
+            position: static !important;
+            height: auto !important;
+            margin: 0 !important;
+        }
+    `;
+    if (!document.getElementById('revenue-leak-nuke')) {
+        document.head.appendChild(style);
     }
-    if (!target) return false;
-    target.remove();
-    document.querySelectorAll('div, section').forEach(n => {
-        const cs = getComputedStyle(n);
-        const r = n.getBoundingClientRect();
-        if (cs.position === 'fixed' && r.width >= innerWidth * 0.9 &&
-            r.height >= innerHeight * 0.9) n.remove();
+    
+    // Also remove from DOM for good measure
+    document.querySelectorAll('[class*="modal"], [class*="popup"], [class*="overlay"], [role="dialog"], [aria-modal="true"]').forEach(el => {
+        if (el.tagName !== 'BODY' && el.tagName !== 'HTML') el.remove();
     });
     return true;
 }
@@ -98,6 +113,10 @@ REGION_RE = re.compile(r"(choose your (country|region)|select (your )?(country|r
                        r"shipping to|ship to)", re.I)
 
 CLOSE_SELECTORS = [
+    '[data-dismiss="modal"]',
+    '[data-close="true"]',
+    '.modal-close',
+    '.popup-close',
     '[role="dialog"] [aria-label*="close" i]',
     '[aria-label*="close" i]',
     '[aria-label*="dismiss" i]',
@@ -120,6 +139,22 @@ CLOSE_SELECTORS = [
     'button:has-text("Not now")',
     'button:has-text("Continue without discount")',
     'button:has-text("Decline")',
+    'button:has-text("Skip")',
+    'button:has-text("Continue shopping")',
+    'button:has-text("Continue Shopping")',
+    'button:has-text("Browse site")',
+    'button:has-text("Start shopping")',
+    'button:has-text("X")',
+    'button:has-text("x")',
+    '[class*="dismiss" i]',
+    '[class*="modal"] [class*="close" i]',
+    '[class*="popup"] [class*="close" i]',
+    '[class*="banner"] [class*="close" i]',
+    '[class*="newsletter"] [class*="close" i]',
+    '[class*="subscribe"] [class*="close" i]',
+    '[aria-label="Close dialog"]',
+    '[aria-label="Close modal"]',
+    '[aria-label="Close popup"]',
 ]
 
 COOKIE_SELECTORS = [
@@ -128,12 +163,40 @@ COOKIE_SELECTORS = [
     'button:has-text("Allow all")',
     'button:has-text("Accept cookies")',
     'button:has-text("Allow cookies")',
+    'button:has-text("Accept All Cookies")',
+    'button:has-text("Accept Cookies")',
     'button:has-text("Agree")',
+    'button:has-text("I Agree")',
+    'button:has-text("I agree")',
     'button:has-text("Got it")',
+    'button:has-text("Got It")',
     'button:has-text("I understand")',
+    'button:has-text("I Understand")',
+    'button:has-text("Continue")',
+    'button:has-text("Dismiss")',
+    'button:has-text("Necessary only")',
+    'button:has-text("Reject all")',
+    'button:has-text("Decline all")',
+    'button:has-text("Only necessary")',
     'button:text-is("Ok")',
     'button:text-is("OK")',
     'button:text-is("No")',
+    'button:text-is("Yes")',
+    'button:text-is("Accept")',
+    'button:text-is("Allow")',
+    'button:text-is("Close")',
+    '[id*="accept" i]',
+    '[id*="consent" i] button',
+    '[class*="consent"] button[class*="accept" i]',
+    '[class*="cookie"] button[class*="accept" i]',
+    '[class*="cookie"] button[class*="allow" i]',
+    '[class*="gdpr"] button',
+    '[data-action="accept"]',
+    '[data-action="accept-all"]',
+    '.cc-accept', '.cc-dismiss', '.cc-btn',
+    '#onetrust-accept-btn-handler',
+    '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+    '.js-accept-cookies',
 ]
 
 REGION_SELECTORS = [
@@ -249,7 +312,7 @@ def _dismiss_once(page, info: dict) -> str | None:
         return None
 
 
-def dismiss_overlays(page, max_rounds: int = 5) -> list[str]:
+def dismiss_overlays(page, max_rounds: int = 8) -> list[str]:
     actions = []
     for _ in range(max_rounds):
         info = detect_overlay(page)

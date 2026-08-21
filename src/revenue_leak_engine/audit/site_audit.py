@@ -13,6 +13,7 @@ Integrity: every issue carries evidence + confidence + professional fix.
 Anything unverifiable goes to manual review, never becomes a claim.
 """
 import json as _json
+import re
 import time
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
@@ -25,7 +26,19 @@ from revenue_leak_engine.audit.popup_handler import (
 
 ATC_SELECTOR = (
     "button[name='add'], button:has-text('Add to cart'), "
-    "button:has-text('Add to Cart'), button:has-text('Add to Bag')"
+    "button:has-text('Add to Cart'), button:has-text('Add to Bag'), "
+    "button:has-text('Buy Now'), button:has-text('Add To Cart'), "
+    "input[type='submit'][value*='Add' i], input[type='submit'][value*='Buy' i], "
+    "button[type='submit'][class*='cart' i], button[type='submit'][class*='product' i], "
+    "[data-add-to-cart], [data-action='add-to-cart'], "
+    "form[action*='/cart/add'] button, form[action*='/cart/add'] input[type='submit'], "
+    "form[action*='add-to-cart'] button, form[action*='add-to-cart'] input[type='submit'], "
+    "a[class*='add-to-cart'], a[class*='add_to_cart'], "
+    "button[class*='add-to-cart'], button[class*='add_to_cart'], "
+    "[class*='product-form'] button[type='submit'], "
+    "[class*='woocommerce'] button[type='submit'][name*='add'], "
+    ".single_add_to_cart_button, .add_to_cart_button, "
+    "button:has-text('Ajouter au panier'), button:has-text('In den Warenkorb')"
 )
 EXPRESS_SELECTOR = (
     "[data-testid='shop-pay-button'], [aria-label*='Shop Pay'], [aria-label*='Apple Pay'], "
@@ -84,29 +97,54 @@ def _perf_load_ms(page):
 
 
 def find_a_product_url(page, domain: str) -> str | None:
-    # Strategy 1: Shopify public JSON — immune to popups and JS stalls
+    # Strategy 1: Shopify public JSON — immune to popups and JS stalls (Fast fail)
     try:
         page.goto(f"https://{domain}/products.json?limit=10",
-                  timeout=AUDIT_TIMEOUT_MS, wait_until="domcontentloaded")
+                  timeout=10000, wait_until="domcontentloaded")
         data = _json.loads(page.inner_text("body"))
         for prod in data.get("products", []):
             if prod.get("handle"):
                 return f"https://{domain}/products/{prod['handle']}"
     except Exception:
         pass
-    # Strategy 2: rendered links, after clearing overlays
-    for url in (f"https://{domain}/collections/all",
-                f"https://{domain}/collections",
-                f"https://{domain}"):
+        
+    # Strategy 2: Platform-Agnostic rendered links (Shopify, Woo, BigC, Custom)
+    discovery_urls = [
+        f"https://{domain}/collections/all",
+        f"https://{domain}/collections",
+        f"https://{domain}/shop",
+        f"https://{domain}/catalog",
+        f"https://{domain}/product-category",
+        f"https://{domain}/products",
+        f"https://{domain}/store",
+        f"https://{domain}/items",
+        f"https://{domain}"
+    ]
+    
+    # Broad regex for product URLs across all major platforms
+    product_url_pattern = re.compile(r'/(products?|p|shop|item|dp|catalog|buy)/[a-zA-Z0-9_\-]+/?$', re.I)
+    blacklist = ['cart', 'checkout', 'account', 'search', 'policies', 'blogs', 'pages', 'gift-card', 'login', 'register']
+    
+    for url in discovery_urls:
         if not _goto_resilient(page, url):
             continue
         page.wait_for_timeout(1500)
         dismiss_overlays(page)
-        link = page.query_selector("a[href*='/products/']")
-        if link:
-            href = link.get_attribute("href")
-            if href:
-                return href if href.startswith("http") else f"https://{domain}{href.split('?')[0]}"
+        
+        links = page.evaluate("""
+            () => Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'))
+        """)
+        
+        for href in links:
+            if not href: continue
+            clean_href = href.split('?')[0].split('#')[0]
+            if product_url_pattern.search(clean_href):
+                if any(bl in clean_href.lower() for bl in blacklist):
+                    continue
+                if href.startswith("http"):
+                    return href
+                else:
+                    return f"https://{domain}{href.split('?')[0]}"
     return None
 
 
@@ -140,9 +178,18 @@ def audit_site(domain: str) -> dict:
             ignore_https_errors=True,
         )
         page = context.new_page()
-        page.add_init_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        )
+        page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            window.chrome = { runtime: {} };
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+        """)
         page.on("request", lambda req: seen_urls.append(req.url))
         page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
 
@@ -197,10 +244,32 @@ def audit_site(domain: str) -> dict:
                     findings["notes"] += f"Overlay dismissed via: {', '.join(actions)}. "
 
             if detect_overlay(page).get("blocked"):
+                # Last resort: aggressive DOM cleanup before giving up
+                try:
+                    page.evaluate("""() => {
+                        document.querySelectorAll('[class*="modal"], [class*="popup"], [class*="overlay"], [class*="dialog"], [id*="modal"], [id*="popup"]').forEach(el => {
+                            const cs = getComputedStyle(el);
+                            if (cs.position === 'fixed' || cs.position === 'absolute') el.remove();
+                        });
+                        document.documentElement.style.overflow = '';
+                        document.body.style.overflow = '';
+                    }""")
+                    page.wait_for_timeout(500)
+                except Exception:
+                    pass
+
+            if detect_overlay(page).get("blocked"):
                 findings["error"] = ("unclosable_overlay - page-level checks skipped "
                                      "to avoid false alarms; mark for manual review")
                 browser.close()
                 return findings
+
+            # DOM STABILITY: Wait for JS rendering to settle before element queries
+            try:
+                page.wait_for_load_state("networkidle", timeout=8000)
+            except Exception:
+                pass
+            page.wait_for_timeout(1000)
 
             shot_path = SCREENSHOTS_DIR / f"{safe}.png"
             page.screenshot(path=str(shot_path), full_page=False)
@@ -250,11 +319,20 @@ def audit_site(domain: str) -> dict:
             # ---- cart probe: ONE safe click, multiple observations ----
             if atc_btn is not None:
                 req_before = len(seen_urls)
-                dl_before = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
+                try:
+                    dl_before = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
+                except Exception:
+                    dl_before = 0
                 url_before = page.url
                 try:
                     atc_btn.click(timeout=1500)
                     page.wait_for_timeout(1500)
+                except Exception:
+                    pass
+                # Navigation guard: if page navigated, wait for stability
+                try:
+                    if page.url != url_before:
+                        page.wait_for_load_state("domcontentloaded", timeout=5000)
                 except Exception:
                     pass
 
@@ -273,7 +351,10 @@ def audit_site(domain: str) -> dict:
                     ("facebook.com/tr" in u or "/g/collect" in u or "analytics.tiktok.com" in u)
                     for u in seen_urls[req_before:]
                 )
-                dl_after = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
+                try:
+                    dl_after = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
+                except Exception:
+                    dl_after = 0
                 if (meta_pixel or ga4 or tiktok_pixel) and not event_seen and dl_after <= dl_before:
                     findings["issues"].append({
                         "code": "add_to_cart_event_missing",
@@ -303,10 +384,43 @@ def audit_site(domain: str) -> dict:
         finally:
             browser.close()
 
+    # ENTERPRISE SCORING PARITY: Calculate actual opportunity score based on issues
+    # Base score 10. High severity = -2, Medium = -1, Low = -0.5
+    score = 10.0
+    for issue in findings.get("issues", []):
+        sev = issue.get("severity", "low")
+        if sev == "high": score -= 2.0
+        elif sev == "medium": score -= 1.0
+        else: score -= 0.5
+    
+    # Absolute penalty for missing the revenue button
+    if any(i.get("code") == "no_add_to_cart_found" for i in findings.get("issues", [])):
+        score = min(score, 2.0) # Cannot score higher than 2 if the buy button is missing
+        
+    findings["opportunity_score"] = max(0.0, round(score, 1))
+    
     return findings
 
 
 # ---------------- individual checks ----------------
+
+
+def _safe_query(page, action_func, retries=2):
+    """Wraps DOM queries to catch 'Execution context was destroyed' during redirects."""
+    for attempt in range(retries):
+        try:
+            return action_func()
+        except Exception as e:
+            if "Execution context was destroyed" in str(e) or "Target page, context or browser has been closed" in str(e):
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=3000)
+                    page.wait_for_timeout(1000)
+                except Exception:
+                    pass
+            else:
+                raise
+    return None
+
 
 def _visible_any(page, selector: str) -> bool:
     return any(b.is_visible() for b in page.query_selector_all(selector))
