@@ -91,11 +91,15 @@ def generate_report(findings: dict) -> str:
     if has_popup_finding:
         popup_b64 = _process_screenshot(findings.get("popup_screenshot_path"), popup_ann)
     
+    seo_codes = ['poor_title_tag', 'poor_meta_description', 'h1_tag_issue', 'missing_image_alt']
+    seo_issues = [i for i in findings.get("issues", []) if i.get("code") in seo_codes]
+    
     html_out = template.render(
         domain=domain, score=score, load_time=findings.get("load_time_ms", "N/A"),
         lcp=cwv.get("lcp", 0), cls=cwv.get("cls", 0),
         product_url=findings.get("product_url", "N/A"),
         high_issues=high_issues, med_issues=med_issues, low_issues=low_issues,
+        seo_issues=seo_issues, platform=findings.get("platform", "custom"),
         notes=findings.get("notes", ""), error=findings.get("error"),
         screenshot_b64=screenshot_b64, popup_b64=popup_b64,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")

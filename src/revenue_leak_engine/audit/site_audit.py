@@ -20,6 +20,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 from revenue_leak_engine.config import (
     MOBILE_VIEWPORT, AUDIT_TIMEOUT_MS, SCREENSHOTS_DIR,
 )
+from revenue_leak_engine.audit.seo_audit import audit_seo_onpage
 from revenue_leak_engine.audit.popup_handler import (
     detect_overlay, classify_overlay, dismiss_overlays,
 )
@@ -91,7 +92,7 @@ def _perf_load_ms(page):
     try:
         return page.evaluate(
             "() => { const e = performance.getEntriesByType('navigation')[0];"
-            " return e && e.loadEventEnd ? Math.round(e.loadEventEnd) : null; }"
+            " return e ? (Math.round(e.domInteractive) || Math.round(e.domContentLoadedEventEnd) || Math.round(e.loadEventEnd)) : null; }"
         )
     except Exception:
         return None
@@ -279,6 +280,21 @@ def audit_site(domain: str) -> dict:
             except Exception:
                 pass
             findings["load_time_ms"] = _perf_load_ms(page) or int((time.time() - start) * 1000)
+            
+            # PLATFORM DETECTION (Self-Awareness)
+            try:
+                findings["platform"] = page.evaluate("""
+                    () => {
+                        const html = document.documentElement.innerHTML;
+                        if (window.Shopify || html.includes('Shopify.shop') || html.includes('shopify-checkout-api-token')) return 'shopify';
+                        if (document.body.classList.contains('woocommerce') || html.includes('woocommerce_params') || document.querySelector('.woocommerce')) return 'woocommerce';
+                        if (window.BigCommerce || html.includes('bigcommerce')) return 'bigcommerce';
+                        if (window.mage || html.includes('Magento') || html.includes('mage/')) return 'magento';
+                        return 'custom';
+                    }
+                """)
+            except Exception:
+                findings["platform"] = "custom"
 
             head = _page_text_head(page)
             if any(s in head for s in CHALLENGE_SIGS):
@@ -395,8 +411,8 @@ def audit_site(domain: str) -> dict:
             if atc_btn and not cwv.get("touch_target_ok"):
                 findings["issues"].append({
                     "code": "small_touch_target",
-                    "description": "Add to Cart button is smaller than 48x48px on mobile.",
-                    "evidence": "Touch target analysis failed minimum 48px requirement.",
+                    "description": "Add to Cart button is smaller than 32x32px on mobile.",
+                    "evidence": "Touch target analysis failed minimum 32px requirement.",
                     "severity": "medium", "confidence": "high",
                     "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."
                 })
@@ -426,6 +442,8 @@ def audit_site(domain: str) -> dict:
             _check_script_bloat(page, findings)
             _check_console_errors(findings, console_errors)
             _check_seo(page, findings)
+            # Technical SEO (Isolated Module)
+            audit_seo_onpage(page, findings)
 
             # ---- tracking presence (from observed network + DOM) ----
             html_has = page.evaluate("() => document.documentElement.outerHTML.slice(0, 400000)")
@@ -572,6 +590,32 @@ def audit_site(domain: str) -> dict:
         
     findings["opportunity_score"] = max(0.0, round(score, 1))
     
+    # PLATFORM-AWARE FIX LOCALIZATION
+    platform = findings.get("platform", "custom")
+    for issue in findings.get("issues", []):
+        fix = issue.get("fix", "")
+        if platform == "woocommerce":
+            fix = fix.replace("Shopify's Facebook & Instagram channel", "the official Facebook for WooCommerce plugin")
+            fix = fix.replace("Shopify Settings > Payments", "WooCommerce > Settings > Payments")
+            fix = fix.replace("Shopify apps", "WooCommerce plugins")
+            fix = fix.replace("Shopify", "WooCommerce")
+        elif platform == "bigcommerce":
+            fix = fix.replace("Shopify's Facebook & Instagram channel", "BigCommerce's Facebook Pixel app")
+            fix = fix.replace("Shopify Settings > Payments", "BigCommerce Settings > Payments")
+            fix = fix.replace("Shopify apps", "BigCommerce apps")
+            fix = fix.replace("Shopify", "BigCommerce")
+        elif platform == "magento":
+            fix = fix.replace("Shopify's Facebook & Instagram channel", "Magento's Facebook/Meta integration")
+            fix = fix.replace("Shopify Settings > Payments", "Magento Stores > Configuration > Sales > Payment Methods")
+            fix = fix.replace("Shopify apps", "Magento extensions")
+            fix = fix.replace("Shopify", "Magento")
+        elif platform == "custom":
+            fix = fix.replace("Shopify's Facebook & Instagram channel", "your custom GTM or direct pixel implementation")
+            fix = fix.replace("Shopify Settings > Payments", "your payment gateway dashboard (Stripe/PayPal)")
+            fix = fix.replace("Shopify apps", "third-party scripts")
+            fix = fix.replace("Shopify", "your CMS")
+        issue["fix"] = fix
+        
     return findings
 
 
