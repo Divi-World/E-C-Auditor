@@ -11,22 +11,30 @@ except ImportError:
     HAS_PIL = False
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
+REPORTS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+    "data", "reports"
+)
 env = Environment(
     loader=FileSystemLoader(TEMPLATE_DIR),
     autoescape=select_autoescape(["html", "xml"])
 )
 
 def opportunity_score(findings: dict) -> float:
-    if not findings or "issues" not in findings: return 10.0
-    score = 10.0
+    if not findings or "issues" not in findings:
+        return 0.0
+    score = 0.0
     for issue in findings.get("issues", []):
         sev = issue.get("severity", "low")
-        if sev == "high": score -= 2.0
-        elif sev == "medium": score -= 1.0
-        else: score -= 0.5
+        if sev == "high":
+            score += 2.0
+        elif sev == "medium":
+            score += 1.0
+        else:
+            score += 0.5
     if any(i.get("code") == "no_add_to_cart_found" for i in findings.get("issues", [])):
-        score = min(score, 2.0)
-    return max(0.0, round(score, 1))
+        score = max(score, 8.0)
+    return min(10.0, round(score, 1))
 
 def _process_screenshot(path_str, annotations=None):
     """Resizes, compresses to JPEG, and draws red bounding boxes on evidence."""
@@ -64,10 +72,8 @@ def generate_report(findings: dict) -> str:
     domain = findings.get("domain", "unknown")
     safe_name = domain.replace(".", "_").replace(":", "_")
     
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    reports_dir = os.path.join(base_dir, "data", "reports")
-    os.makedirs(reports_dir, exist_ok=True)
-    output_path = os.path.join(reports_dir, f"{safe_name}.html")
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+    output_path = os.path.join(REPORTS_DIR, f"{safe_name}.html")
 
     template = env.get_template("report.html")
     score = opportunity_score(findings)

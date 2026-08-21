@@ -41,9 +41,10 @@ ATC_SELECTOR = (
     "button:has-text('Ajouter au panier'), button:has-text('In den Warenkorb')"
 )
 EXPRESS_SELECTOR = (
-    "[data-testid='shop-pay-button'], [aria-label*='Shop Pay'], [aria-label*='Apple Pay'], "
-    "[aria-label*='Google Pay'], [aria-label*='PayPal'], [id*='apple-pay'], "
-    "[class*='apple-pay'], [class*='shop-pay'], button:has-text('Shop Pay')"
+    "[data-testid='shop-pay-button'], [aria-label*='Shop Pay' i], [aria-label*='Apple Pay' i], "
+    "[aria-label*='Google Pay' i], [aria-label*='PayPal' i], [id*='apple-pay' i], "
+    "[class*='apple-pay' i], [class*='shop-pay' i], button:has-text('Shop Pay'), "
+    "shop-pay-button, apple-pay-button, paypal-button, [data-payment-method='apple_pay']"
 )
 REVIEW_APP_SELECTOR = (
     "[class*='jdgm'], [class*='loox'], [class*='yotpo'], [class*='stamped'], "
@@ -112,7 +113,16 @@ def _extract_cwv_and_friction(page):
                 } catch(e) {}
                 
                 // Touch Target Analysis (Mobile Friction)
-                const atc_btn = document.querySelector("button[name='add'], button:has-text('Add to cart'), .single_add_to_cart_button, [data-add-to-cart]");
+                const textMatchesCWV = (el) => {
+                    const t = (el.innerText || el.textContent || "").toLowerCase();
+                    return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now');
+                };
+                let atc_btn = document.querySelector("button[name='add'], .single_add_to_cart_button, [data-add-to-cart]");
+                if (!atc_btn) {
+                    for (const btn of document.querySelectorAll('button, [role="button"]')) {
+                        if (textMatchesCWV(btn)) { atc_btn = btn; break; }
+                    }
+                }
                 let touch_target_ok = false;
                 if (atc_btn) {
                     const r = atc_btn.getBoundingClientRect();
@@ -418,7 +428,38 @@ def audit_site(domain: str) -> dict:
                     dl_before = 0
                 url_before = page.url
                 try:
-                    atc_btn.click(timeout=1500)
+                    if atc_btn == "JS_BTN":
+                        page.evaluate("""
+                            () => {
+                                const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button"];
+                                const textMatches = (el) => {
+                                    const t = (el.innerText || el.textContent || "").toLowerCase();
+                                    return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now');
+                                };
+                                const searchRoot = (root) => {
+                                    for (const sel of selectors) {
+                                        const el = root.querySelector(sel);
+                                        if (el) return el;
+                                    }
+                                    for (const btn of root.querySelectorAll('button, [role="button"]')) {
+                                        if (textMatches(btn)) return btn;
+                                    }
+                                    return null;
+                                };
+                                let found = searchRoot(document);
+                                if (!found) {
+                                    for (const node of document.querySelectorAll('*')) {
+                                        if (node.shadowRoot) {
+                                            found = searchRoot(node.shadowRoot);
+                                            if (found) break;
+                                        }
+                                    }
+                                }
+                                if (found) found.click();
+                            }
+                        """)
+                    else:
+                        atc_btn.click(timeout=1500)
                     page.wait_for_timeout(1500)
                 except Exception:
                     pass
@@ -459,7 +500,8 @@ def audit_site(domain: str) -> dict:
 
                 navigated = page.url != url_before
                 drawer = page.query_selector(
-                    "[id*='cart-drawer'], [class*='cart-drawer'], [class*='mini-cart'], [class*='cart-modal']"
+                    "[id*='cart-drawer' i], [class*='cart-drawer' i], [class*='mini-cart' i], [class*='cart-modal' i], "
+                    "cart-drawer, [id*='slide-cart' i], [class*='slide-cart' i], [class*='drawer' i][class*='cart' i]"
                 )
                 if navigated or not (drawer and drawer.is_visible()):
                     findings["issues"].append({
@@ -521,38 +563,112 @@ def _visible_any(page, selector: str) -> bool:
 
 def _check_load_speed(findings: dict):
     ms = findings["load_time_ms"]
-    if ms and ms > 3500:
+    cwv = findings.get("cwv", {})
+    lcp = cwv.get("lcp", 0)
+    
+    # Industrial Standard: LCP is the gold standard for perceived speed. 
+    # Raw load time is often inflated by third-party trackers.
+    if lcp > 4000:
         findings["issues"].append({
-            "code": "slow_load",
-            "description": f"Mobile load time is {ms}ms (target is <2500ms).",
-            "evidence": f"{ms}ms measured via browser navigation timing",
-            "severity": "high" if ms > 5000 else "medium", "confidence": "high",
-            "fix": "Compress/lazy-load product imagery, defer third-party apps, and remove render-blocking scripts above the fold.",
+            "code": "slow_lcp",
+            "description": f"Largest Contentful Paint (LCP) is {lcp}ms. Mobile users bounce if hero content takes >2.5s to render.",
+            "evidence": f"LCP: {lcp}ms (Target: <2500ms)",
+            "severity": "high", "confidence": "high",
+            "fix": "Optimize hero image delivery (WebP/AVIF), preload critical fonts, and defer non-critical third-party scripts."
+        })
+    elif ms and ms > 8000 and lcp == 0:
+        findings["issues"].append({
+            "code": "slow_load_fallback",
+            "description": f"Total page load time is {ms}ms, indicating severe main-thread blocking.",
+            "evidence": f"{ms}ms measured via navigation timing.",
+            "severity": "medium", "confidence": "medium",
+            "fix": "Audit main-thread blocking scripts and compress above-the-fold imagery."
         })
 
 
 def _check_add_to_cart(page, findings, viewport_h: int):
-    btn = page.query_selector(ATC_SELECTOR)
-    if not btn:
+    # Industrial Upgrade: Pierce Shadow DOM and verify actual CSS visibility
+    atc_data = page.evaluate("""
+        () => {
+            const selectors = [
+                "button[name='add']", "[data-add-to-cart]",
+                ".single_add_to_cart_button", ".add_to_cart_button",
+                "form[action*='/cart/add'] button", "[data-action='add-to-cart']",
+                "button[type='submit'][class*='product']"
+            ];
+            const textMatches = (el) => {
+                const t = (el.innerText || el.textContent || "").toLowerCase();
+                return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now');
+            };
+            const searchRoot = (root) => {
+                for (const sel of selectors) {
+                    const el = root.querySelector(sel);
+                    if (el) return el;
+                }
+                for (const btn of root.querySelectorAll('button, [role="button"]')) {
+                    if (textMatches(btn)) return btn;
+                }
+                return null;
+            };
+            const deepQuery = () => {
+                let found = searchRoot(document);
+                if (found) return found;
+                for (const node of document.querySelectorAll('*')) {
+                    if (node.shadowRoot) {
+                        found = searchRoot(node.shadowRoot);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+            const btn = deepQuery();
+            if (!btn) return { found: false };
+            const rect = btn.getBoundingClientRect();
+            const cs = window.getComputedStyle(btn);
+            const is_visible = cs.display !== 'none' && cs.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+            return { found: true, visible: is_visible, width: rect.width, height: rect.height, y: rect.y, text: (btn.innerText || '').trim().slice(0, 50) };
+        }
+    """)
+    
+    if not atc_data.get("found"):
         findings["issues"].append({
             "code": "no_add_to_cart_found",
             "description": "No Add to Cart button detected on the product page.",
-            "evidence": "selector search returned no match on cleared page",
+            "evidence": "Deep DOM & Shadow Root search returned no match.",
             "severity": "high", "confidence": "high",
-            "fix": "Ensure a visible, clearly labelled Add to Cart button on the mobile PDP — it is the revenue button.",
+            "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."
         })
         return None
 
-    box = btn.bounding_box()
-    if box is None:
+    if not atc_data.get("visible"):
         findings["issues"].append({
             "code": "add_to_cart_not_visible",
-            "description": "Add to Cart button exists but is hidden on mobile.",
-            "evidence": "bounding_box() returned None on cleared page",
+            "description": "Add to Cart button exists in DOM but is hidden from the mobile viewport.",
+            "evidence": f"Element found ('{atc_data.get('text')}') but CSS hides it or dimensions are 0.",
             "severity": "high", "confidence": "high",
-            "fix": "Unhide the buy box on mobile; a hidden Add to Cart is a silent revenue kill-switch.",
+            "fix": "Unhide the buy box on mobile; a hidden Add to Cart is a silent revenue kill-switch."
         })
-        return btn
+        return "JS_BTN"
+
+    w, h = atc_data.get("width", 0), atc_data.get("height", 0)
+    if w < 32 or h < 32:
+        findings["issues"].append({
+            "code": "small_touch_target",
+            "description": f"Add to Cart button ({int(w)}x{int(h)}px) is smaller than the 32x32px mobile minimum.",
+            "evidence": f"Touch target analysis: {int(w)}x{int(h)}px.",
+            "severity": "medium", "confidence": "high",
+            "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."
+        })
+        
+    if atc_data.get("y", 0) > viewport_h * 0.95:
+        findings["issues"].append({
+            "code": "add_to_cart_below_fold",
+            "description": "Add to Cart sits below the mobile fold with no sticky purchase bar.",
+            "evidence": f"button top at y={int(atc_data.get('y', 0))} on a {viewport_h}px viewport",
+            "severity": "medium", "confidence": "high",
+            "fix": "Add a sticky mobile Add to Cart bar or move the buy box above the fold."
+        })
+    return "JS_BTN"
 
     if box["y"] <= viewport_h * 0.95:
         return btn  # above the fold: ideal
