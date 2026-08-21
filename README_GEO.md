@@ -23,7 +23,7 @@ bash
 If you plan to pull live leads via the Meta Ad Library API, inject your token into the root .env file:
 bash
 
-1python -m revenue_leak_engine.pipeline --niche beauty --limit 5 --seed-csv test_seeds.csv
+python -m revenue_leak_engine.pipeline --niche beauty --limit 5 --seed-csv test_seeds.csv
 
 niche can be changed to fashion and co
 (If using a Seed CSV, this step is optional).

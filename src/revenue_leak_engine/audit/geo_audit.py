@@ -233,13 +233,12 @@ def _detect_platform(html, headers):
 
 def _sanitize_product_name(name, domain, brand):
     if not name: return "REPLACE_WITH_PRODUCT_NAME"
-    n_low = name.lower().strip()
-    d_low = domain.lower().replace("www.", "").strip()
+    n_low = name.lower().strip().replace("www.", "")
+    d_low = domain.lower().strip().replace("www.", "")
     b_low = brand.lower().strip() if brand else ""
-    if n_low == d_low or n_low == b_low or n_low == "sample product" or n_low == "premium product" or n_low == "home" or n_low == "cart":
+    if n_low == d_low or n_low == b_low or n_low in ["sample product", "premium product", "home", "cart", "shop", ""]:
         return "REPLACE_WITH_PRODUCT_NAME"
     return name
-
 def _generate_snippet(code_type, domain, sample_name=""):
     if code_type == "organization":
         return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "name": "REPLACE_WITH_BRAND_NAME",\n  "url": "https://' + domain + '",\n  "logo": "REPLACE_WITH_LOGO_URL",\n  "sameAs": [ "REPLACE_WITH_SOCIAL_URLS" ]\n}\n</script>'
@@ -406,6 +405,9 @@ def _sample_urls(domain, findings):
         if not products:
             findings["notes"] += "sitemap_failed_to_yield_products. "
 
+    # P0: Final Blacklist Filter to eradicate Gift Card bypass
+    if "products" in urls:
+        urls["products"] = [p for p in urls["products"] if not any(b in p.lower() for b in ["gift-card", "gift_card", "/search", "/policies/", "/cart", "/checkout", "/blogs/", "/account"])]
     return urls
 
 def _check_crawlability(domain, findings):
@@ -950,7 +952,7 @@ def _check_agentic_commerce(domain, findings):
     if mcp_endpoint:
         # FIXED: Moved PASS assignment to successful handshake
             # capabilities["MCP"] = "PASS"
-        score += 2.0
+        # Score moved to successful handshake
         try:
             payload = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
             headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -960,6 +962,8 @@ def _check_agentic_commerce(domain, findings):
                 r = std_requests.post(mcp_endpoint, json=payload, headers=headers, timeout=TIMEOUT)
 
             if r.status_code == 200:
+                score += 2.0  # Awarded ONLY after successful handshake
+                capabilities["MCP"] = "PASS"
                 data = json.loads(r.text)
                 tools = {t.get("name", "").lower() for t in data.get("result", {}).get("tools", [])}
                 if any("search" in t or "catalog" in t or "product" in t for t in tools):
@@ -991,12 +995,10 @@ def _check_agentic_commerce(domain, findings):
             score = 5.0 
             findings["notes"] += "agentic_score_capped_at_standard_baseline. "
 
-    # P0 Directive: Agentic scoring cannot produce contradictory 10/10 results
-    if capabilities.get("MCP") in ["NOT_DETECTED", "FAIL"]:
-        score = min(score, 8.0)
-    if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]:
-        score = min(score, 6.0)
-    # P0 Directive: Agentic scoring cannot produce contradictory 10/10 results
+    # P0: Agentic Cap - MCP/Catalog/Checkout rules enforced
+    if capabilities.get("MCP") in ["NOT_DETECTED", "FAIL"]: score = min(score, 8.0)
+    if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]: score = min(score, 6.0)
+    # P0: Agentic Cap - MCP/Catalog/Checkout rules enforced
     if capabilities.get("MCP") in ["NOT_DETECTED", "FAIL"]: score = min(score, 8.0)
     if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]: score = min(score, 6.0)
     findings["dimensions"]["agentic_commerce"] = score
@@ -1174,7 +1176,11 @@ def audit_geo(domain: str) -> dict:
             if "REPLACE_WITH_SKU" in snippet or "REPLACE_WITH_PRICE" in snippet or "REPLACE_WITH_PRODUCT_NAME" in snippet:
                 issue["fix_snippet"] = "<!-- Fix snippet withheld: required commerce data (SKU/Price/Name) could not be verified from the audited page. -->\n<!-- Implementation guidance: Add valid Schema.org Product and Offer properties to the product template. -->"
             else:
-                issue["fix_snippet"] = snippet
+                # P0: Withhold if unresolved
+                if "REPLACE_WITH_" in snippet or "NOT_DETECTED" in snippet:
+                    issue["fix_snippet"] = "<!-- Fix snippet withheld -->"
+                else:
+                    issue["fix_snippet"] = snippet
 
     # ENTERPRISE CLEANUP: Remove non_commerce_profile if commerce signals or WAFs were found
     notes = findings.get("notes", "")
