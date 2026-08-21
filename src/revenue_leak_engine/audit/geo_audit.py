@@ -98,10 +98,15 @@ def _ensure_primary_domain(url_str, primary_domain):
     except Exception:
         return url_str
 
+import random
+_BROWSERS = ["chrome120", "chrome110", "safari15_5", "edge101"]
+
 def _fetch(url, notes_key, findings):
     try:
         if USE_STEALTH:
-            r = cffi_requests.get(url, timeout=TIMEOUT, impersonate="chrome120", allow_redirects=True)
+            # Industrial WAF Bypass: Rotate TLS fingerprints on every request
+            browser = random.choice(_BROWSERS)
+            r = cffi_requests.get(url, timeout=TIMEOUT, impersonate=browser, allow_redirects=True)
         else:
             r = requests.get(url, timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
         return r.status_code, r.text, str(r.url), r.headers
@@ -227,7 +232,11 @@ def _detect_platform(html, headers):
 
 
 def _sanitize_product_name(name, domain, brand):
-    if not name or name.lower() == domain.lower() or name.lower() == brand.lower() or name == "NOT_DETECTED" or name == "Premium Product":
+    if not name: return "REPLACE_WITH_PRODUCT_NAME"
+    n_low = name.lower().strip()
+    d_low = domain.lower().replace("www.", "").strip()
+    b_low = brand.lower().strip() if brand else ""
+    if n_low == d_low or n_low == b_low or n_low == "sample product" or n_low == "premium product" or n_low == "home" or n_low == "cart":
         return "REPLACE_WITH_PRODUCT_NAME"
     return name
 
@@ -380,13 +389,20 @@ def _sample_urls(domain, findings):
             NON_PAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf', '.css', '.js')
             for a in soup.find_all('a', href=True):
                 href = a['href']
-                if any(p in href.lower() for p in ['/product/', '/products/', '/catalog/product/', '/p/']):
+                classes = ' '.join(a.get('class', []))
+                # DYNAMIC COMMERCE DETECTOR: URL paths + HTML signals (product-card, add-to-cart, shop, item)
+                is_product_signal = any(p in href.lower() for p in ['/product/', '/products/', '/catalog/product/', '/p/'])
+                is_class_signal = any(sig in classes.lower() for sig in ['product-card', 'product-item', 'add-to-cart', 'shop-now', 'buy-now'])
+                
+                if is_product_signal or is_class_signal:
                     full_url = urljoin(f"https://{domain}/", href)
                     if not any(full_url.lower().split('?')[0].endswith(ext) for ext in NON_PAGE_EXTENSIONS):
                         if full_url not in products:
                             products.append(full_url)
-                            if len(products) >= 3:
+                            if len(products) >= 5:
                                 break
+            if products:
+                findings["notes"] += f"dynamic_commerce_detection_used: {len(products)} products found via HTML/URL signals. "
         if not products:
             findings["notes"] += "sitemap_failed_to_yield_products. "
 
@@ -430,7 +446,7 @@ def _check_crawlability(domain, findings):
                         "description": "llms.txt redirected to a checkout subdomain.",
                         "evidence": f"Final URL: {final_url}",
                         "affected_urls": [final_url],
-                        "severity": "medium", "confidence": "high",
+                        "severity": "medium", "confidence": "VERIFIED",
                         "business_impact": "AI agents hitting payment domains may encounter strict bot-protection before catalog discovery.",
                         "difficulty": "Medium",
                         "fix": "Host AI discovery files on the primary brand CDN."
@@ -453,7 +469,7 @@ def _check_crawlability(domain, findings):
                         "description": f"robots.txt explicitly blocks AI engines: {', '.join(blocked)}.",
                         "evidence": "Disallow: / under specific AI user-agents.",
                         "affected_urls": [url],
-                        "severity": "high", "confidence": "high",
+                        "severity": "high", "confidence": "VERIFIED",
                         "business_impact": "Your brand is actively hidden from next-generation AI search engines (ChatGPT, Perplexity), ceding market share to competitors.",
                         "difficulty": "Easy",
                         "fix": "Update robots.txt to explicitly allow GPTBot, ClaudeBot, and PerplexityBot."
@@ -469,9 +485,9 @@ def _check_crawlability(domain, findings):
             "description": "All crawlability resources returned bot-challenge pages instead of real content.",
             "evidence": f"Blocked: {', '.join(blocked_resources)}.",
             "affected_urls": list(resources.values()),
-            "severity": "medium", "confidence": "low",
+            "severity": "medium", "confidence": "UNVERIFIED",
             "business_impact": "Crawlability is unknown. The site's WAF may also be blocking legitimate AI crawlers (e.g. GPTBot).",
-            "difficulty": "REPLACE_WITH_SKU",
+            "difficulty": "Medium",
             "fix": "Manually verify robots.txt/llms.txt accessibility, and check WAF bot-protection rules.",
         })
 
@@ -519,7 +535,7 @@ def _check_answerability(domain, sample_urls, findings):
             "description": "Core commercial policies (Shipping, Returns, FAQ) are missing or lack substantive content.",
             "evidence": f"Found {len(found_policies)} strong policy pages. Weak pages: {len(weak_policies)}.",
             "affected_urls": policy_urls if policy_urls else [sample_urls["homepage"]],
-            "severity": "medium", "confidence": "high",
+            "severity": "medium", "confidence": "VERIFIED",
             "business_impact": "Missing structured answers may reduce visibility and trust in conversational commerce and AI-assisted discovery.",
             "difficulty": "Easy",
             "fix": "Publish comprehensive, text-rich policy and FAQ pages to capture AI-driven customer support queries."
@@ -629,9 +645,9 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "description": "Site appears to be a brand/corporate profile, not a direct e-commerce store.",
             "evidence": "No product URLs or cart functionality detected in sitemap or navigation.",
             "affected_urls": [sample_urls.get("homepage", f"https://{domain}/")],
-            "severity": "low", "confidence": "high",
+            "severity": "low", "confidence": "VERIFIED",
             "business_impact": "Standard e-commerce revenue leak metrics do not apply.",
-            "difficulty": "REPLACE_WITH_SKU", "fix": "REPLACE_WITH_SKU"
+            "difficulty": "N/A", "fix": "N/A"
         })
         findings["dimensions"]["entity_intelligence"] = 10.0 # Assume entity is fine if not commerce
         findings["issues"].extend(issues)
@@ -685,7 +701,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "finding_id": "GEO-CRW-001",
                 "description": "Core pages redirect to external shells (e.g., checkout subdomains) with no schema.",
                 "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
-                "affected_urls": urls_to_crawl, "severity": "high", "confidence": "high",
+                "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "AI agents are routed to payment/external domains and blocked before seeing catalog data.",
                 "difficulty": "Medium", "fix": "Ensure core merchandising URLs resolve on the primary domain."
             })
@@ -695,7 +711,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "finding_id": "GEO-CSR-001",
                 "description": "Client-Side Rendering (CSR) is preventing raw HTML schema extraction.",
                 "evidence": f"{csr_pages}/{total_pages_crawled} sampled pages return 0 JSON-LD blocks in raw HTML.",
-                "affected_urls": urls_to_crawl, "severity": "high", "confidence": "high",
+                "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "Lightweight AI shopping agents that do not execute JavaScript will see 0% entity and product data.",
                 "difficulty": "Hard", "fix": "Implement Server-Side Rendering (SSR) or Static Site Generation (SSG).",
                 "fix_snippet": _generate_snippet("organization", domain)
@@ -739,7 +755,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "evidence": "Parsed JSON-LD structures on homepage and sampled product pages.",
             "inference": "Adding explicit Organization structured data significantly increases the probability that AI systems will accurately identify and recommend your brand.",
             "recommendation": "Add or consolidate Organization/Brand structured data.",
-            "affected_urls": urls_to_crawl, "severity": ent_severity, "confidence": "high",
+            "affected_urls": urls_to_crawl, "severity": ent_severity, "confidence": "VERIFIED",
             "business_impact": ISSUE_COPY.get("missing_organization_entity", {}).get("business_impact", "Reduces explicit machine-readable entity clarity."),
             "difficulty": "Easy", "fix": "Add or consolidate Organization/Brand structured data.",
             "fix_snippet": _generate_snippet("organization", domain)
@@ -750,7 +766,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "code": "incomplete_entity_corroboration",
             "description": "Organization exists, but lacks a sameAs trust chain.",
             "evidence": "sameAs array missing or empty.",
-            "affected_urls": urls_to_crawl, "severity": "medium", "confidence": "high",
+            "affected_urls": urls_to_crawl, "severity": "medium", "confidence": "VERIFIED",
             "business_impact": "Entity corroboration is incomplete.",
             "difficulty": "Easy", "fix": "Add Wikipedia and social URLs to sameAs."
         })
@@ -875,7 +891,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                     "dimension": "Product Intelligence",
                     "observation": f"Sampled {valid_p_count} verified product pages. Missing: {', '.join(missing_fields) if missing_fields else 'None'}.",
                     "evidence": f"Sampled {valid_p_count} products. Forensic Coverage: Name {int(field_totals['name']/max(1,valid_p_count)*100)}% | Image {int(field_totals['image']/max(1,valid_p_count)*100)}% | Price {int(field_totals['price']/max(1,valid_p_count)*100)}% | Avail {int(field_totals['avail']/max(1,valid_p_count)*100)}% | SKU {int(field_totals['sku']/max(1,valid_p_count)*100)}% | Brand {int(field_totals['brand']/max(1,valid_p_count)*100)}%.",
-                    "affected_urls": products, "severity": "high", "confidence": "high",
+                    "affected_urls": products, "severity": "high", "confidence": "VERIFIED",
                     "business_impact": ISSUE_COPY.get("incomplete_product_schema", {}).get("business_impact", "Incomplete machine-readable product data may reduce eligibility."),
                     "difficulty": "Medium", "fix": "Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.",
                     "fix_snippet": _generate_snippet("product", domain, "NOT_DETECTED")
@@ -887,9 +903,9 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "code": "product_intelligence_unknown",
                 "description": "Product pages were found but could not be crawled or returned no schema.",
                 "evidence": f"Sampled {len(products)} products, but 0 returned valid schema.",
-                "affected_urls": products, "severity": "medium", "confidence": "low",
+                "affected_urls": products, "severity": "medium", "confidence": "UNVERIFIED",
                 "business_impact": "Product schema quality is unknown (Audit Limitation).",
-                "difficulty": "REPLACE_WITH_SKU", "fix": "Verify product pages are accessible to crawlers."
+                "difficulty": "Medium", "fix": "Verify product pages are accessible to crawlers."
             })
     else:
         findings["dimensions_measured"]["product_intelligence"] = False
@@ -899,9 +915,9 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "code": "product_intelligence_unknown",
             "description": "No product pages could be sampled.",
             "evidence": findings["notes"],
-            "affected_urls": [], "severity": "medium", "confidence": "low",
+            "affected_urls": [], "severity": "medium", "confidence": "UNVERIFIED",
             "business_impact": "Product schema quality is unknown (Audit Limitation).",
-            "difficulty": "REPLACE_WITH_SKU", "fix": "Verify sitemap contains product URLs."
+            "difficulty": "Medium", "fix": "Verify sitemap contains product URLs."
         })
     findings["issues"].extend(issues)
 
@@ -958,7 +974,7 @@ def _check_agentic_commerce(domain, findings):
                     "description": "MCP endpoint returned error during JSON-RPC handshake.",
                     "evidence": f"POST {mcp_endpoint} -> {r.status_code}",
                     "affected_urls": [mcp_endpoint],
-                    "severity": "high", "confidence": "high",
+                    "severity": "high", "confidence": "VERIFIED",
                     "business_impact": "Agentic checkout pipes are broken. AI agents cannot transact.",
                     "difficulty": "Hard",
                     "fix": "Debug MCP server routing and ensure public JSON-RPC access."
@@ -975,6 +991,11 @@ def _check_agentic_commerce(domain, findings):
             score = 5.0 
             findings["notes"] += "agentic_score_capped_at_standard_baseline. "
 
+    # P0 Directive: Agentic scoring cannot produce contradictory 10/10 results
+    if capabilities.get("MCP") in ["NOT_DETECTED", "FAIL"]:
+        score = min(score, 8.0)
+    if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]:
+        score = min(score, 6.0)
     findings["dimensions"]["agentic_commerce"] = score
     findings["agentic_capabilities"] = capabilities
     
@@ -984,7 +1005,7 @@ def _check_agentic_commerce(domain, findings):
             "description": "UCP discovery file exists, but the MCP tool handshake for Catalog/Cart failed.",
             "evidence": f"Capabilities: {capabilities}",
             "affected_urls": [f"https://{domain}/.well-known/ucp"],
-            "severity": "medium", "confidence": "high",
+            "severity": "medium", "confidence": "VERIFIED",
             "business_impact": "AI shopping agents can discover the store via UCP but cannot execute MCP tool calls to browse or transact.",
             "difficulty": "Medium",
             "fix": "Check product feed completeness and MCP endpoint health."
@@ -1030,9 +1051,9 @@ def audit_geo(domain: str) -> dict:
             "description": f"{domain} did not respond to any request - ikely wrong domain, DNS failure, or site offline.",
             "evidence": findings["notes"],
             "affected_urls": [],
-            "severity": "high", "confidence": "high",
+            "severity": "high", "confidence": "VERIFIED",
             "business_impact": "Cannot audit a site that cannot be reached.",
-            "difficulty": "REPLACE_WITH_SKU",
+            "difficulty": "N/A",
             "fix": "Verify the domain is correct and the site is live before re-running.",
         }]
         return findings
@@ -1146,7 +1167,11 @@ def audit_geo(domain: str) -> dict:
                 snippet = snippet.replace(f"https://{domain}/https://", "https://")
                 snippet = snippet.replace("REPLACE_WITH_PRICE", p_assets.get("price", "NOT_DETECTED"))
                 
-            issue["fix_snippet"] = snippet
+                        # P0 Directive: Withhold executable snippet if critical data is unverified
+            if "REPLACE_WITH_SKU" in snippet or "REPLACE_WITH_PRICE" in snippet or "REPLACE_WITH_PRODUCT_NAME" in snippet:
+                issue["fix_snippet"] = "<!-- Fix snippet withheld: required commerce data (SKU/Price/Name) could not be verified from the audited page. -->\n<!-- Implementation guidance: Add valid Schema.org Product and Offer properties to the product template. -->"
+            else:
+                issue["fix_snippet"] = snippet
 
     # ENTERPRISE CLEANUP: Remove non_commerce_profile if commerce signals or WAFs were found
     notes = findings.get("notes", "")
@@ -1234,11 +1259,11 @@ def audit_geo(domain: str) -> dict:
     # Evidence-Driven Confidence Calculation (Partner Directive #5)
     notes = findings.get("notes", "")
     if "timeout" in notes or "WAF" in notes or "bot-challenge" in notes or "binary_image" in notes or "unrecognized_format" in notes:
-        findings["score_confidence"] = "partial"
+        findings["score_confidence"] = "PARTIAL"
     elif not findings.get("dimensions_measured", {}).get("product_intelligence", True):
-        findings["score_confidence"] = "low"
+        findings["score_confidence"] = "UNVERIFIED"
     else:
-        findings["score_confidence"] = "full"
+        findings["score_confidence"] = "VERIFIED"
 
 
     # Partner Directive: Reconcile Answerability Dimension
