@@ -65,6 +65,57 @@ PASSWORD_SIGS = (
 
 # ---------------- navigation & measurement helpers ----------------
 
+def get_pixel_fix(platform):
+    fixes = {
+        'shopify': "Install the Meta Pixel via Shopify's Facebook & Instagram channel so ad optimization and retargeting work.",
+        'woocommerce': "Install the official 'Facebook for WooCommerce' plugin or configure via GTM.",
+        'bigcommerce': "Enable Facebook Pixel in BigCommerce Settings > Marketing > Analytics.",
+        'magento': "Install a Magento 2 Meta Pixel extension or configure via GTM.",
+        'custom': "Implement the Meta Pixel via GTM or your site's header template."
+    }
+    return fixes.get(platform, fixes['custom'])
+
+def get_express_fix(platform):
+    fixes = {
+        'shopify': "Enable Shop Pay / Apple Pay / Google Pay in Shopify Settings > Payments so express buttons render on PDP and cart.",
+        'woocommerce': "Enable Apple Pay / Google Pay via WooCommerce Payments, Stripe, or PayPal settings.",
+        'bigcommerce': "Enable digital wallets in BigCommerce Settings > Payments.",
+        'magento': "Enable Apple Pay / Google Pay via your payment gateway extension (Stripe/Braintree).",
+        'custom': "Enable digital wallet express checkout options via your payment gateway configuration."
+    }
+    return fixes.get(platform, fixes['custom'])
+
+def get_app_bloat_fix(platform):
+    fixes = {
+        'shopify': "Audit installed Shopify apps; remove or defer unused ones. Every app script is a tax on speed and conversion.",
+        'woocommerce': "Audit installed WordPress/WooCommerce plugins; deactivate or defer unused ones.",
+        'bigcommerce': "Audit installed BigCommerce apps and custom scripts; defer unused ones.",
+        'magento': "Audit installed Magento extensions; disable unused modules via CLI.",
+        'custom': "Audit third-party scripts; defer non-critical JS and remove unused integrations."
+    }
+    return fixes.get(platform, fixes['custom'])
+
+def get_tiktok_fix(platform):
+    fixes = {
+        'shopify': "If TikTok traffic is part of the plan, install the TikTok Pixel via the Shopify app.",
+        'woocommerce': "Install the official TikTok for WooCommerce plugin or configure via GTM.",
+        'bigcommerce': "Add TikTok Pixel via BigCommerce Script Manager or GTM.",
+        'magento': "Install a Magento 2 TikTok Pixel extension or configure via GTM.",
+        'custom': "Implement the TikTok Pixel via GTM or your site's header template."
+    }
+    return fixes.get(platform, fixes['custom'])
+
+def get_drawer_fix(platform):
+    fixes = {
+        'shopify': "Use a Shopify 2.0 compatible slide-out cart drawer theme or app.",
+        'woocommerce': "Enable 'Ajax add to cart' and a mini-cart drawer via your theme settings or a WooCommerce plugin.",
+        'bigcommerce': "Enable 'Show a quick summary' (mini-cart) in BigCommerce Storefront Settings.",
+        'magento': "Enable the mini-cart sidebar in your Magento theme configuration.",
+        'custom': "Implement an AJAX slide-out cart drawer so users don't leave the product page."
+    }
+    return fixes.get(platform, fixes['custom'])
+
+
 def _page_text_head(page, chars=400) -> str:
     try:
         return page.evaluate(
@@ -206,7 +257,7 @@ def audit_site(domain: str) -> dict:
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
         "issues": [], "screenshot_path": None, "popup_screenshot_path": None,
-        "notes": "", "error": None,
+        "notes": "", "error": None, "platform": "custom",
     }
     safe = domain.replace(".", "_")
     viewport_h = MOBILE_VIEWPORT.get("height", 844)
@@ -281,20 +332,35 @@ def audit_site(domain: str) -> dict:
                 pass
             findings["load_time_ms"] = _perf_load_ms(page) or int((time.time() - start) * 1000)
             
-            # PLATFORM DETECTION (Self-Awareness)
+            # ROBUST PLATFORM DETECTION (via HTML CDN signatures)
             try:
-                findings["platform"] = page.evaluate("""
-                    () => {
-                        const html = document.documentElement.innerHTML;
-                        if (window.Shopify || html.includes('Shopify.shop') || html.includes('shopify-checkout-api-token')) return 'shopify';
-                        if (document.body.classList.contains('woocommerce') || html.includes('woocommerce_params') || document.querySelector('.woocommerce')) return 'woocommerce';
-                        if (window.BigCommerce || html.includes('bigcommerce')) return 'bigcommerce';
-                        if (window.mage || html.includes('Magento') || html.includes('mage/')) return 'magento';
-                        return 'custom';
-                    }
-                """)
+                html_has_plat = page.evaluate("() => document.documentElement.outerHTML.slice(0, 400000)")
+                html_lower = html_has_plat.lower()
+                if 'cdn.shopify.com' in html_lower or 'shopify-checkout' in html_lower or 'window.shopify' in html_lower:
+                    platform = 'shopify'
+                elif 'woocommerce' in html_lower or 'wp-content/plugins/woocommerce' in html_lower or 'wp-json/wc/' in html_lower:
+                    platform = 'woocommerce'
+                elif 'bigcommerce' in html_lower or 'cdn11.bigcommerce.com' in html_lower:
+                    platform = 'bigcommerce'
+                elif 'magento' in html_lower or 'mage/' in html_lower or 'x-magento-init' in html_lower:
+                    platform = 'magento'
+                elif 'squarespace' in html_lower or 'static1.1.sqsp.net' in html_lower or 'squarespace-cdn.com' in html_lower:
+                    platform = 'squarespace'
+                elif 'wixstatic.com' in html_lower or 'wix.com' in html_lower:
+                    platform = 'wix'
+                elif 'prestashop' in html_lower or 'presta' in html_lower:
+                    platform = 'prestashop'
+                elif '3dcart' in html_lower or 'shift4shop' in html_lower:
+                    platform = 'shift4shop'
+                elif 'demandware' in html_lower or 'salesforce commerce cloud' in html_lower or 'sfcc' in html_lower:
+                    platform = 'salesforce'
+                elif 'vtex' in html_lower or 'vteximg' in html_lower or 'vtexcommercestable' in html_lower:
+                    platform = 'vtex'
+                else:
+                    platform = 'custom'
+                findings["platform"] = platform
             except Exception:
-                findings["platform"] = "custom"
+                pass # Falls back to "custom" initialized at the top
 
             head = _page_text_head(page)
             if any(s in head for s in CHALLENGE_SIGS):
@@ -456,7 +522,7 @@ def audit_site(domain: str) -> dict:
                     "description": "Meta (Facebook/Instagram) Pixel not detected on the product page.",
                     "evidence": "no facebook.com/tr request and no fbq in page HTML",
                     "severity": "medium", "confidence": "high",
-                    "fix": "Install the Meta Pixel via Shopify's Facebook & Instagram channel so ad optimization and retargeting work.",
+                    "fix": get_pixel_fix(findings.get("platform", "custom")),
                 })
             if not tiktok_pixel:
                 findings["issues"].append({
@@ -464,7 +530,7 @@ def audit_site(domain: str) -> dict:
                     "description": "TikTok Pixel not detected.",
                     "evidence": "no analytics.tiktok.com request and no ttq in page HTML",
                     "severity": "low", "confidence": "high",
-                    "fix": "If TikTok traffic is part of the plan, install the TikTok Pixel via the Shopify app.",
+                    "fix": get_tiktok_fix(findings.get("platform", "custom")),
                 })
             if not ga4:
                 findings["issues"].append({
@@ -534,7 +600,7 @@ def audit_site(domain: str) -> dict:
                         "description": "No express checkout (Shop Pay/Apple Pay) on PDP or in the cart drawer.",
                         "evidence": "not visible on PDP nor after a safe Add-to-Cart click",
                         "severity": "medium", "confidence": "high",
-                        "fix": "Enable Shop Pay / Apple Pay / Google Pay in Shopify Settings > Payments so express buttons render on PDP and cart.",
+                        "fix": get_express_fix(findings.get("platform", "custom")),
                     })
 
                 event_seen = any(
@@ -565,7 +631,7 @@ def audit_site(domain: str) -> dict:
                         "description": "Adding to cart leaves the product page (full-page cart) instead of opening a cart drawer.",
                         "evidence": "URL changed or no visible drawer element after Add-to-Cart click",
                         "severity": "low", "confidence": "medium",
-                        "fix": "Use a slide-out cart drawer so shoppers keep browsing (and keep seeing recommendations) after adding items.",
+                        "fix": get_drawer_fix(findings.get("platform", "custom")),
                     })
 
         except PWTimeout:
@@ -590,31 +656,6 @@ def audit_site(domain: str) -> dict:
         
     findings["opportunity_score"] = max(0.0, round(score, 1))
     
-    # PLATFORM-AWARE FIX LOCALIZATION
-    platform = findings.get("platform", "custom")
-    for issue in findings.get("issues", []):
-        fix = issue.get("fix", "")
-        if platform == "woocommerce":
-            fix = fix.replace("Shopify's Facebook & Instagram channel", "the official Facebook for WooCommerce plugin")
-            fix = fix.replace("Shopify Settings > Payments", "WooCommerce > Settings > Payments")
-            fix = fix.replace("Shopify apps", "WooCommerce plugins")
-            fix = fix.replace("Shopify", "WooCommerce")
-        elif platform == "bigcommerce":
-            fix = fix.replace("Shopify's Facebook & Instagram channel", "BigCommerce's Facebook Pixel app")
-            fix = fix.replace("Shopify Settings > Payments", "BigCommerce Settings > Payments")
-            fix = fix.replace("Shopify apps", "BigCommerce apps")
-            fix = fix.replace("Shopify", "BigCommerce")
-        elif platform == "magento":
-            fix = fix.replace("Shopify's Facebook & Instagram channel", "Magento's Facebook/Meta integration")
-            fix = fix.replace("Shopify Settings > Payments", "Magento Stores > Configuration > Sales > Payment Methods")
-            fix = fix.replace("Shopify apps", "Magento extensions")
-            fix = fix.replace("Shopify", "Magento")
-        elif platform == "custom":
-            fix = fix.replace("Shopify's Facebook & Instagram channel", "your custom GTM or direct pixel implementation")
-            fix = fix.replace("Shopify Settings > Payments", "your payment gateway dashboard (Stripe/PayPal)")
-            fix = fix.replace("Shopify apps", "third-party scripts")
-            fix = fix.replace("Shopify", "your CMS")
-        issue["fix"] = fix
         
     return findings
 
@@ -864,7 +905,7 @@ def _check_script_bloat(page, findings):
             "description": f"{third_party} third-party scripts load on the PDP — app bloat is taxing every visitor.",
             "evidence": f"{total} scripts total, {third_party} third-party",
             "severity": "medium", "confidence": "high",
-            "fix": "Audit installed Shopify apps; remove or defer unused ones. Every app script is a tax on speed and conversion.",
+            "fix": get_app_bloat_fix(findings.get("platform", "custom")),
         })
 
 
