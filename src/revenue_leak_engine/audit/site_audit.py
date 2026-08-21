@@ -133,6 +133,18 @@ def _extract_cwv_and_friction(page):
             }
         """)
     except Exception:
+        pass
+    # FALLBACK: Use navigation timing if PerformanceObserver failed
+    try:
+        fallback = page.evaluate("""
+            () => {
+                const nav = performance.getEntriesByType('navigation')[0];
+                const domComplete = nav ? Math.round(nav.domComplete) : 0;
+                return { lcp: domComplete, cls: 0, touch_target_ok: false };
+            }
+        """)
+        return fallback
+    except Exception:
         return {"lcp": 0, "cls": 0, "touch_target_ok": False}
 
 
@@ -178,13 +190,12 @@ def find_a_product_url(page, domain: str) -> str | None:
         for href in links:
             if not href: continue
             clean_href = href.split('?')[0].split('#')[0]
-            if product_url_pattern.search(clean_href):
-                if any(bl in clean_href.lower() for bl in blacklist):
-                    continue
-                if href.startswith("http"):
-                    return href
-                else:
-                    return f"https://{domain}{href.split('?')[0]}"
+            # Broad match: WooCommerce (/product/), Shopify (/products/), Custom (/p/, /item/)
+            is_product_path = any(p in clean_href.lower() for p in ['/product/', '/products/', '/p/', '/item/', '/dp/', '/buy/'])
+            if is_product_path or product_url_pattern.search(clean_href):
+                if any(bl in clean_href.lower() for bl in blacklist): continue
+                if '/product-category/' in clean_href.lower() or '/collections/' in clean_href.lower(): continue
+                return href if href.startswith("http") else f"https://{domain}{clean_href}"
     return None
 
 
@@ -334,11 +345,18 @@ def audit_site(domain: str) -> dict:
                 except Exception:
                     pass
 
-            if detect_overlay(page).get("blocked"):
-                findings["error"] = ("unclosable_overlay - page-level checks skipped "
-                                     "to avoid false alarms; mark for manual review")
-                browser.close()
-                return findings
+            overlay_blocked = detect_overlay(page).get("blocked")
+            skip_interactive = False
+            if overlay_blocked:
+                findings["notes"] += "unclosable_overlay_detected_interactive_checks_skipped. "
+                skip_interactive = True
+                findings["issues"].append({
+                    "code": "unclosable_overlay",
+                    "description": "A viewport-blocking overlay could not be automatically dismissed.",
+                    "evidence": "Overlay persisted after dismissal attempts and DOM nuke.",
+                    "severity": "high", "confidence": "VERIFIED",
+                    "fix": "Ensure marketing popups have a visible, accessible close button and do not block immediate page interaction."
+                })
 
             # DOM STABILITY: Wait for JS rendering to settle before element queries
             try:
@@ -381,7 +399,26 @@ def audit_site(domain: str) -> dict:
                     "severity": "medium", "confidence": "high",
                     "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."
                 })
-            pdp_express = _visible_any(page, EXPRESS_SELECTOR)
+            pdp_express = False
+            if not skip_interactive:
+                pdp_express = _visible_any(page, EXPRESS_SELECTOR)
+                # Shadow DOM fallback for express checkout web components
+                if not pdp_express:
+                    try:
+                        pdp_express = page.evaluate("""
+                            () => {
+                                const sels = ['shop-pay-button', 'apple-pay-button', 'paypal-button', '[data-testid="shop-pay-button"]'];
+                                for (const sel of sels) {
+                                    if (document.querySelector(sel)) return true;
+                                    for (const node of document.querySelectorAll('*')) {
+                                        if (node.shadowRoot && node.shadowRoot.querySelector(sel)) return true;
+                                    }
+                                }
+                                return false;
+                            }
+                        """)
+                    except Exception:
+                        pass
             _check_reviews(page, findings)
             _check_trust_signals(page, findings)
             _check_heavy_images(page, findings)
@@ -420,7 +457,7 @@ def audit_site(domain: str) -> dict:
                 })
 
             # ---- cart probe: ONE safe click, multiple observations ----
-            if atc_btn is not None:
+            if not skip_interactive and atc_btn is not None:
                 req_before = len(seen_urls)
                 try:
                     dl_before = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
@@ -641,17 +678,25 @@ def _check_add_to_cart(page, findings, viewport_h: int):
         return None
 
     if not atc_data.get("visible"):
-        findings["issues"].append({
-            "code": "add_to_cart_not_visible",
-            "description": "Add to Cart button exists in DOM but is hidden from the mobile viewport.",
-            "evidence": f"Element found ('{atc_data.get('text')}') but CSS hides it or dimensions are 0.",
-            "severity": "high", "confidence": "high",
-            "fix": "Unhide the buy box on mobile; a hidden Add to Cart is a silent revenue kill-switch."
-        })
-        return "JS_BTN"
+        # INDUSTRIAL PRINCIPLE: dimensions=0 through Shadow DOM is UNVERIFIED, not HIDDEN
+        btn_text = atc_data.get("text", "")
+        if btn_text and len(btn_text) > 3:
+            # Element has real text content — likely Shadow DOM measurement failure, not truly hidden
+            findings["notes"] += f"atc_unmeasurable_shadow_dom: '{btn_text}'. "
+            return "JS_BTN"
+        else:
+            findings["issues"].append({
+                "code": "add_to_cart_not_visible",
+                "description": "Add to Cart button exists in DOM but appears hidden from the mobile viewport.",
+                "evidence": f"Element found but CSS hides it or dimensions are 0.",
+                "severity": "high", "confidence": "medium",
+                "fix": "Verify the buy box renders visibly on mobile; check for CSS display:none or zero-height containers."
+            })
+            return "JS_BTN"
 
     w, h = atc_data.get("width", 0), atc_data.get("height", 0)
-    if w < 32 or h < 32:
+    # INDUSTRIAL PRINCIPLE: If dimensions are 0, measurement failed — do NOT report "too small"
+    if 0 < w < 32 or 0 < h < 32:
         findings["issues"].append({
             "code": "small_touch_target",
             "description": f"Add to Cart button ({int(w)}x{int(h)}px) is smaller than the 32x32px mobile minimum.",

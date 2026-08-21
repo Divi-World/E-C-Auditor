@@ -85,7 +85,11 @@ def generate_report(findings: dict) -> str:
     
     popup_ann = findings.get("popup_annotation")
     screenshot_b64 = _process_screenshot(findings.get("screenshot_path"))
-    popup_b64 = _process_screenshot(findings.get("popup_screenshot_path"), popup_ann)
+    # INDUSTRIAL PRINCIPLE: Only show popup screenshot if it is an active finding
+    popup_b64 = None
+    has_popup_finding = any(i.get("code") == "intrusive_popup" for i in findings.get("issues", []))
+    if has_popup_finding:
+        popup_b64 = _process_screenshot(findings.get("popup_screenshot_path"), popup_ann)
     
     html_out = template.render(
         domain=domain, score=score, load_time=findings.get("load_time_ms", "N/A"),
