@@ -996,6 +996,9 @@ def _check_agentic_commerce(domain, findings):
         score = min(score, 8.0)
     if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]:
         score = min(score, 6.0)
+    # P0 Directive: Agentic scoring cannot produce contradictory 10/10 results
+    if capabilities.get("MCP") in ["NOT_DETECTED", "FAIL"]: score = min(score, 8.0)
+    if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]: score = min(score, 6.0)
     findings["dimensions"]["agentic_commerce"] = score
     findings["agentic_capabilities"] = capabilities
     
