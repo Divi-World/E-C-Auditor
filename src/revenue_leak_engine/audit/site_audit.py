@@ -355,6 +355,7 @@ def audit_site(domain: str) -> dict:
                     "description": "A viewport-blocking overlay could not be automatically dismissed.",
                     "evidence": "Overlay persisted after dismissal attempts and DOM nuke.",
                     "severity": "high", "confidence": "VERIFIED",
+                    "business_impact": "Viewport-blocking overlays without accessible dismissals cause immediate user abandonment and trigger SEO penalties.",
                     "fix": "Ensure marketing popups have a visible, accessible close button and do not block immediate page interaction."
                 })
 
@@ -611,6 +612,7 @@ def _check_load_speed(findings: dict):
             "description": f"Largest Contentful Paint (LCP) is {lcp}ms. Mobile users bounce if hero content takes >2.5s to render.",
             "evidence": f"LCP: {lcp}ms (Target: <2500ms)",
             "severity": "high", "confidence": "high",
+            "business_impact": "Slow LCP directly correlates with higher bounce rates and lower conversion on mobile networks.",
             "fix": "Optimize hero image delivery (WebP/AVIF), preload critical fonts, and defer non-critical third-party scripts."
         })
     elif ms and ms > 8000 and lcp == 0:
