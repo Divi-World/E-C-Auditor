@@ -95,6 +95,36 @@ def _perf_load_ms(page):
     except Exception:
         return None
 
+def _extract_cwv_and_friction(page):
+    """Extracts Core Web Vitals (LCP, CLS) and Mobile Touch Target sizes."""
+    try:
+        return page.evaluate("""
+            () => {
+                let lcp = 0, cls = 0;
+                try {
+                    const lcpEntries = performance.getEntriesByType('largest-contentful-paint');
+                    if (lcpEntries && lcpEntries.length > 0) lcp = Math.round(lcpEntries[lcpEntries.length - 1].startTime);
+                } catch(e) {}
+                
+                try {
+                    const entries = performance.getEntriesByType('layout-shift');
+                    if (entries) cls = entries.reduce((sum, e) => sum + (e.hadRecentInput ? 0 : e.value), 0);
+                } catch(e) {}
+                
+                // Touch Target Analysis (Mobile Friction)
+                const atc_btn = document.querySelector("button[name='add'], button:has-text('Add to cart'), .single_add_to_cart_button, [data-add-to-cart]");
+                let touch_target_ok = false;
+                if (atc_btn) {
+                    const r = atc_btn.getBoundingClientRect();
+                    touch_target_ok = (r.width >= 48 && r.height >= 48);
+                }
+                
+                return { lcp, cls: Math.round(cls * 1000) / 1000, touch_target_ok };
+            }
+        """)
+    except Exception:
+        return {"lcp": 0, "cls": 0, "touch_target_ok": False}
+
 
 def find_a_product_url(page, domain: str) -> str | None:
     # Strategy 1: Shopify public JSON — immune to popups and JS stalls (Fast fail)
@@ -203,9 +233,30 @@ def audit_site(domain: str) -> dict:
             findings["product_url"] = product_url
             start = time.time()
             if not _goto_resilient(page, product_url):
-                findings["error"] = "timeout"
-                browser.close()
-                return findings
+                # ENTERPRISE TIMEOUT FALLBACK: If Playwright fails, use curl_cffi stealth fetch
+                try:
+                    from curl_cffi import requests as cffi_requests
+                    r = cffi_requests.get(product_url, timeout=15, impersonate="chrome120")
+                    if r.status_code == 200 and len(r.text) > 500:
+                        findings["load_time_ms"] = 9999 # Flag as slow/fallback
+                        findings["notes"] += "playwright_timeout_used_curl_cffi_fallback. "
+                        # Inject basic HTML into page via data URI or evaluate
+                        page.goto(f"data:text/html;charset=utf-8,{r.text[:50000].replace('#', '%23')}")
+                    else:
+                        findings["error"] = "timeout"
+                        browser.close()
+                        return findings
+                except Exception:
+                    findings["error"] = "timeout"
+                    browser.close()
+                    return findings
+            
+            # FORCE CSS NUKE: Neutralize overlays immediately before DOM settles
+            try:
+                from revenue_leak_engine.audit.popup_handler import REMOVE_OVERLAY_JS
+                page.evaluate(REMOVE_OVERLAY_JS)
+            except Exception:
+                pass
             findings["load_time_ms"] = _perf_load_ms(page) or int((time.time() - start) * 1000)
 
             head = _page_text_head(page)
@@ -276,8 +327,35 @@ def audit_site(domain: str) -> dict:
             findings["screenshot_path"] = str(shot_path)
 
             # ---- CRO / SPEED / SEO checks (no clicks yet) ----
+            cwv = _extract_cwv_and_friction(page)
+            findings["cwv"] = cwv
+            if cwv.get("lcp", 0) > 2500:
+                findings["issues"].append({
+                    "code": "poor_lcp",
+                    "description": f"Largest Contentful Paint (LCP) is {cwv['lcp']}ms (target <2500ms).",
+                    "evidence": f"LCP: {cwv['lcp']}ms",
+                    "severity": "high", "confidence": "high",
+                    "fix": "Optimize hero image delivery, preload critical fonts, and reduce server response time (TTFB)."
+                })
+            if cwv.get("cls", 0) > 0.1:
+                findings["issues"].append({
+                    "code": "poor_cls",
+                    "description": f"Cumulative Layout Shift (CLS) is {cwv['cls']} (target <0.1).",
+                    "evidence": f"CLS: {cwv['cls']}",
+                    "severity": "medium", "confidence": "high",
+                    "fix": "Reserve space for images/video embeds and avoid injecting dynamic content above the fold without placeholders."
+                })
             _check_load_speed(findings)
             atc_btn = _check_add_to_cart(page, findings, viewport_h)
+            
+            if atc_btn and not cwv.get("touch_target_ok"):
+                findings["issues"].append({
+                    "code": "small_touch_target",
+                    "description": "Add to Cart button is smaller than 48x48px on mobile.",
+                    "evidence": "Touch target analysis failed minimum 48px requirement.",
+                    "severity": "medium", "confidence": "high",
+                    "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."
+                })
             pdp_express = _visible_any(page, EXPRESS_SELECTOR)
             _check_reviews(page, findings)
             _check_trust_signals(page, findings)
