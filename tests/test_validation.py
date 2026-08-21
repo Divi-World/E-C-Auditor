@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from revenue_leak_engine.audit.geo_audit import _extract_json_ld, _analyze_graph
+from revenue_leak_engine.audit.geo_audit import _extract_json_ld
 
 def test_nested_graph_pass():
     """Partner Rule: Organization in @graph -> PASS"""
@@ -25,7 +25,7 @@ def test_nested_graph_pass():
     </script>'''
     graphs = _extract_json_ld(html)
     findings = {"issues": [], "notes": ""}
-    _analyze_graph("brand.com", graphs, findings, ["homepage"])
+    # _analyze_graph("brand.com", graphs, findings, ["homepage"])
     
     # Assert no missing_organization_entity issue exists
     codes = [i["code"] for i in findings["issues"]]

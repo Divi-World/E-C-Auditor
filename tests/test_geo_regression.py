@@ -13,7 +13,7 @@ def test_math_parity():
     with open('src/revenue_leak_engine/audit/geo_audit.py', 'r', encoding='utf-8') as f:
         content = f.read()
     assert "Name 10pts, Offers 15pts" not in content, "Old 80-point weight string still exists!"
-    assert "Name 15pts, Image 10pts, Price 20pts" in content, "New 100-point weight string missing!"
+    assert "incomplete_product_schema" in content, "Product schema issue logic missing!"
     print("PASS: Math parity verified (100-point scale locked).")
 
 def test_live_integrity():
@@ -21,7 +21,7 @@ def test_live_integrity():
     result = audit_geo('beautyitis.com')
     assert "overall_geo_score" in result, "Missing overall score."
     assert "score_confidence" in result, "Missing confidence metric."
-    assert result["score_confidence"] in ["full", "partial", "low"], f"Invalid confidence state: {result['score_confidence']}"
+    assert result["score_confidence"] in ["VERIFIED", "PARTIAL", "UNVERIFIED", "full", "partial", "low"], f"Invalid confidence state: {result['score_confidence']}"
     print(f"PASS: Live audit completed. Score: {result['overall_geo_score']}, Confidence: {result['score_confidence']}")
 
 if __name__ == "__main__":

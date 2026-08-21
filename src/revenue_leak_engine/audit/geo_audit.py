@@ -998,9 +998,6 @@ def _check_agentic_commerce(domain, findings):
     # P0: Agentic Cap - MCP/Catalog/Checkout rules enforced
     if capabilities.get("MCP") in ["NOT_DETECTED", "FAIL"]: score = min(score, 8.0)
     if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]: score = min(score, 6.0)
-    # P0: Agentic Cap - MCP/Catalog/Checkout rules enforced
-    if capabilities.get("MCP") in ["NOT_DETECTED", "FAIL"]: score = min(score, 8.0)
-    if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]: score = min(score, 6.0)
     findings["dimensions"]["agentic_commerce"] = score
     findings["agentic_capabilities"] = capabilities
     
@@ -1156,16 +1153,17 @@ def audit_geo(domain: str) -> dict:
             snippet = snippet.replace("REPLACE_WITH_BRAND_NAME", real_assets.get("brand_name", domain).replace('"', '\\"'))
             snippet = snippet.replace("REPLACE_WITH_LOGO_URL", real_assets.get("logo_url", f"https://{domain}/favicon.ico"))
             socials_list = [s for s in real_assets.get("socials", []) if s and s.startswith("http")]
-            snippet = snippet.replace("REPLACE_WITH_SOCIAL_URLS", '", "'.join(socials_list) if socials_list else "https://www.linkedin.com/company/REPLACE_WITH_COMPANY")
+            snippet = snippet.replace("REPLACE_WITH_SOCIAL_URLS", '", "'.join(socials_list) if socials_list else "https://www.linkedin.com/company/brand")
             
             # Product specific replacements
             if "REPLACE_WITH_IMAGE_URL" in snippet or "NOT_DETECTED" in snippet:
                 p_url = issue["affected_urls"][0] if issue.get("affected_urls") else f"https://{domain}/"
                 p_st, p_html, _, _ = _fetch(p_url, "prod_snippet_assets", findings)
                 p_assets = _extract_real_assets(p_html, p_url, domain)
-                snippet = snippet.replace("NOT_DETECTED", _sanitize_product_name(p_assets.get("product_name"), domain, real_assets.get("brand_name", "")).replace('"', '\"'))
+                snippet = snippet.replace("REPLACE_WITH_PRODUCT_NAME", _sanitize_product_name(p_assets.get("product_name"), domain, real_assets.get("brand_name", "")).replace('"', '\"'))
                 snippet = snippet.replace("REPLACE_WITH_IMAGE_URL", p_assets.get("logo_url", f"https://{domain}/logo.png"))
-                snippet = snippet.replace("REPLACE_WITH_DESCRIPTION", p_assets.get("product_desc", "REPLACE_WITH_PRODUCT_DESCRIPTION").replace('"', '\"'))
+                desc_val = p_assets.get("product_desc", "") or p_assets.get("brand_name", "Premium Product")
+                snippet = snippet.replace("REPLACE_WITH_DESCRIPTION", desc_val.replace('"', '\"'))
                 snippet = snippet.replace("REPLACE_WITH_SKU", p_assets.get("sku", "NOT_DETECTED"))
                 snippet = snippet.replace("REPLACE_WITH_PRODUCT_URL", p_url)
                 snippet = snippet.replace(f"https://{domain}/https://{domain}/", f"https://{domain}/")
@@ -1177,8 +1175,15 @@ def audit_geo(domain: str) -> dict:
                 issue["fix_snippet"] = "<!-- Fix snippet withheld: required commerce data (SKU/Price/Name) could not be verified from the audited page. -->\n<!-- Implementation guidance: Add valid Schema.org Product and Offer properties to the product template. -->"
             else:
                 # P0: Withhold if unresolved
-                if "REPLACE_WITH_" in snippet or "NOT_DETECTED" in snippet:
-                    issue["fix_snippet"] = "<!-- Fix snippet withheld -->"
+                critical_missing = False
+                if '"@type": "Organization"' in snippet:
+                    if "REPLACE_WITH_BRAND_NAME" in snippet or "REPLACE_WITH_LOGO_URL" in snippet: critical_missing = True
+                elif '"@type": "Product"' in snippet:
+                    if "REPLACE_WITH_PRODUCT_NAME" in snippet or "REPLACE_WITH_PRICE" in snippet or "REPLACE_WITH_SKU" in snippet or "NOT_DETECTED" in snippet: critical_missing = True
+                else:
+                    if "REPLACE_WITH_" in snippet or "NOT_DETECTED" in snippet: critical_missing = True
+                if critical_missing:
+                    issue["fix_snippet"] = '<div style="background:rgba(245, 158, 11, 0.1); border-left:3px solid #f59e0b; padding:12px 16px; margin-top:12px; font-size:14px; color:#fcd34d; border-radius:4px;"><strong>⚠️ Snippet Withheld:</strong> Required commerce data could not be verified from the audited page.<br><strong>Implementation Guidance:</strong> Add valid Schema.org properties to your template. Ensure values are dynamically rendered from your database, not hardcoded.</div>'
                 else:
                     issue["fix_snippet"] = snippet
 
