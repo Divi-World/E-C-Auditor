@@ -82,13 +82,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
         {% if screenshot_b64 %}
         <div class="screenshot-card">
             <img src="data:image/png;base64,{{ screenshot_b64 }}" alt="Product Page Screenshot">
-            <div class="screenshot-label">Cleared Product Page</div>
+            <div class="screenshot-label">{{ findings.get("screenshot_context", "Mobile Viewport: Telemetry captured.") }}</div>
         </div>
         {% endif %}
         {% if popup_b64 %}
         <div class="screenshot-card">
             <img src="data:image/png;base64,{{ popup_b64 }}" alt="Popup Screenshot">
-            <div class="screenshot-label">Detected Overlay / Popup</div>
+            <div class="screenshot-label">{{ findings.get("screenshot_context", "Mobile Viewport: Overlay detected.") }}</div>
         </div>
         {% endif %}
     </div>

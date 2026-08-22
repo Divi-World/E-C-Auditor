@@ -94,6 +94,17 @@ def generate_report(findings: dict) -> str:
     seo_codes = ['poor_title_tag', 'poor_meta_description', 'h1_tag_issue', 'missing_image_alt']
     seo_issues = [i for i in findings.get("issues", []) if i.get("code") in seo_codes]
 
+    # PRECISE FIX LOCATIONS (Enterprise Credibility)
+    platform = findings.get("platform", "custom")
+    where_map = {
+        "shopify": "📍 Where to apply: Shopify Admin > Online Store > Themes > Edit Code (typically `product-template.liquid` or `theme.liquid`).",
+        "woocommerce": "📍 Where to apply: WordPress Admin > Appearance > Theme File Editor (typically `single-product.php`) or via WooCommerce Settings.",
+        "bigcommerce": "📍 Where to apply: BigCommerce Admin > Storefront > Script Manager or Theme Editor.",
+        "magento": "📍 Where to apply: Magento Admin > Content > Design > Configuration or via XML layout updates.",
+        "custom": "📍 Where to apply: Your CMS theme templates or global header/footer injection points."
+    }
+    where_note = where_map.get(platform, where_map["custom"])
+
     # BULLETPROOF SANITIZER
     for issue in findings.get("issues", []):
         desc = issue.get("description") or issue.get("observation") or "Friction point detected."
@@ -103,7 +114,7 @@ def generate_report(findings: dict) -> str:
         
         issue["description"] = desc
         issue["observation"] = desc
-        issue["fix"] = fix
+        issue["fix"] = f"{fix}\n\n{where_note}" if issue.get("code") not in ["poor_title_tag", "poor_meta_description", "h1_tag_issue", "missing_image_alt"] else fix
         issue["recommendation"] = fix
         issue["business_impact"] = impact
         issue["interpretation"] = impact
@@ -119,7 +130,8 @@ def generate_report(findings: dict) -> str:
         seo_issues=seo_issues, platform=findings.get("platform", "custom"),
         notes=findings.get("notes", ""), error=findings.get("error"),
         screenshot_b64=screenshot_b64, popup_b64=popup_b64,
-        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        findings=findings
     )
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_out)

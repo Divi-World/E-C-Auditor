@@ -644,6 +644,7 @@ def _audit_homepage_and_awareness(page, findings):
 def audit_site(domain: str) -> dict:
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
+        "checks_completed": {"speed": False, "atc_probe": False, "seo": False, "cwv": False},
         "issues": [], "screenshot_path": None, "popup_screenshot_path": None,
         "notes": "", "error": None, "platform": "custom",
     }
@@ -693,6 +694,15 @@ def audit_site(domain: str) -> dict:
         page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
 
         try:
+            # HOMEPAGE & BUSINESS MODEL AWARENESS (Explicit Call)
+            try:
+                page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
+                page.wait_for_timeout(1000)
+                if "_audit_homepage_and_awareness" in globals():
+                    _audit_homepage_and_awareness(page, findings)
+            except Exception:
+                pass
+
             product_url = find_a_product_url(page, domain)
             if not product_url:
                 # NUCLEAR FALLBACK: D2C & Subscription brands convert directly on the homepage.
@@ -743,7 +753,8 @@ def audit_site(domain: str) -> dict:
                 browser.close()
                 return findings
 
-            findings["load_time_ms"] = _perf_load_ms(page) or int((time.time() - start) * 1000)
+            findings["load_time_ms"] = _perf_load_ms(page)
+            findings["checks_completed"]["speed"] = True or int((time.time() - start) * 1000)
             
             # ROBUST PLATFORM DETECTION (via HTML CDN signatures)
             try:
@@ -923,6 +934,7 @@ def audit_site(domain: str) -> dict:
             _check_seo(page, findings)
             # Technical SEO (Isolated Module)
             audit_seo_onpage(page, findings)
+            findings["checks_completed"]["seo"] = True
 
             # ---- tracking presence (from observed network + DOM) ----
             html_has = page.evaluate("() => document.documentElement.outerHTML.slice(0, 400000)")
