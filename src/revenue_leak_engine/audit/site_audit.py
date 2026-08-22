@@ -464,6 +464,30 @@ def _check_advanced_ux_seo(page, findings):
             "recommendation": "Upload at least 5-7 high-resolution images (multiple angles, lifestyle, scale) and add a 15-second product demonstration video."
         })
 
+
+def _apply_stealth(page):
+    try:
+        page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            window.chrome = { runtime: {} };
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+        """)
+    except Exception: pass
+
+def _check_waf_block(page):
+    try:
+        return page.evaluate("""
+            () => {
+                const text = document.body ? document.body.innerText.toLowerCase() : '';
+                const title = document.title.toLowerCase();
+                const waf_sigs = ['just a moment', 'verify you are human', 'attention required', 'cloudflare', 'captcha', 'recaptcha', 'hcaptcha', 'turnstile', 'checking your browser', 'please click the checkbox', 'ddos protection', 'ray id'];
+                return waf_sigs.some(sig => text.includes(sig) || title.includes(sig));
+            }
+        """)
+    except Exception:
+        return False
+
 def audit_site(domain: str) -> dict:
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
@@ -542,6 +566,22 @@ def audit_site(domain: str) -> dict:
                 page.evaluate(REMOVE_OVERLAY_JS)
             except Exception:
                 pass
+            # WAF & CAPTCHA AWARENESS PROTOCOL
+            if _check_waf_block(page):
+                findings["error"] = "waf_captcha_block"
+                findings["issues"].append({
+                    "code": "waf_captcha_block", "severity": "high", "confidence": "VERIFIED",
+                    "description": "Site is protected by a Web Application Firewall (WAF) or CAPTCHA challenge.",
+                    "observation": "Site is protected by a Web Application Firewall (WAF) or CAPTCHA challenge.",
+                    "evidence": "Page resolved to a firewall challenge (e.g., Cloudflare Turnstile) instead of the live storefront.",
+                    "business_impact": "Automated telemetry cannot bypass enterprise bot-protection. The audit cannot proceed without WAF whitelisting.",
+                    "interpretation": "Automated telemetry cannot bypass enterprise bot-protection. The audit cannot proceed without WAF whitelisting.",
+                    "fix": "Whitelist our audit IP range or User-Agent in your WAF (Cloudflare/Akamai/Imperva) to allow deep-dive CRO telemetry.",
+                    "recommendation": "Whitelist our audit IP range or User-Agent in your WAF (Cloudflare/Akamai/Imperva) to allow deep-dive CRO telemetry."
+                })
+                browser.close()
+                return findings
+
             findings["load_time_ms"] = _perf_load_ms(page) or int((time.time() - start) * 1000)
             
             # ROBUST PLATFORM DETECTION (via HTML CDN signatures)
@@ -554,7 +594,7 @@ def audit_site(domain: str) -> dict:
                     platform = 'woocommerce'
                 elif 'bigcommerce' in html_lower or 'cdn11.bigcommerce.com' in html_lower:
                     platform = 'bigcommerce'
-                elif 'magento' in html_lower or 'mage/' in html_lower or 'x-magento-init' in html_lower:
+                elif 'x-magento-init' in html_lower or 'mage/cookies' in html_lower or 'magento_version' in html_lower:
                     platform = 'magento'
                 elif 'squarespace' in html_lower or 'static1.1.sqsp.net' in html_lower or 'squarespace-cdn.com' in html_lower:
                     platform = 'squarespace'
