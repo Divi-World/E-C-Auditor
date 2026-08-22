@@ -115,13 +115,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     {% for issue in high_issues %}
     <div class="issue-card high">
         <div class="issue-header">
-            <h3 class="issue-title">{{ issue.description }}</h3>
+            <h3 class="issue-title">{{ issue.observation }}</h3>
             <span class="severity-pill sev-high">High Impact</span>
         </div>
         <div class="evidence"><strong>Evidence:</strong><br>{{ issue.evidence }}</div>
         <div class="fix-box">
-            <div class="fix-label">⚡ Implementation Directive</div>
-            <div class="fix-text">{{ issue.fix }}</div>
+            <div class="fix-label">⚡ Strategic Recommendation</div>
+            <div class="fix-text">{{ issue.recommendation }}</div>
         </div>
     </div>
     {% endfor %}
@@ -132,13 +132,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     {% for issue in med_issues %}
     <div class="issue-card medium">
         <div class="issue-header">
-            <h3 class="issue-title">{{ issue.description }}</h3>
+            <h3 class="issue-title">{{ issue.observation }}</h3>
             <span class="severity-pill sev-medium">Medium Impact</span>
         </div>
         <div class="evidence"><strong>Evidence:</strong><br>{{ issue.evidence }}</div>
         <div class="fix-box">
-            <div class="fix-label">⚡ Implementation Directive</div>
-            <div class="fix-text">{{ issue.fix }}</div>
+            <div class="fix-label">⚡ Strategic Recommendation</div>
+            <div class="fix-text">{{ issue.recommendation }}</div>
         </div>
     </div>
     {% endfor %}
@@ -149,13 +149,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     {% for issue in low_issues %}
     <div class="issue-card low">
         <div class="issue-header">
-            <h3 class="issue-title">{{ issue.description }}</h3>
+            <h3 class="issue-title">{{ issue.observation }}</h3>
             <span class="severity-pill sev-low">Low Impact</span>
         </div>
         <div class="evidence"><strong>Evidence:</strong><br>{{ issue.evidence }}</div>
         <div class="fix-box">
-            <div class="fix-label">⚡ Implementation Directive</div>
-            <div class="fix-text">{{ issue.fix }}</div>
+            <div class="fix-label">⚡ Strategic Recommendation</div>
+            <div class="fix-text">{{ issue.recommendation }}</div>
         </div>
     </div>
     {% endfor %}
@@ -167,13 +167,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     {% for issue in seo_issues %}
     <div class="issue-card {{ issue.severity }}">
         <div class="issue-header">
-            <h3 class="issue-title">{{ issue.description }}</h3>
+            <h3 class="issue-title">{{ issue.observation }}</h3>
             <span class="severity-pill sev-{{ issue.severity }}">{{ issue.severity | capitalize }} Impact</span>
         </div>
         <div class="evidence"><strong>Evidence:</strong><br>{{ issue.evidence }}</div>
         <div class="fix-box">
-            <div class="fix-label">⚡ Implementation Directive</div>
-            <div class="fix-text">{{ issue.fix }}</div>
+            <div class="fix-label">⚡ Strategic Recommendation</div>
+            <div class="fix-text">{{ issue.recommendation }}</div>
         </div>
     </div>
     {% endfor %}

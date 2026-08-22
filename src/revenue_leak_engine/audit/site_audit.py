@@ -142,60 +142,51 @@ def _goto_resilient(page, url: str) -> bool:
 def _perf_load_ms(page):
     try:
         return page.evaluate(
-            "() => { const e = performance.getEntriesByType('navigation')[0];"
-            " return e ? (Math.round(e.domInteractive) || Math.round(e.domContentLoadedEventEnd) || Math.round(e.loadEventEnd)) : null; }"
+            """() => {
+                const nav = performance.getEntriesByType('navigation')[0];
+                if (!nav) return null;
+                // Client-side processing time (Excludes Cloudflare/WAF network hold time)
+                return Math.round(nav.domContentLoadedEventEnd - nav.responseEnd);
+            }"""
         )
     except Exception:
         return None
 
 def _extract_cwv_and_friction(page):
-    """Extracts Core Web Vitals (LCP, CLS) and Mobile Touch Target sizes."""
     try:
         return page.evaluate("""
             () => {
-                let lcp = 0, cls = 0;
-                try {
-                    const lcpEntries = performance.getEntriesByType('largest-contentful-paint');
-                    if (lcpEntries && lcpEntries.length > 0) lcp = Math.round(lcpEntries[lcpEntries.length - 1].startTime);
-                } catch(e) {}
-                
-                try {
-                    const entries = performance.getEntriesByType('layout-shift');
-                    if (entries) cls = entries.reduce((sum, e) => sum + (e.hadRecentInput ? 0 : e.value), 0);
-                } catch(e) {}
-                
-                // Touch Target Analysis (Mobile Friction)
-                const textMatchesCWV = (el) => {
-                    const t = (el.innerText || el.textContent || "").toLowerCase();
-                    return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now');
-                };
-                let atc_btn = document.querySelector("button[name='add'], .single_add_to_cart_button, [data-add-to-cart]");
-                if (!atc_btn) {
-                    for (const btn of document.querySelectorAll('button, [role="button"]')) {
-                        if (textMatchesCWV(btn)) { atc_btn = btn; break; }
-                    }
-                }
-                let touch_target_ok = false;
-                if (atc_btn) {
-                    const r = atc_btn.getBoundingClientRect();
-                    touch_target_ok = (r.width >= 32 && r.height >= 32); // Human reality: 32px is standard mobile minimum
-                }
-                
-                return { lcp, cls: Math.round(cls * 1000) / 1000, touch_target_ok };
+                return new Promise((resolve) => {
+                    let lcp = 0, cls = 0;
+                    try {
+                        const lcpObs = new PerformanceObserver((list) => {
+                            const entries = list.getEntries();
+                            if (entries.length > 0) lcp = entries[entries.length - 1].startTime;
+                        });
+                        lcpObs.observe({ type: 'largest-contentful-paint', buffered: true });
+                    } catch(e) {}
+                    
+                    try {
+                        const clsObs = new PerformanceObserver((list) => {
+                            list.getEntries().forEach(entry => {
+                                if (!entry.hadRecentInput) cls += entry.value;
+                            });
+                        });
+                        clsObs.observe({ type: 'layout-shift', buffered: true });
+                    } catch(e) {}
+
+                    setTimeout(() => {
+                        let touch_target_ok = false;
+                        const atc = document.querySelector("button[name='add'], [data-add-to-cart], .single_add_to_cart_button");
+                        if (atc) {
+                            const r = atc.getBoundingClientRect();
+                            touch_target_ok = (r.width >= 32 && r.height >= 32);
+                        }
+                        resolve({ lcp: Math.round(lcp), cls: Math.round(cls * 1000) / 1000, touch_target_ok });
+                    }, 2500);
+                });
             }
         """)
-    except Exception:
-        pass
-    # FALLBACK: Use navigation timing if PerformanceObserver failed
-    try:
-        fallback = page.evaluate("""
-            () => {
-                const nav = performance.getEntriesByType('navigation')[0];
-                const domComplete = nav ? Math.round(nav.domComplete) : 0;
-                return { lcp: domComplete, cls: 0, touch_target_ok: false };
-            }
-        """)
-        return fallback
     except Exception:
         return {"lcp": 0, "cls": 0, "touch_target_ok": False}
 
@@ -265,6 +256,32 @@ def find_a_product_url(page, domain: str) -> str | None:
                 clean = m.split('?')[0].split('#')[0].lower()
                 if not any(bl in clean for bl in blacklist):
                     return m
+    except Exception:
+        pass
+        
+    # HEURISTIC FALLBACK: Scan homepage for "Subscribe", "Buy", "Add to Cart" + Price
+    try:
+        page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
+        page.wait_for_timeout(1500)
+        heuristic_url = page.evaluate("""
+            () => {
+                const btns = document.querySelectorAll('a, button');
+                for (const btn of btns) {
+                    const text = (btn.innerText || '').toLowerCase();
+                    const href = btn.getAttribute('href') || '';
+                    const has_price = btn.closest('body').innerText.includes('$');
+                    const is_buy_btn = text.includes('add to cart') || text.includes('buy now') || text.includes('subscribe') || text.includes('select plan') || text.includes('join now');
+                    
+                    if (is_buy_btn && href && href !== '#' && !href.includes('cart') && !href.includes('checkout')) {
+                        if (href.startsWith('http')) return href;
+                        return window.location.origin + href;
+                    }
+                }
+                return null;
+            }
+        """)
+        if heuristic_url:
+            return heuristic_url
     except Exception:
         pass
     return None
