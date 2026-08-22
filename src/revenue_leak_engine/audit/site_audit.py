@@ -159,13 +159,20 @@ def _extract_cwv_and_friction(page):
                 return new Promise((resolve) => {
                     let lcp = 0, cls = 0;
                     try {
+                        const lcpEntries = performance.getEntriesByType('largest-contentful-paint');
+                        if (lcpEntries.length > 0) lcp = lcpEntries[lcpEntries.length - 1].startTime;
+                        const clsEntries = performance.getEntriesByType('layout-shift');
+                        cls = clsEntries.reduce((sum, e) => sum + (e.hadRecentInput ? 0 : e.value), 0);
+                    } catch(e) {}
+                    
+                    try {
                         const lcpObs = new PerformanceObserver((list) => {
                             const entries = list.getEntries();
                             if (entries.length > 0) lcp = entries[entries.length - 1].startTime;
                         });
                         lcpObs.observe({ type: 'largest-contentful-paint', buffered: true });
                     } catch(e) {}
-                    
+
                     try {
                         const clsObs = new PerformanceObserver((list) => {
                             list.getEntries().forEach(entry => {
@@ -183,7 +190,7 @@ def _extract_cwv_and_friction(page):
                             touch_target_ok = (r.width >= 32 && r.height >= 32);
                         }
                         resolve({ lcp: Math.round(lcp), cls: Math.round(cls * 1000) / 1000, touch_target_ok });
-                    }, 2500);
+                    }, 1500);
                 });
             }
         """)
@@ -503,9 +510,10 @@ def audit_site(domain: str) -> dict:
         try:
             product_url = find_a_product_url(page, domain)
             if not product_url:
-                findings["error"] = "no_product_url_found"
-                browser.close()
-                return findings
+                # NUCLEAR FALLBACK: D2C & Subscription brands convert directly on the homepage.
+                product_url = f"https://{domain}"
+                findings["notes"] += "homepage_audited_as_primary_conversion_surface. "
+                findings["product_url"] = product_url
 
             findings["product_url"] = product_url
             start = time.time()
@@ -1124,18 +1132,23 @@ def _check_script_bloat(page, findings):
 def _check_console_errors(findings, console_errors):
     # INDUSTRIAL FILTER: Ignore DNS blocks, CORS policies, and network noise
     real_js_errors = [
-        err for err in console_errors 
+        err for err in console_errors
         if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties"])
+        and not any(noise in err for noise in ["CORS", "net::ERR", "Failed to load resource"])
     ]
     if real_js_errors:
         findings["issues"].append({
-            "code": "console_errors",
+            "code": "console_errors", "severity": "medium", "confidence": "VERIFIED",
             "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.",
+            "observation": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.",
             "evidence": "; ".join(real_js_errors[:3])[:300],
-            "severity": "medium", "confidence": "VERIFIED",
             "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.",
-            "fix": "Debug the throwing script — execution errors break the purchase path or pixel tracking."
+            "interpretation": "Critical JS errors break interactive elements, tracking tags, and checkout flows.",
+            "fix": "Debug the throwing script - execution errors break the purchase path or pixel tracking.",
+            "recommendation": "Debug the throwing script - execution errors break the purchase path or pixel tracking."
         })
+
+
 
 def _check_seo(page, findings):
     seo = page.evaluate("""
