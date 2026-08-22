@@ -376,6 +376,87 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
     except Exception:
         pass
 
+
+def _check_advanced_ux_seo(page, findings):
+    """Deep interrogation of Shipping, Returns, Variants, Media, and Schema."""
+    try:
+        ux_data = page.evaluate("""
+            () => {
+                const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+                const buyBox = document.querySelector('[class*="product" i], [class*="buy" i], form[action*="cart"], [class*="price" i]');
+                const buyBoxText = buyBox ? buyBox.innerText.toLowerCase() : bodyText;
+                
+                const hasVariants = document.querySelector('[class*="variant" i], [class*="swatch" i], select[name*="variant"], [data-option]') !== null;
+                const hasShippingInfo = /free shipping|shipping cost|delivery|ships in|estimated delivery/.test(buyBoxText);
+                const hasReturnsInfo = /return|refund|guarantee|exchange|money back/.test(buyBoxText);
+                
+                const imgs = document.querySelectorAll('img');
+                const hasVideo = document.querySelector('video, iframe[src*="youtube"], iframe[src*="vimeo"], [class*="video"]') !== null;
+                
+                const hasSizing = /size guide|sizing|fit guide|dimensions|measurements/.test(bodyText);
+                const hasFAQ = /faq|frequently asked|questions/.test(bodyText);
+                const hasIngredients = /ingredients|materials|fabric|composition|nutritional/.test(bodyText);
+                
+                const schemas = document.querySelectorAll('script[type="application/ld+json"]');
+                let hasProductSchema = false, hasReviewSchema = false;
+                schemas.forEach(s => {
+                    const txt = s.innerText.toLowerCase();
+                    if (txt.includes('"@type"') && txt.includes('product')) hasProductSchema = true;
+                    if (txt.includes('aggregaterating') || txt.includes('review')) hasReviewSchema = true;
+                });
+
+                return { hasVariants, hasShippingInfo, hasReturnsInfo, imgCount: imgs.length, hasVideo, hasSizing, hasFAQ, hasIngredients, hasProductSchema, hasReviewSchema };
+            }
+        """)
+    except Exception:
+        return
+
+    if not ux_data.get('hasShippingInfo'):
+        findings["issues"].append({
+            "code": "hidden_shipping_costs", "severity": "high", "confidence": "VERIFIED",
+            "observation": "Shipping costs and delivery times are hidden on the product page.",
+            "evidence": "No mention of shipping, delivery, or free shipping thresholds detected near the buy box.",
+            "interpretation": "Baymard Institute data shows 68% of shoppers abandon carts when shipping costs are a surprise at checkout. Hiding this on the PDP kills high-intent buyers.",
+            "recommendation": "Add a dynamic shipping estimator or a clear 'Free Shipping over $X' badge directly inside the buy box."
+        })
+
+    if not ux_data.get('hasReturnsInfo'):
+        findings["issues"].append({
+            "code": "hidden_return_policy", "severity": "medium", "confidence": "VERIFIED",
+            "observation": "Return policy and guarantees are not visible near the purchase decision area.",
+            "evidence": "No mentions of returns, refunds, or guarantees detected in the product details or buy box.",
+            "interpretation": "Shoppers hesitate when they feel trapped by a purchase. Visible return policies reduce purchase anxiety and increase conversion.",
+            "recommendation": "Display a concise 'Easy 30-Day Returns' or 'Money-Back Guarantee' badge directly below the Add to Cart button."
+        })
+
+    if not ux_data.get('hasProductSchema'):
+        findings["issues"].append({
+            "code": "missing_product_schema", "severity": "high", "confidence": "VERIFIED",
+            "observation": "Missing Product Schema Markup (Structured Data).",
+            "evidence": "No application/ld+json Product schema detected in the page head.",
+            "interpretation": "Without Product schema, Google and AI search engines (SGE) cannot display rich snippets (price, stock, reviews), severely reducing CTR and AI visibility.",
+            "recommendation": "Implement standard JSON-LD Product schema including price, availability, SKU, and aggregateRating."
+        })
+        
+    if not ux_data.get('hasSizing') and not ux_data.get('hasIngredients'):
+        if ux_data.get('imgCount', 0) > 0:
+            findings["issues"].append({
+                "code": "missing_product_specs", "severity": "medium", "confidence": "VERIFIED",
+                "observation": "Critical product details (Sizing, Materials, or Ingredients) are missing or hard to find.",
+                "evidence": "No size guides, material breakdowns, or ingredient lists detected on the page.",
+                "interpretation": "Shoppers cannot evaluate if the product fits their specific needs, leading to hesitation and high return rates.",
+                "recommendation": "Add expandable accordion tabs for 'Sizing/Fit', 'Materials/Ingredients', and 'Care Instructions' directly below the product description."
+            })
+
+    if ux_data.get('imgCount', 0) < 4 and not ux_data.get('hasVideo'):
+        findings["issues"].append({
+            "code": "poor_media_richness", "severity": "medium", "confidence": "VERIFIED",
+            "observation": "Product gallery lacks sufficient visual assets to build buyer confidence.",
+            "evidence": f"Only {ux_data.get('imgCount', 0)} images found and no product video detected.",
+            "interpretation": "Online shoppers cannot touch the product. Insufficient imagery or lack of video prevents them from evaluating quality, texture, and scale.",
+            "recommendation": "Upload at least 5-7 high-resolution images (multiple angles, lifestyle, scale) and add a 15-second product demonstration video."
+        })
+
 def audit_site(domain: str) -> dict:
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
