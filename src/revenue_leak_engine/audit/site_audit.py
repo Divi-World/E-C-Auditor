@@ -222,6 +222,9 @@ def find_a_product_url(page, domain: str) -> str | None:
         f"https://{domain}/products",
         f"https://{domain}/store",
         f"https://{domain}/items",
+        f"https://{domain}/product",
+        f"https://{domain}/all-products",
+        f"https://{domain}/shop/all",
         f"https://{domain}"
     ]
     
@@ -248,6 +251,17 @@ def find_a_product_url(page, domain: str) -> str | None:
                 if any(bl in clean_href.lower() for bl in blacklist): continue
                 if '/product-category/' in clean_href.lower() or '/collections/' in clean_href.lower(): continue
                 return href if href.startswith("http") else f"https://{domain}{clean_href}"
+    
+    # FALLBACK: Try sitemap.xml for product URLs (catches WooCommerce, Magento, custom)
+    try:
+        page.goto(f"https://{domain}/sitemap.xml", timeout=10000, wait_until="domcontentloaded")
+        sitemap_text = page.inner_text("body")
+        import re as _re
+        product_urls = _re.findall(r'<loc>(https?://[^<]*(?:/product/|/products/|/p/|/item/|/dp/)[^<]*)</loc>', sitemap_text)
+        if product_urls:
+            return product_urls[0]
+    except Exception:
+        pass
     return None
 
 
