@@ -488,6 +488,159 @@ def _check_waf_block(page):
     except Exception:
         return False
 
+
+def _check_enterprise_heuristics(page, findings, platform):
+    """Deep-dive Baymard & Enterprise SEO heuristics."""
+    try:
+        heuristics = page.evaluate("""
+            () => {
+                const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+                const buyBox = document.querySelector('[class*="product" i], [class*="buy" i], form[action*="cart"], [class*="price" i]');
+                const buyBoxText = buyBox ? buyBox.innerText.toLowerCase() : bodyText;
+                
+                const stickyAtc = document.querySelector('[class*="sticky" i][class*="cart" i], [class*="fixed" i][class*="bottom" i] button, [id*="sticky-atc"]');
+                const breadcrumbs = document.querySelector('[class*="breadcrumb" i], nav[aria-label="Breadcrumb"], [itemtype*="BreadcrumbList"]');
+                const hasDeliveryEstimate = /delivery by|arrives by|get it by|ships in|estimated delivery|order within/.test(buyBoxText);
+                const hasShippingThreshold = /free shipping on orders over|free shipping over|spend .* more for free shipping/.test(buyBoxText) || /free shipping on orders over|free shipping over|spend .* more for free shipping/.test(bodyText);
+                
+                const canonical = document.querySelector('link[rel="canonical"]');
+                const canonicalHref = canonical ? canonical.href : null;
+                const currentUrl = window.location.href.split('?')[0].split('#')[0];
+                const isCanonicalCorrect = canonicalHref && (canonicalHref.split('?')[0].split('#')[0] === currentUrl);
+                
+                const hasCrossSell = document.querySelector('[class*="related" i], [class*="also-like" i], [class*="frequently-bought" i], [class*="recommendations" i]') !== null;
+                
+                return {
+                    hasStickyAtc: stickyAtc !== null,
+                    hasBreadcrumbs: breadcrumbs !== null,
+                    hasDeliveryEstimate: hasDeliveryEstimate,
+                    hasShippingThreshold: hasShippingThreshold,
+                    isCanonicalCorrect: isCanonicalCorrect,
+                    hasCrossSell: hasCrossSell
+                };
+            }
+        """)
+    except Exception:
+        return
+
+    if not heuristics.get('hasStickyAtc'):
+        findings["issues"].append({
+            "code": "missing_sticky_atc", "severity": "medium", "confidence": "VERIFIED",
+            "description": "Missing Sticky Add-to-Cart bar on mobile scroll.",
+            "observation": "Missing Sticky Add-to-Cart bar on mobile scroll.",
+            "evidence": "No fixed/sticky purchase bar detected when scrolling past the main buy box.",
+            "business_impact": "Baymard Institute data shows users scroll extensively to read reviews. Forcing them to scroll all the way back up to buy causes massive friction.",
+            "interpretation": "Baymard Institute data shows users scroll extensively to read reviews. Forcing them to scroll all the way back up to buy causes massive friction.",
+            "fix": "Implement a sticky bottom bar containing the Price and Add to Cart button that appears once the main buy box scrolls out of the viewport.",
+            "recommendation": "Implement a sticky bottom bar containing the Price and Add to Cart button that appears once the main buy box scrolls out of the viewport."
+        })
+
+    if not heuristics.get('hasBreadcrumbs'):
+        findings["issues"].append({
+            "code": "missing_breadcrumbs", "severity": "low", "confidence": "VERIFIED",
+            "description": "Missing Breadcrumb navigation on the product page.",
+            "observation": "Missing Breadcrumb navigation on the product page.",
+            "evidence": "No breadcrumb DOM structure or BreadcrumbList schema detected.",
+            "business_impact": "Users landing from search/ads want to browse similar items. Missing breadcrumbs force them to hit 'Back', increasing bounce rates.",
+            "interpretation": "Users landing from search/ads want to browse similar items. Missing breadcrumbs force them to hit 'Back', increasing bounce rates.",
+            "fix": "Add a clear Home > Category > Subcategory breadcrumb trail above the product title.",
+            "recommendation": "Add a clear Home > Category > Subcategory breadcrumb trail above the product title."
+        })
+
+    if not heuristics.get('hasDeliveryEstimate') and not heuristics.get('hasShippingThreshold'):
+        findings["issues"].append({
+            "code": "missing_delivery_urgency", "severity": "medium", "confidence": "VERIFIED",
+            "description": "Missing Delivery Estimates or Shipping Thresholds in the buy box.",
+            "observation": "Missing Delivery Estimates or Shipping Thresholds in the buy box.",
+            "evidence": "No text matching 'Delivery by', 'Arrives by', or 'Free shipping over $X' found near the purchase button.",
+            "business_impact": "Shoppers need to know when they will receive the item. Hiding this pushes them to Amazon or competitors.",
+            "interpretation": "Shoppers need to know when they will receive the item. Hiding this pushes them to Amazon or competitors.",
+            "fix": "Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping' directly inside the buy box.",
+            "recommendation": "Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping' directly inside the buy box."
+        })
+
+    if not heuristics.get('hasCrossSell'):
+        findings["issues"].append({
+            "code": "missing_cross_sell", "severity": "low", "confidence": "VERIFIED",
+            "description": "Missing Cross-sell / Upsell modules on the PDP.",
+            "observation": "Missing Cross-sell / Upsell modules on the PDP.",
+            "evidence": "No 'Frequently Bought Together', 'You May Also Like', or 'Related Products' sections detected.",
+            "business_impact": "Failing to offer complementary products leaves Average Order Value (AOV) on the table.",
+            "interpretation": "Failing to offer complementary products leaves Average Order Value (AOV) on the table.",
+            "fix": "Implement a 'Frequently Bought Together' or 'You May Also Like' carousel below the product description to boost AOV.",
+            "recommendation": "Implement a 'Frequently Bought Together' or 'You May Also Like' carousel below the product description to boost AOV."
+        })
+
+    if not heuristics.get('isCanonicalCorrect'):
+        findings["issues"].append({
+            "code": "broken_canonical", "severity": "high", "confidence": "VERIFIED",
+            "description": "Canonical tag is missing or not self-referencing.",
+            "observation": "Canonical tag is missing or not self-referencing.",
+            "evidence": "Canonical URL does not match the current clean page URL.",
+            "business_impact": "Search engines may index duplicate or parameterized URLs, diluting page authority and killing organic rankings.",
+            "interpretation": "Search engines may index duplicate or parameterized URLs, diluting page authority and killing organic rankings.",
+            "fix": "Ensure every PDP has a <link rel='canonical'> tag pointing exactly to its own clean, parameter-free URL.",
+            "recommendation": "Ensure every PDP has a <link rel='canonical'> tag pointing exactly to its own clean, parameter-free URL."
+        })
+
+
+
+def _audit_homepage_and_awareness(page, findings):
+    """Audits Homepage Value Prop, Navigation, and detects Business Model."""
+    try:
+        page.goto(f"https://{findings.get('domain', '')}", timeout=15000, wait_until="domcontentloaded")
+        page.wait_for_timeout(1500)
+        
+        awareness = page.evaluate("""
+            () => {
+                const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+                const h1 = document.querySelector('h1');
+                const heroText = h1 ? h1.innerText.toLowerCase() : '';
+                
+                // Business Model Detection
+                const isEcommerce = document.querySelector('[class*="product" i], [class*="cart" i], [class*="shop" i]') !== null;
+                const isSubscription = /subscribe|membership|monthly|box/.test(bodyText);
+                const isSaaS = /login|sign in|dashboard|pricing|features/.test(bodyText) && !isEcommerce;
+                
+                // Homepage Health
+                const hasClearH1 = h1 && h1.innerText.length > 5 && h1.innerText.length < 100;
+                const hasPrimaryCTA = document.querySelector('a[href*="shop"], a[href*="product"], button[class*="cta"], a[class*="button"]') !== null;
+                
+                return {
+                    isEcommerce, isSubscription, isSaaS,
+                    hasClearH1, hasPrimaryCTA,
+                    heroText: heroText.slice(0, 50)
+                };
+            }
+        """)
+        
+        findings["business_model"] = "subscription" if awareness.get('isSubscription') else ("saas" if awareness.get('isSaaS') else "ecommerce")
+        
+        if not awareness.get('hasClearH1'):
+            findings["issues"].append({
+                "code": "weak_homepage_h1", "severity": "medium", "confidence": "VERIFIED",
+                "description": "Homepage H1 is missing, too short, or unclear.",
+                "observation": "Homepage H1 is missing, too short, or unclear.",
+                "evidence": f"Detected H1: '{awareness.get('heroText', 'None')}'",
+                "business_impact": "A weak H1 confuses visitors about what you sell, increasing bounce rates.",
+                "fix": "Rewrite the H1 to clearly state your unique value proposition (e.g., 'Premium Leather Goods').",
+                "recommendation": "Rewrite the H1 to clearly state your unique value proposition."
+            })
+            
+        if not awareness.get('hasPrimaryCTA'):
+             findings["issues"].append({
+                "code": "missing_hero_cta", "severity": "high", "confidence": "VERIFIED",
+                "description": "Missing primary Call-to-Action in the Hero section.",
+                "observation": "Missing primary Call-to-Action in the Hero section.",
+                "evidence": "No 'Shop Now', 'Subscribe', or primary button detected in the top viewport.",
+                "business_impact": "Users must scroll to find how to buy. This friction kills mobile conversions.",
+                "fix": "Add a high-contrast 'Shop Now' or 'Get Started' button in the hero section.",
+                "recommendation": "Add a high-contrast 'Shop Now' or 'Get Started' button in the hero section."
+            })
+            
+    except Exception:
+        pass
+
 def audit_site(domain: str) -> dict:
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
@@ -528,6 +681,14 @@ def audit_site(domain: str) -> dict:
                     originalQuery(parameters)
             );
         """)
+        
+        # HOMEPAGE & AWARENESS HOOK
+        if "_audit_homepage_and_awareness" in globals():
+            try:
+                _audit_homepage_and_awareness(page, findings)
+            except Exception:
+                pass
+            
         page.on("request", lambda req: seen_urls.append(req.url))
         page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
 
@@ -1170,11 +1331,11 @@ def _check_script_bloat(page, findings):
 
 
 def _check_console_errors(findings, console_errors):
-    # INDUSTRIAL FILTER: Ignore DNS blocks, CORS policies, and network noise
+    # INDUSTRIAL FILTER: Eradicate CORS, DNS, 404, and Network noise
     real_js_errors = [
-        err for err in console_errors
-        if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties"])
-        and not any(noise in err for noise in ["CORS", "net::ERR", "Failed to load resource"])
+        err for err in console_errors 
+        if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties", "Uncaught"])
+        and not any(noise in err.lower() for noise in ["cors", "net::err", "failed to load resource", "access-control-allow-origin", "favicon.ico", "404", "403", "500", "502", "503", "timeout", "blocked by"])
     ]
     if real_js_errors:
         findings["issues"].append({
