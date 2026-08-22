@@ -252,20 +252,112 @@ def find_a_product_url(page, domain: str) -> str | None:
                 if '/product-category/' in clean_href.lower() or '/collections/' in clean_href.lower(): continue
                 return href if href.startswith("http") else f"https://{domain}{clean_href}"
     
-    # FALLBACK: Try sitemap.xml for product URLs (catches WooCommerce, Magento, custom)
+    # BULLETPROOF FALLBACK: Use curl_cffi to aggressively hunt product URLs in raw HTML
     try:
-        page.goto(f"https://{domain}/sitemap.xml", timeout=10000, wait_until="domcontentloaded")
-        sitemap_text = page.inner_text("body")
-        import re as _re
-        product_urls = _re.findall(r'<loc>(https?://[^<]*(?:/product/|/products/|/p/|/item/|/dp/)[^<]*)</loc>', sitemap_text)
-        if product_urls:
-            return product_urls[0]
+        from curl_cffi import requests as cffi_requests
+        r = cffi_requests.get(f"https://{domain}", timeout=15, impersonate="chrome120")
+        if r.status_code == 200:
+            html_raw = r.text
+            import re as _re
+            matches = _re.findall(r'href=["\'](https?://[^"\']*(?:/product/|/products/|/p/|/item/|/dp/|/shop/)[^"\']*)["\']', html_raw, _re.I)
+            blacklist = ['cart', 'checkout', 'account', 'search', 'policies', 'blogs', 'pages', 'gift-card', 'login', 'register', 'category']
+            for m in matches:
+                clean = m.split('?')[0].split('#')[0].lower()
+                if not any(bl in clean for bl in blacklist):
+                    return m
     except Exception:
         pass
     return None
 
 
 # ---------------- main audit ----------------
+
+
+def _audit_homepage_and_collection(page, domain: str, findings: dict):
+    """Lightweight audit of Homepage and Collection page before PDP."""
+    # 1. Homepage Trust & Navigation
+    try:
+        page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
+        page.wait_for_timeout(1500)
+        
+        hp_data = page.evaluate("""
+            () => {
+                const html = document.body ? document.body.innerText.toLowerCase() : '';
+                const footer = document.querySelector('footer') ? document.querySelector('footer').innerText.toLowerCase() : html;
+                
+                const has_free_shipping = html.includes('free shipping') || html.includes('free delivery');
+                const has_returns = html.includes('return') || html.includes('refund') || html.includes('guarantee');
+                
+                const payment_icons = document.querySelectorAll('img[alt*="visa" i], img[alt*="mastercard" i], img[alt*="paypal" i], img[alt*="amex" i], [class*="payment-icon"], svg[aria-label*="payment" i]');
+                const has_payment_trust = payment_icons.length > 0 || footer.includes('secure checkout') || footer.includes('ssl');
+                
+                return { has_free_shipping, has_returns, has_payment_trust };
+            }
+        """)
+        
+        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
+            findings["issues"].append({
+                "code": "missing_global_trust_signals",
+                "description": "Homepage lacks global trust signals (Free Shipping, Returns, or Guarantees).",
+                "evidence": "No shipping or return policy mentions found in homepage text or footer.",
+                "severity": "medium", "confidence": "VERIFIED",
+                "business_impact": "Shoppers look for shipping/return policies before clicking a product. Missing them increases bounce rate.",
+                "fix": "Add a global announcement bar or footer badges for 'Free Shipping over $X' and 'Easy Returns'."
+            })
+            
+        if not hp_data.get('has_payment_trust'):
+            findings["issues"].append({
+                "code": "missing_payment_trust_badges",
+                "description": "Footer lacks recognizable payment method icons or secure checkout badges.",
+                "evidence": "No Visa/Mastercard/PayPal icons or 'Secure Checkout' text found in footer.",
+                "severity": "low", "confidence": "VERIFIED",
+                "business_impact": "Payment badges subconsciously reassure users that the site is legitimate and safe.",
+                "fix": "Display standard payment method SVGs and a 'Secure SSL Checkout' badge in the global footer."
+            })
+    except Exception:
+        pass
+
+    # 2. Collection Page Grid (Friction Check)
+    try:
+        coll_paths = ["/collections/all", "/shop", "/catalog", "/products", "/collections"]
+        coll_loaded = False
+        for p in coll_paths:
+            try:
+                resp = page.goto(f"https://{domain}{p}", timeout=8000, wait_until="domcontentloaded")
+                if resp and resp.status < 400:
+                    coll_loaded = True
+                    break
+            except Exception:
+                continue
+                
+        if coll_loaded:
+            page.wait_for_timeout(1500)
+            coll_data = page.evaluate("""
+                () => {
+                    const cards = document.querySelectorAll('[class*="product-card" i], [class*="product-item" i], .product, article, li[class*="product"]');
+                    if (cards.length < 2) return { has_grid: false };
+                    
+                    let cards_with_price = 0;
+                    cards.forEach(card => {
+                        if (card.querySelector('[class*="price" i], .price, [data-price]') || card.innerText.match(/\\$\\d+/)) {
+                            cards_with_price++;
+                        }
+                    });
+                    return { has_grid: true, total_cards: cards.length, cards_with_price: cards_with_price };
+                }
+            """)
+            
+            if coll_data.get('has_grid') and coll_data.get('cards_with_price', 0) < coll_data.get('total_cards', 1) * 0.5:
+                findings["issues"].append({
+                    "code": "collection_grid_missing_prices",
+                    "description": "Product grid on collection page hides prices on many items.",
+                    "evidence": f"Only {coll_data.get('cards_with_price')} of {coll_data.get('total_cards')} product cards show a price.",
+                    "severity": "medium", "confidence": "VERIFIED",
+                    "business_impact": "Forcing users to click into every product to see the price causes massive drop-off.",
+                    "fix": "Ensure base prices (and sale prices) are clearly visible directly on the collection grid cards."
+                })
+    except Exception:
+        pass
 
 def audit_site(domain: str) -> dict:
     findings = {
