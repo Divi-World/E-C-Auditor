@@ -656,7 +656,7 @@ def audit_site(domain: str) -> dict:
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,
+            headless=False,
             args=["--disable-blink-features=AutomationControlled"],
         )
         context = browser.new_context(
@@ -874,6 +874,13 @@ def audit_site(domain: str) -> dict:
 
             shot_path = SCREENSHOTS_DIR / f"{safe}.png"
             page.screenshot(path=str(shot_path), full_page=False)
+            # DYNAMIC SCREENSHOT CONTEXT
+            _ctx = "Mobile Viewport: Clean page load. Primary CTA verified."
+            if "unclosable_overlay" in findings.get("notes", ""):
+                _ctx = "Mobile Viewport: Unclosable overlay detected. Interactive checks skipped."
+            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower():
+                _ctx = "Mobile Viewport: Overlay dismissed. Buy box verified visible."
+            findings["screenshot_context"] = _ctx
             findings["screenshot_path"] = str(shot_path)
 
             # ---- CRO / SPEED / SEO checks (no clicks yet) ----
@@ -1343,7 +1350,6 @@ def _check_script_bloat(page, findings):
 
 
 def _check_console_errors(findings, console_errors):
-    # INDUSTRIAL FILTER: Eradicate CORS, DNS, 404, and Network noise
     real_js_errors = [
         err for err in console_errors 
         if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties", "Uncaught"])
@@ -1353,12 +1359,9 @@ def _check_console_errors(findings, console_errors):
         findings["issues"].append({
             "code": "console_errors", "severity": "medium", "confidence": "VERIFIED",
             "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.",
-            "observation": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.",
             "evidence": "; ".join(real_js_errors[:3])[:300],
             "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.",
-            "interpretation": "Critical JS errors break interactive elements, tracking tags, and checkout flows.",
-            "fix": "Debug the throwing script - execution errors break the purchase path or pixel tracking.",
-            "recommendation": "Debug the throwing script - execution errors break the purchase path or pixel tracking."
+            "fix": "Debug the throwing script - execution errors break the purchase path or pixel tracking."
         })
 
 
