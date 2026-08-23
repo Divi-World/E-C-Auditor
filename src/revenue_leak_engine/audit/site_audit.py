@@ -670,25 +670,24 @@ def audit_site(domain: str) -> dict:
             ignore_https_errors=True,
         )
         page = context.new_page()
-        page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            window.chrome = { runtime: {} };
-            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
-                parameters.name === 'notifications' ?
-                    Promise.resolve({ state: Notification.permission }) :
-                    originalQuery(parameters)
-            );
-        """)
+        # Industrial WAF evasion via playwright-stealth (replaces manual init_script)
+        try:
+            from playwright_stealth import stealth_sync
+            stealth_sync(page)
+        except ImportError:
+            # Fallback to manual stealth if library missing
+            page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                window.chrome = { runtime: {} };
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+            """)
         
-        # HOMEPAGE & AWARENESS HOOK
-        if "_audit_homepage_and_awareness" in globals():
-            try:
-                _audit_homepage_and_awareness(page, findings)
-            except Exception:
-                pass
+        # HOMEPAGE & AWARENESS HOOK (called unconditionally - same module)
+        try:
+            _audit_homepage_and_awareness(page, findings)
+        except Exception as _e:
+            findings["notes"] += f"homepage_awareness_failed: {_e}. "
             
         page.on("request", lambda req: seen_urls.append(req.url))
         page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
@@ -737,21 +736,40 @@ def audit_site(domain: str) -> dict:
                 page.evaluate(REMOVE_OVERLAY_JS)
             except Exception:
                 pass
-            # WAF & CAPTCHA AWARENESS PROTOCOL
+            # WAF & CAPTCHA AWARENESS PROTOCOL (Bypass instead of abort)
             if _check_waf_block(page):
-                findings["error"] = "waf_captcha_block"
-                findings["issues"].append({
-                    "code": "waf_captcha_block", "severity": "high", "confidence": "VERIFIED",
-                    "description": "Site is protected by a Web Application Firewall (WAF) or CAPTCHA challenge.",
-                    "observation": "Site is protected by a Web Application Firewall (WAF) or CAPTCHA challenge.",
-                    "evidence": "Page resolved to a firewall challenge (e.g., Cloudflare Turnstile) instead of the live storefront.",
-                    "business_impact": "Automated telemetry cannot bypass enterprise bot-protection. The audit cannot proceed without WAF whitelisting.",
-                    "interpretation": "Automated telemetry cannot bypass enterprise bot-protection. The audit cannot proceed without WAF whitelisting.",
-                    "fix": "Whitelist our audit IP range or User-Agent in your WAF (Cloudflare/Akamai/Imperva) to allow deep-dive CRO telemetry.",
-                    "recommendation": "Whitelist our audit IP range or User-Agent in your WAF (Cloudflare/Akamai/Imperva) to allow deep-dive CRO telemetry."
-                })
-                browser.close()
-                return findings
+                findings["notes"] += "waf_detected_attempting_bypass. "
+                try:
+                    from curl_cffi import requests as cffi_requests
+                    from bs4 import BeautifulSoup
+                    r = cffi_requests.get(product_url, impersonate="chrome120", timeout=20)
+                    if r.status_code == 200 and len(r.text) > 1000:
+                        soup = BeautifulSoup(r.text, 'html.parser')
+                        title = soup.title.string.strip() if soup.title and soup.title.string else ""
+                        meta_tag = soup.find('meta', attrs={'name': 'description'})
+                        meta_content = meta_tag.get('content', '').strip() if meta_tag and meta_tag.get('content') else ""
+                        h1 = soup.find('h1')
+                        atc_text = soup.find(string=re.compile(r'add to cart|subscribe|buy now', re.I))
+                        
+                        findings["load_time_ms"] = int(r.elapsed.total_seconds() * 1000)
+                        findings["checks_completed"]["speed"] = True
+                        findings["checks_completed"]["seo"] = True
+                        findings["screenshot_context"] = "WAF Bypass: Audit conducted via curl_cffi stealth client. Visual evidence unavailable due to Turnstile/CAPTCHA."
+                        
+                        if len(title) > 60:
+                            findings["issues"].append({"code": "poor_title_tag", "severity": "medium", "confidence": "VERIFIED", "description": f"Page title is {len(title)} chars (target: 30-60).", "evidence": f"Title: '{title[:50]}...'", "fix": "Rewrite title to 30-60 chars, front-loading primary keyword.", "business_impact": "Long titles truncate in SERPs, reducing CTR."})
+                        if len(meta_content) < 120:
+                            findings["issues"].append({"code": "poor_meta_description", "severity": "low", "confidence": "VERIFIED", "description": f"Meta description is {len(meta_content)} chars (target: 120-160).", "evidence": f"Meta: '{meta_content[:50]}...'" if meta_content else "Meta missing.", "fix": "Write 120-160 char benefit-driven meta with clear CTA.", "business_impact": "Missing meta lets Google pick random snippets."})
+                        if not atc_text:
+                            findings["issues"].append({"code": "no_add_to_cart_found", "severity": "high", "confidence": "VERIFIED", "description": "No Add to Cart button detected via WAF bypass.", "evidence": "Raw HTML search found no purchase intent elements.", "fix": "Ensure visible, clearly labelled ATC button on mobile PDP.", "business_impact": "Shoppers cannot buy."})
+                        
+                        # Skip Playwright-dependent checks but return valid findings
+                        browser.close()
+                        return findings
+                except Exception as _e:
+                    findings["error"] = f"waf_bypass_failed: {_e}"
+                    browser.close()
+                    return findings
 
             findings["load_time_ms"] = _perf_load_ms(page)
             findings["checks_completed"]["speed"] = True or int((time.time() - start) * 1000)
@@ -1073,6 +1091,76 @@ def audit_site(domain: str) -> dict:
                         "severity": "low", "confidence": "medium",
                         "fix": get_drawer_fix(findings.get("platform", "custom")),
                     })
+
+            # WIRE PREVIOUSLY-DEAD ENTERPRISE FUNCTIONS
+            try:
+                _check_advanced_ux_seo(page, findings)
+            except Exception as _e:
+                findings["notes"] += f"advanced_ux_failed: {_e}. "
+            try:
+                _check_enterprise_heuristics(page, findings, findings.get("platform", "custom"))
+            except Exception as _e:
+                findings["notes"] += f"enterprise_heuristics_failed: {_e}. "
+
+            # FUNNEL NAVIGATION: Probe Cart page for checkout friction
+            try:
+                cart_urls = [
+                    f"https://{domain}/cart",
+                    f"https://{domain}/checkout",
+                    f"https://{domain}/basket",
+                    f"https://{domain}/bag",
+                ]
+                cart_loaded = False
+                for cu in cart_urls:
+                    try:
+                        resp = page.goto(cu, timeout=8000, wait_until="domcontentloaded")
+                        if resp and resp.status < 400:
+                            cart_loaded = True
+                            break
+                    except Exception:
+                        continue
+                if cart_loaded:
+                    page.wait_for_timeout(1500)
+                    findings["checks_completed"]["funnel_cart"] = True
+                    # Check for express checkout, trust badges, shipping estimator on cart
+                    cart_express = _visible_any(page, EXPRESS_SELECTOR)
+                    if not cart_express:
+                        try:
+                            cart_express = page.evaluate("""
+                                () => {
+                                    const sels = ['shop-pay-button', 'apple-pay-button', 'paypal-button'];
+                                    for (const sel of sels) {
+                                        if (document.querySelector(sel)) return true;
+                                        for (const node of document.querySelectorAll('*')) {
+                                            if (node.shadowRoot && node.shadowRoot.querySelector(sel)) return true;
+                                        }
+                                    }
+                                    return false;
+                                }
+                            """)
+                        except Exception:
+                            pass
+                    if not cart_express:
+                        findings["issues"].append({
+                            "code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED",
+                            "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).",
+                            "evidence": "No express wallet buttons detected on /cart or /checkout page.",
+                            "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.",
+                            "fix": get_express_fix(findings.get("platform", "custom")),
+                        })
+                    
+                    # Check for shipping estimator on cart
+                    cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
+                    if not any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $']):
+                        findings["issues"].append({
+                            "code": "cart_no_shipping_estimator", "severity": "medium", "confidence": "VERIFIED",
+                            "description": "Cart page lacks shipping cost estimator or free-shipping threshold.",
+                            "evidence": "No shipping/delivery language found on cart page.",
+                            "business_impact": "Baymard: 48% of abandonments are due to surprise shipping costs at checkout.",
+                            "fix": "Add a dynamic 'Spend $X more for Free Shipping' progress bar and shipping estimator on the cart page.",
+                        })
+            except Exception as _e:
+                findings["notes"] += f"funnel_cart_probe_failed: {_e}. "
 
         except PWTimeout:
             findings["error"] = "timeout"
