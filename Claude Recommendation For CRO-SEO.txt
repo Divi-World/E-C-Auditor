@@ -1,0 +1,39 @@
+1. Single-page audit posing as a full-site audit
+The engine looks at exactly one product page. A site can have a broken homepage, a slow collection page, or a completely broken checkout flow and still score well, because none of that is ever visited. This is the same gap as the dead homepage module, but broader — even once that's wired in, you'd still be checking 2 pages out of a typical 5-10 page shopping journey (homepage, collection, PDP, cart, checkout).
+Recommendation: after the homepage module lands, add checkout-flow reachability as the next surface — not a full transaction, just confirming the checkout button exists, is clickable, and doesn't error out before payment fields. That's a single new check with outsized credibility value, since almost no competitor tool verifies this.
+
+2. Mobile-only, no desktop comparison
+MOBILE_VIEWPORT is hardcoded. A site optimized for mobile but broken on desktop (or vice versa) is invisible to this tool either way. Given most CRO tools in the market lean mobile-first the same way, this isn't a huge competitive gap today — but it is a real, correctly-identifiable blind spot if a prospect ever asks "did you check desktop too?"
+Recommendation: not urgent, but cheap to add later — run the same PDP checks at a desktop viewport as a second pass, flag only significant divergences (e.g., ATC hidden on desktop but not mobile) rather than doubling every finding.
+
+3. Non-deterministic scoring under WAF conditions
+The same domain, audited twice in a row, can produce different results purely because Cloudflare's bot-challenge behavior is intermittent — you proved this directly with universalyums.com and ascolour.com earlier in this conversation. For GEO this is disclosed via score_confidence. CRO has no equivalent disclosure mechanism yet — a blocked check today either aborts the whole audit or silently vanishes (this is the checks_completed gap, but it's worth naming specifically as a credibility risk: if you ever re-audit a lead for a follow-up email and the score changed for reasons that have nothing to do with the site actually improving, that undermines trust in the number itself).
+Recommendation: once checks_completed exists, log why a check didn't run (WAF block vs. genuine timeout vs. overlay) so a re-audit discrepancy is explainable, not mysterious.
+
+4. Screenshot evidence is a single snapshot in time, embedded as base64 bloat
+Two separate issues here. First, one screenshot is taken at one moment — if a lazy-loaded element or a delayed popup appears after the screenshot but before a later check runs, the visual evidence and the written finding can silently disagree. Second, every screenshot is base64-embedded directly into the HTML report, which inflates file size significantly (a handful of full-quality screenshots can push a single report to several MB) — slow to open, awkward to email as an attachment, which matters a lot for an outreach tool where the report needs to land in someone's inbox cleanly.
+Recommendation: save screenshots as separate files alongside the HTML report (or host them and link) rather than embedding base64. Take a fresh screenshot at the specific moment each visual claim is made, not one shared image reused across multiple findings.
+
+5. English-only text detection
+The DOM text-matching ("add to cart", "buy now", etc.) is hardcoded to English phrases. fecofoods.com.ng in your own test set is a real example of a domain where this matters — if it serves any local-language storefront content, ATC/CTA detection could silently fail to recognize a perfectly good "Ajouter au panier"-style button as present, generating a false "missing Add to Cart" finding. You mentioned wanting this tool to close international deals — this is a direct, concrete gap standing in the way of that.
+Recommendation: expand the text-matching list with common e-commerce phrases in Spanish, French, German, Portuguese at minimum, matching your likely early markets.
+
+6. Shallow accessibility coverage
+Currently only touch-target size and image alt-text are checked. Real WCAG-relevant issues — color contrast, keyboard navigability, ARIA labeling on interactive elements — aren't covered at all. This matters for two reasons: it's a real conversion factor (accessibility issues correlate with lost sales for a meaningful user segment), and it's an increasingly real legal-risk topic in some markets (ADA lawsuits in the US, EN 301549 in the EU) — a finding here is both a CRO pitch and a compliance pitch in one.
+Recommendation: lower priority than the structural items, but a good differentiator to add once the core engine is fully stable — even a basic color-contrast check via Playwright's accessibility tree would be a meaningful addition few competitors offer.
+
+7. Tracking coverage is Meta/TikTok only
+No GA4 event verification, no Google Ads conversion tracking, no Pinterest/Snapchat pixels, no server-side tracking (Conversions API) detection. Given your own framing that the target audience is people actively running paid ads, missing Google Ads tracking specifically is a real gap — many of your prospects are likely running Google Ads alongside or instead of Meta/TikTok.
+Recommendation: add a Google Ads/GA4 conversion-event check using the same detection pattern already built for Meta and TikTok — same code shape, just new signatures to match.
+
+8. Popup-dismissal logic can't distinguish revenue-killing popups from legally required ones
+The overlay-detection and auto-dismiss logic (from popup_handler.py, referenced early in this conversation) doesn't appear to distinguish a marketing popup (a real leak) from a cookie-consent banner or age-gate (often legally required, especially in EU markets). If the tool dismisses and ignores a GDPR consent banner the same way it dismisses a discount popup, that's not just a missed nuance — it risks generating a "fix this" recommendation that would actually be bad, non-compliant advice if followed.
+Recommendation: add signature-based classification (keywords like "cookie," "consent," "age," "verify you are") to route legally-required overlays into a separate, non-actionable category rather than treating every overlay as a conversion leak.
+
+9. No re-audit / trend tracking
+Every audit is a disconnected snapshot. There's no mechanism to show a lead "here's what changed since we last checked" — which is valuable both as a retainer/follow-up sales tool and as a way to demonstrate the tool's own credibility over time (if you can show a real site's score improving after they applied your fixes, that's the single strongest social proof you could have).
+Recommendation: lower priority, but worth planning for — store audit results keyed by domain + timestamp (even a simple local SQLite table) so a future audit can diff against the prior one.
+
+10. Combined total_score has no normalization check
+total_score = cro_score + geo_score is a plain sum of two independently-scored 0-10 systems. This works, but nobody has verified whether the two scores actually distribute similarly across real domains — if CRO tends to find more issues than GEO on average (or vice versa), the combined score could be quietly dominated by one engine's opinion rather than genuinely reflecting both.
+Recommendation: once you have a real batch of 30+ leads through the full pipeline, plot cro_score vs geo_score distributions side by side — confirm neither one is systematically drowning out the other before trusting total_score as your primary lead-ranking signal.

@@ -168,9 +168,8 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             elif geo_score_val >= 5.0:
                 geo_findings["opp_tier"] = "MEDIUM"
                 geo_findings["opp_color"] = "#f59e0b"
-            else:
-                geo_findings["opp_tier"] = "HIGH"
-                geo_findings["opp_color"] = "#ef4444"
+            geo_findings["opp_tier"] = "HIGH"
+            geo_findings["opp_color"] = "#ef4444"
 
             geo_report = generate_geo_report(geo_findings)
             lead_result.update({

@@ -54,3 +54,9 @@ APIs-App/
 
 # Data directories (if you don't want them tracked)
 data/
+
+.Wake-Ai-Seed.txt
+Wake-Ai-Seed.txt
+
+CRO-Rd-MAP.txt
+.CRO-Rd-MAP.txt
