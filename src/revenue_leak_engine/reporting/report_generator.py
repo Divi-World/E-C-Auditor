@@ -100,10 +100,17 @@ def generate_report(findings: dict) -> str:
     elif error_state and "timeout" in str(error_state).lower():
         audit_status = "TIMEOUT"
         score = "TIMEOUT"
-    elif audit_status == "PARTIAL_WAF":
+    elif audit_status == "PARTIAL_WAF" or "PARTIAL_WAF" in findings.get("notes", ""):
+        # INDUSTRIAL SAFEGUARD: Never award a numeric CRO score if interactive checks were blocked by WAF.
         score = "PARTIAL"
+        findings["audit_status"] = "PARTIAL_WAF"
     else:
         score = opportunity_score(findings)
+        # Secondary safeguard: If score is 10.0 but critical interactive checks failed, cap it.
+        checks = findings.get("checks_completed", {})
+        if score == 10.0 and not checks.get("atc_probe") and not checks.get("funnel_cart"):
+            score = 5.0 # Cap at 5.0 if we couldn't verify the actual purchase path
+
 
     cwv = findings.get("cwv", {})
     platform = findings.get("platform", "custom")
@@ -214,7 +221,7 @@ def generate_report(findings: dict) -> str:
     elif audit_status == "TIMEOUT":
         evidence_summary = "Audit timed out. Partial telemetry captured."
     elif audit_status == "PARTIAL_WAF":
-        evidence_summary = "Structural audit completed via stealth HTTP bypass. Interactive checks skipped due to WAF."
+        evidence_summary = "⚠️ STATIC ANALYSIS ONLY: Enterprise WAF blocked interactive browser telemetry. CRO score is capped. Findings are limited to structural HTML analysis (Meta, Schema, basic DOM). Add-to-Cart and Checkout flows could not be physically verified."
     else:
         evidence_summary = f"Score derived from {high_count} Critical, {med_count} Medium, and {low_count} Low friction points verified via headless telemetry."
 

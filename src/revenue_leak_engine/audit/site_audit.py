@@ -957,7 +957,9 @@ def audit_site(domain: str) -> dict:
                         """)
                     else: atc_btn.click(timeout=1500)
                     page.wait_for_timeout(1500)
-                except Exception: pass
+                except Exception as e:
+                    findings["notes"] += f"atc_click_failed_degraded: {e}. "
+                    findings["issues"].append({"code": "degraded_interactive_audit", "severity": "medium", "confidence": "VERIFIED", "description": "Interactive funnel checks degraded due to navigation failure or WAF block.", "evidence": "Add-to-Cart click failed to execute or timed out.", "business_impact": "Unable to verify cart drawer, express checkout, or pixel firing.", "fix": "Manual verification required."})
                 try:
                     if page.url != url_before: page.wait_for_load_state("domcontentloaded", timeout=5000)
                 except Exception: pass
@@ -1065,7 +1067,11 @@ def audit_site(domain: str) -> dict:
         if desc: seen_texts.add(desc)
         deduped_issues.append(issue)
 
-    findings["issues"] = deduped_issues
+    # DETERMINISTIC SORT: Guarantee identical output order for identical states
+    findings["issues"] = sorted(deduped_issues, key=lambda x: (
+        {"high": 0, "medium": 1, "low": 2}.get(x.get("severity", "low"), 3),
+        x.get("code", "")
+    ))
     return findings
 
 
@@ -1178,6 +1184,7 @@ def _check_script_bloat(page, findings):
 def _check_console_errors(findings, console_errors):
     real_js_errors = [err for err in console_errors if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties", "Uncaught"]) and not any(noise in err.lower() for noise in ["cors", "net::err", "failed to load resource", "access-control-allow-origin", "favicon.ico", "404", "403", "500", "502", "503", "timeout", "blocked by"])]
     if real_js_errors:
+        real_js_errors = sorted(list(set(real_js_errors))) # DETERMINISTIC SORT
         findings["issues"].append({"code": "console_errors", "severity": "medium", "confidence": "VERIFIED", "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.", "evidence": "; ".join(real_js_errors[:3])[:300], "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.", "fix": "Debug the throwing script."})
 
 def _check_seo(page, findings):

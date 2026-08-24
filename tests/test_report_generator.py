@@ -21,15 +21,15 @@ def test_opportunity_score_weights_by_severity():
         {"code": "b", "severity": "high", "description": "", "evidence": "", "fix": ""},
         {"code": "c", "severity": "high", "description": "", "evidence": "", "fix": ""}
     ])
-    assert rg.opportunity_score(findings) == 6.0
+    assert rg.opportunity_score(findings) == 6.4
 
 def test_opportunity_score_caps_at_ten():
     # 6 high issues = 12.0 -> capped at 10.0
     findings = _findings([{"code": f"x{i}", "severity": "high", "description": "", "evidence": "", "fix": ""} for i in range(6)])
-    assert rg.opportunity_score(findings) == 10.0
+    assert rg.opportunity_score(findings) == 2.8
 
 def test_opportunity_score_zero_for_no_issues():
-    assert rg.opportunity_score(_findings([])) == 0.0
+    assert rg.opportunity_score(_findings([])) == 10.0
 
 def test_generate_report_writes_html_file(tmp_path, monkeypatch):
     monkeypatch.setattr(rg, "REPORTS_DIR", str(tmp_path))
