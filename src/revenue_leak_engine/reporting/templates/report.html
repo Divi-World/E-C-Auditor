@@ -119,7 +119,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
             <h3 class="issue-title">{{ issue.observation or issue.description or "Friction point detected in the user journey." }}</h3>
             <span class="severity-pill sev-high">High Impact</span>
         </div>
-        <div class="evidence"><strong>Evidence:</strong><br>{{ issue.evidence or "Telemetry data confirms deviation from industrial standards." }}</div>
+        <div class="evidence"><strong><span style="float:right; font-size:11px; padding:2px 8px; border-radius:4px; background:{% if issue.confidence_pct is defined and issue.confidence_pct >= 90 %}rgba(34,197,94,0.15); color:#22c55e{% elif issue.confidence_pct is defined and issue.confidence_pct >= 60 %}rgba(234,179,8,0.15); color:#eab308{% else %}rgba(239,68,68,0.15); color:#ef4444{% endif %};">{{ issue.confidence_pct | default(50) }}% confidence</span>Evidence:</strong><br>{{ issue.evidence or "Telemetry data confirms deviation from industrial standards." }}</div>
         <div class="fix-box">
             <div class="fix-label">⚡ Strategic Recommendation</div>
             <div class="fix-text">{{ issue.recommendation or issue.fix or "Consult your engineering team to resolve this friction point based on the evidence provided." }}</div>
@@ -181,7 +181,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     {% endif %}
 
     <div class="footer">
-        <strong>Enterprise Revenue Leak Engine</strong><br>
+        <strong><div style="margin-top: 16px; padding: 12px 16px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 11px; color: var(--text-muted); line-height: 1.8;">
+            <strong>Audit Provenance</strong><br>
+            Run ID: {{ run_id }} &nbsp;|&nbsp; Engine: {{ engine_version }} &nbsp;|&nbsp; Viewport: {{ viewport }}<br>
+            Checks Completed: {{ checks_passed }}/{{ checks_total }} &nbsp;|&nbsp; Findings Hash: <code>{{ findings_hash }}</code><br>
+            {% for check, status in checks_completed.items() %}<span style="color: {% if status %}#22c55e{% else %}#ef4444{% endif %};">{{ "✓" if status else "✗" }} {{ check }}</span> &nbsp;{% endfor %}
+        </div>
+        Enterprise Revenue Leak Engine</strong><br>
         This audit was conducted using headless browser telemetry to simulate real-user mobile conditions. 
         Data reflects verified DOM states, network performance, and Core Web Vitals. 
         Implement the prioritized directives to capture leaked revenue and optimize conversion velocity.

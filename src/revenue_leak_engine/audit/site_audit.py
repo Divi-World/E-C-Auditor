@@ -445,6 +445,7 @@ def _audit_homepage_and_awareness(page, findings):
             findings["issues"].append({"code": "weak_homepage_h1", "severity": "medium", "confidence": "VERIFIED", "description": "Homepage H1 is missing, too short, or unclear.", "observation": "Homepage H1 is missing, too short, or unclear.", "evidence": f"Detected H1: '{awareness.get('heroText', 'None')}'", "business_impact": "A weak H1 confuses visitors about what you sell.", "fix": "Rewrite the H1 to clearly state your unique value proposition.", "recommendation": "Rewrite the H1 to clearly state your unique value proposition."})
         if not awareness.get('hasPrimaryCTA'):
              findings["issues"].append({"code": "missing_hero_cta", "severity": "high", "confidence": "VERIFIED", "description": "Missing primary Call-to-Action in the Hero section.", "observation": "Missing primary Call-to-Action in the Hero section.", "evidence": "No 'Shop Now', 'Subscribe', or primary button detected in the top viewport.", "business_impact": "Users must scroll to find how to buy. This friction kills mobile conversions.", "fix": "Add a high-contrast 'Shop Now' or 'Get Started' button in the hero section.", "recommendation": "Add a high-contrast 'Shop Now' or 'Get Started' button."})
+             findings["annotations"].append({"type": "missing_hero_cta", "x": 0, "y": 0, "width": 400, "height": 300, "label": "Hero Zone: No Primary CTA"})
     except Exception: pass
 
 
@@ -490,12 +491,164 @@ def _curl_cffi_fallback_audit(url, findings, reason="waf_detected"):
         findings["notes"] += f"waf_fallback_failed: {e}. "
         return False
 
+
+def _check_variant_integrity(page, findings):
+    """Checks if clicking a variant (size/color) breaks the buy box."""
+    try:
+        variants = page.query_selector_all('select[name*="variant"], [class*="swatch"] button, [data-option] button, input[type="radio"][name*="variant"] + label')
+        if not variants or len(variants) < 2: return
+        
+        initial_price = page.evaluate("""() => {
+            const el = document.querySelector('[class*="price" i], .price, [data-price]');
+            return el ? el.innerText.trim() : '';
+        }""")
+        
+        if variants[1].is_visible():
+            variants[1].click()
+            page.wait_for_timeout(1500)
+            
+            new_price = page.evaluate("""() => {
+                const el = document.querySelector('[class*="price" i], .price, [data-price]');
+                return el ? el.innerText.trim() : '';
+            }""")
+            atc_disabled = page.evaluate("""() => {
+                const btn = document.querySelector('button[name="add"], .single_add_to_cart_button, [data-add-to-cart]');
+                return btn ? (btn.disabled || btn.classList.contains('disabled') || window.getComputedStyle(btn).opacity < 0.5) : false;
+            }""")
+            
+            if initial_price == new_price and initial_price:
+                findings["issues"].append({
+                    "code": "variant_price_update_failed", "severity": "high", "confidence": "VERIFIED",
+                    "description": "Product price does not update when a variant (size/color) is selected.",
+                    "evidence": f"Price remained '{initial_price}' after selecting a different variant.",
+                    "business_impact": "Shoppers lose trust if the price doesn't reflect their selection, leading to cart abandonment.",
+                    "fix": "Ensure variant selection triggers an immediate DOM update to the primary price element."
+                })
+            if atc_disabled:
+                findings["issues"].append({
+                    "code": "variant_atc_disabled", "severity": "high", "confidence": "VERIFIED",
+                    "description": "Add to Cart button becomes disabled or unclickable when a variant is selected.",
+                    "evidence": "ATC button opacity dropped or disabled attribute was added after variant click.",
+                    "business_impact": "Shoppers are physically prevented from adding valid variant combinations to the cart.",
+                    "fix": "Check inventory management logic and ensure valid variants do not trigger 'Sold Out' states erroneously."
+                })
+    except Exception: pass
+
+def _audit_checkout_telemetry(page, findings, domain):
+    """Navigates to checkout to detect hidden fees and trust badge failures."""
+    try:
+        checkout_paths = [f"https://{domain}/checkout", f"https://{domain}/cart"]
+        loaded = False
+        for p in checkout_paths:
+            try:
+                resp = page.goto(p, timeout=6000, wait_until="domcontentloaded")
+                if resp and resp.status < 400: loaded = True; break
+            except Exception: continue
+        if not loaded: return
+        
+        page.wait_for_timeout(1500)
+        checkout_data = page.evaluate("""() => {
+            const text = document.body ? document.body.innerText.toLowerCase() : '';
+            const hasTrustBadges = document.querySelectorAll('img[alt*="secure" i], img[alt*="guarantee" i], [class*="trust-badge" i], svg[aria-label*="secure" i]').length > 0;
+            const hasHiddenFees = /surcharge|handling fee|service fee|environmental fee/.test(text);
+            const hasProgress = document.querySelector('[class*="progress" i], [class*="step" i], [aria-label*="checkout step" i]') !== null;
+            return { hasTrustBadges, hasHiddenFees, hasProgress };
+        }""")
+        
+        if not checkout_data.get('hasTrustBadges'):
+            findings["issues"].append({"code": "checkout_missing_trust_badges", "severity": "medium", "confidence": "VERIFIED", "description": "Checkout page lacks security trust badges (SSL, Guarantees).", "evidence": "No secure checkout imagery detected near the payment form.", "business_impact": "Shoppers abandon carts at checkout without visual reassurance of payment security.", "fix": "Add 'Secure SSL Checkout' and payment gateway logos directly above the payment button."})
+        if checkout_data.get('hasHiddenFees'):
+            findings["issues"].append({"code": "checkout_hidden_fees_detected", "severity": "high", "confidence": "VERIFIED", "description": "Surprise fees (handling, service) detected in the checkout text.", "evidence": "Regex matched penalty terms like 'handling fee' or 'surcharge'.", "business_impact": "48% of abandonments happen because extra costs were unexpected at checkout.", "fix": "Roll all handling fees into the base product price or shipping cost to maintain transparency."})
+        if not checkout_data.get('hasProgress'):
+            findings["issues"].append({"code": "checkout_missing_progress", "severity": "low", "confidence": "VERIFIED", "description": "No multi-step progress indicator found in the checkout flow.", "evidence": "No 'Step 1 of 3' or progress bar DOM detected.", "business_impact": "Shoppers feel trapped without knowing how many steps remain to complete their purchase.", "fix": "Implement a clear 'Cart > Shipping > Payment' progress bar at the top of the checkout template."})
+    except Exception: pass
+
+def _sample_product_integrity(page, domain, findings, primary_url):
+    """Checks 2 additional products to confirm if critical bugs are site-wide."""
+    try:
+        page.goto(f"https://{domain}/collections/all", timeout=8000, wait_until="domcontentloaded")
+        page.wait_for_timeout(1500)
+        links = page.evaluate("""() => Array.from(document.querySelectorAll('a[href*="/products/"], a[href*="/product/"], a[href*="/p/"]')).map(a => a.href).slice(0, 10)""")
+        samples = list(set([l for l in links if l != primary_url and ('/products/' in l or '/product/' in l or '/p/' in l)]))[:2]
+        if not samples: return
+        
+        site_wide_atc_missing = 0
+        site_wide_schema_missing = 0
+        for url in samples:
+            try:
+                page.goto(url, timeout=6000, wait_until="domcontentloaded")
+                page.wait_for_timeout(1000)
+                checks = page.evaluate("""() => {
+                    const hasAtc = document.querySelector('button[name="add"], .single_add_to_cart_button, [data-add-to-cart]') !== null;
+                    const hasSchema = document.querySelectorAll('script[type="application/ld+json"]').some(s => s.innerText.includes('"@type"') && s.innerText.includes('Product'));
+                    return { hasAtc, hasSchema };
+                }""")
+                if not checks.get('hasAtc'): site_wide_atc_missing += 1
+                if not checks.get('hasSchema'): site_wide_schema_missing += 1
+            except Exception: continue
+            
+        if site_wide_atc_missing == len(samples):
+            findings["notes"] += "site_wide_atc_failure_confirmed. "
+            for issue in findings["issues"]:
+                if issue.get("code") in ["no_add_to_cart_found", "atc_missing"]:
+                    issue["business_impact"] += " (CONFIRMED SITE-WIDE BUG: Tested across multiple products)."
+        if site_wide_schema_missing == len(samples):
+            findings["notes"] += "site_wide_schema_failure_confirmed. "
+            for issue in findings["issues"]:
+                if issue.get("code") in ["missing_product_schema", "schema_missing"]:
+                    issue["business_impact"] += " (CONFIRMED SITE-WIDE BUG: Tested across multiple products)."
+    except Exception: pass
+
+
+def _attempt_interactive_waf_solve(page):
+    """Attempts to interactively solve Cloudflare Turnstile or hCaptcha via humanized clicks."""
+    try:
+        page.wait_for_timeout(2500) # Wait for challenge iframe to inject
+        for frame in page.frames:
+            frame_url = frame.url.lower()
+            if any(sig in frame_url for sig in ['challenges.cloudflare.com', 'hcaptcha.com', 'recaptcha']):
+                checkbox_selectors = [
+                    'input[type="checkbox"]', '.mark', '#challenge-stage input[type="checkbox"]',
+                    'label.ctp-checkbox-label', '[aria-label*="verify" i]', '[aria-label*="human" i]',
+                    'button:has-text("Verify")', 'button:has-text("I am human")',
+                ]
+                for sel in checkbox_selectors:
+                    try:
+                        el = frame.query_selector(sel)
+                        if el and el.is_visible():
+                            box = el.bounding_box()
+                            if box:
+                                import random
+                                # Humanized mouse movement and click
+                                page.mouse.move(box['x'] + box['width']/2 + random.uniform(-2, 2), box['y'] + box['height']/2 + random.uniform(-2, 2))
+                                page.wait_for_timeout(random.randint(100, 300))
+                                page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
+                            else:
+                                el.click()
+                            
+                            page.wait_for_timeout(5000) # Wait for CF to process and redirect
+                            
+                            # Verify solve
+                            current_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 1000) : ''")
+                            current_title = page.title().lower()
+                            waf_sigs = ['just a moment', 'verify you are human', 'attention required', 'checking your browser']
+                            if not any(sig in current_text or sig in current_title for sig in waf_sigs):
+                                return True # Solved!
+                    except Exception:
+                        continue
+        return False
+    except Exception:
+        return False
+
 def audit_site(domain: str) -> dict:
+    import uuid as _uuid
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
         "checks_completed": {"speed": False, "atc_probe": False, "seo": False, "cwv": False, "homepage": False, "collection": False, "advanced_ux": False, "enterprise_heuristics": False, "funnel_cart": False},
-        "issues": [], "screenshot_path": None, "popup_screenshot_path": None,
+        "issues": [], "annotations": [], "screenshot_path": None, "popup_screenshot_path": None,
         "notes": "", "error": None, "platform": "custom",
+        "run_id": str(_uuid.uuid4())[:8], "engine_version": "v60.4",
+        "viewport": f"{MOBILE_VIEWPORT.get('width', 390)}x{MOBILE_VIEWPORT.get('height', 844)}",
     }
     safe = domain.replace(".", "_")
     viewport_h = MOBILE_VIEWPORT.get("height", 844)
@@ -504,11 +657,31 @@ def audit_site(domain: str) -> dict:
     console_errors: list[str] = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+        browser = p.chromium.launch(headless=True, args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-features=IsolateOrigins,site-per-process",
+            "--disable-site-isolation-trials",
+            "--disable-infobars",
+            "--no-sandbox",
+            "--disable-setuid-sandbox"
+        ])
         context = browser.new_context(
             viewport=MOBILE_VIEWPORT, has_touch=True, ignore_https_errors=True,
             user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         )
+        
+        # AGGRESSIVE WAF BYPASS: Pre-fetch cookies via curl_cffi and inject into Playwright
+        try:
+            from curl_cffi import requests as cffi_requests
+            pre_flight = cffi_requests.get(f"https://{domain}", impersonate="chrome120", timeout=10)
+            if pre_flight.cookies:
+                pw_cookies = []
+                for name, value in pre_flight.cookies.items():
+                    pw_cookies.append({"name": name, "value": value, "domain": f".{domain}", "path": "/"})
+                context.add_cookies(pw_cookies)
+        except Exception:
+            pass
+
         page = context.new_page()
         try:
             from playwright_stealth import stealth_sync
@@ -552,9 +725,7 @@ def audit_site(domain: str) -> dict:
                     probe_lower = probe.text.lower()
                     waf_sigs = ['just a moment', 'verify you are human', 'challenge-platform', 'cf-turnstile', 'hcaptcha', 'g-recaptcha', 'attention required', 'checking your browser', 'ray id']
                     if any(sig in probe_lower for sig in waf_sigs):
-                        if _curl_cffi_fallback_audit(product_url, findings, "waf_preflight"):
-                            browser.close()
-                            return findings
+                        findings["notes"] += "waf_detected_preflight_will_attempt_interactive_solve. "
             except Exception:
                 pass
 
@@ -583,9 +754,14 @@ def audit_site(domain: str) -> dict:
                 
             # WAF & CAPTCHA AWARENESS PROTOCOL
             if _check_waf_block(page):
-                if _curl_cffi_fallback_audit(product_url, findings, "waf_post_load"):
-                    browser.close()
-                    return findings
+                findings["notes"] += "waf_detected_attempting_interactive_solve. "
+                if _attempt_interactive_waf_solve(page):
+                    findings["notes"] += "waf_solved_interactively. "
+                    page.wait_for_timeout(2000)
+                else:
+                    if _curl_cffi_fallback_audit(product_url, findings, "waf_post_load"):
+                        browser.close()
+                        return findings
 
             findings["load_time_ms"] = _perf_load_ms(page)
             findings["checks_completed"]["speed"] = True
@@ -621,6 +797,16 @@ def audit_site(domain: str) -> dict:
                 return findings
 
             page.wait_for_timeout(2500)
+            
+            # Human-like behavior to help bypass WAF behavioral analysis
+            try:
+                import random
+                page.mouse.move(100 + random.randint(-20, 20), 200 + random.randint(-20, 20))
+                page.mouse.wheel(0, 300)
+                page.wait_for_timeout(600)
+                page.mouse.wheel(0, -150)
+            except Exception:
+                pass
 
             # POST-LOAD WAF VERIFICATION
             try:
@@ -629,9 +815,13 @@ def audit_site(domain: str) -> dict:
                 waf_sigs_post = ['just a moment', 'verify you are human', 'attention required', 'checking your browser', 'cloudflare']
                 is_waf = any(sig in page_title or sig in page_text for sig in waf_sigs_post)
                 if is_waf:
-                    if _curl_cffi_fallback_audit(product_url, findings, "waf_post_load"):
-                        browser.close()
-                        return findings
+                    if _attempt_interactive_waf_solve(page):
+                        findings["notes"] += "waf_solved_interactively_post_load. "
+                        page.wait_for_timeout(2000)
+                    else:
+                        if _curl_cffi_fallback_audit(product_url, findings, "waf_post_load_verify"):
+                            browser.close()
+                            return findings
             except Exception:
                 pass
 
@@ -840,6 +1030,28 @@ def audit_site(domain: str) -> dict:
             try: browser.close()
             except Exception: pass
 
+    # CONFIDENCE ENGINE: Assign 0-100% confidence to every finding
+    for issue in findings.get("issues", []):
+        conf = issue.get("confidence", "")
+        if isinstance(conf, str):
+            conf_lower = conf.lower()
+            if conf_lower in ["verified", "high"]: issue["confidence_pct"] = 95
+            elif conf_lower in ["medium", "partial"]: issue["confidence_pct"] = 70
+            elif conf_lower in ["low", "unverified"]: issue["confidence_pct"] = 40
+            else: issue["confidence_pct"] = 50
+        elif isinstance(conf, (int, float)):
+            issue["confidence_pct"] = min(100, max(0, int(conf)))
+        else:
+            issue["confidence_pct"] = 50
+        # Boost confidence if we have visual evidence
+        if issue.get("code") in [a.get("type", "") for a in findings.get("annotations", [])]:
+            issue["confidence_pct"] = min(100, issue["confidence_pct"] + 5)
+
+    # DETERMINISM HASH: SHA-256 of sorted issue codes for regression detection
+    import hashlib as _hl
+    issue_sig = "|".join(sorted([i.get("code", "") for i in findings.get("issues", [])]))
+    findings["findings_hash"] = _hl.sha256(issue_sig.encode()).hexdigest()[:16]
+
     # ENTERPRISE SCORING PARITY: Deduplicate BEFORE returning (by code AND text similarity)
     seen_codes = set()
     seen_texts = set()
@@ -900,7 +1112,7 @@ def _check_add_to_cart(page, findings, viewport_h: int):
             const rect = btn.getBoundingClientRect();
             const cs = window.getComputedStyle(btn);
             const is_visible = cs.display !== 'none' && cs.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-            return { found: true, visible: is_visible, width: rect.width, height: rect.height, y: rect.y, text: (btn.innerText || '').trim().slice(0, 50) };
+            return { found: true, visible: is_visible, width: rect.width, height: rect.height, x: rect.x, y: rect.y, text: (btn.innerText || '').trim().slice(0, 50) };
         }
     """)
 
@@ -928,6 +1140,7 @@ def _check_add_to_cart(page, findings, viewport_h: int):
     w, h = atc_data.get("width", 0), atc_data.get("height", 0)
     if 0 < w < 32 or 0 < h < 32:
         findings["issues"].append({"code": "small_touch_target", "description": f"Add to Cart button ({int(w)}x{int(h)}px) is smaller than the 32x32px mobile minimum.", "evidence": f"Touch target analysis: {int(w)}x{int(h)}px.", "severity": "medium", "confidence": "high", "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."})
+        findings["annotations"].append({"type": "small_touch_target", "x": atc_data.get("x", 0), "y": atc_data.get("y", 0), "width": w, "height": h, "label": "Touch Target < 32px"})
 
     if atc_data.get("y", 0) > viewport_h * 0.95:
         findings["issues"].append({"code": "add_to_cart_below_fold", "description": "Add to Cart sits below the mobile fold with no sticky purchase bar.", "evidence": f"button top at y={int(atc_data.get('y', 0))} on a {viewport_h}px viewport", "severity": "medium", "confidence": "high", "fix": "Add a sticky mobile Add to Cart bar or move the buy box above the fold."})

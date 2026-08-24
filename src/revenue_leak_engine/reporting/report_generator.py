@@ -53,13 +53,24 @@ def _process_screenshot(path_str, annotations=None):
             
             if annotations:
                 draw = ImageDraw.Draw(img)
+                try:
+                    from PIL import ImageFont
+                    font = ImageFont.load_default()
+                except Exception:
+                    font = None
+                    
                 for box in annotations:
                     x1 = box.get('x', 0) * ratio
                     y1 = box.get('y', 0) * ratio
                     x2 = (box.get('x', 0) + box.get('width', 0)) * ratio
                     y2 = (box.get('y', 0) + box.get('height', 0)) * ratio
-                    # Draw high-visibility red evidence box
-                    draw.rectangle([x1, y1, x2, y2], outline="#ef4444", width=4)
+                    color = "#ef4444" if "missing" in box.get('type', '') or "small" in box.get('type', '') else "#22c55e"
+                    draw.rectangle([x1, y1, x2, y2], outline=color, width=4)
+                    if box.get('label') and font:
+                        # Draw text background for readability
+                        text_w, text_h = draw.textsize(box['label'], font=font) if hasattr(draw, 'textsize') else (len(box['label'])*6, 12)
+                        draw.rectangle([x1, y1, x1 + text_w + 10, y1 + text_h + 10], fill=color)
+                        draw.text((x1 + 5, y1 + 5), box['label'], fill="#ffffff", font=font)
                     
             buffer = io.BytesIO()
             img = img.convert('RGB')
@@ -109,24 +120,40 @@ def generate_report(findings: dict) -> str:
     
     # Codes that belong strictly to SEO (to prevent cross-section duplication)
     seo_codes_set = {
-        'poor_title_tag', 'title_tag_issue', 'missing_title_tag',
-        'poor_meta_description', 'meta_description_issue', 'missing_meta_description',
-        'h1_tag_issue', 'missing_h1',
-        'missing_image_alt', 'image_alt_issue', 'no_alt_text',
-        'missing_product_schema', 'schema_missing', 'no_product_schema',
-        'missing_og_tags', 'broken_canonical'
+        'poor_title_tag', 'title_tag_issue', 'missing_title_tag', 'title_tag_length',
+        'poor_meta_description', 'meta_description_issue', 'missing_meta_description', 'meta_description_0_chars',
+        'h1_tag_issue', 'missing_h1', 'multiple_h1_tags', 'weak_homepage_h1',
+        'missing_image_alt', 'image_alt_issue', 'no_alt_text', 'images_lack_alt_text',
+        'missing_product_schema', 'schema_missing', 'no_product_schema', 'missing_product_schema_markup',
+        'missing_og_tags', 'og_tags_missing', 'open_graph_incomplete',
+        'broken_canonical', 'canonical_broken', 'canonical_missing'
     }
 
     # 3. SINGLE-PASS CANONICALIZATION, DEDUP, & SANITIZATION
     canon_map = {
-        'poor_meta_description': 'meta_description_issue', 'missing_meta_description': 'meta_description_issue',
-        'poor_title_tag': 'title_tag_issue', 'missing_title_tag': 'title_tag_issue',
-        'h1_tag_issue': 'h1_tag_issue', 'missing_h1': 'h1_tag_issue',
-        'missing_image_alt': 'image_alt_issue', 'no_alt_text': 'image_alt_issue',
+        'poor_meta_description': 'meta_description_issue', 'missing_meta_description': 'meta_description_issue', 'meta_description_0_chars': 'meta_description_issue',
+        'poor_title_tag': 'title_tag_issue', 'missing_title_tag': 'title_tag_issue', 'title_tag_length': 'title_tag_issue',
+        'h1_tag_issue': 'h1_tag_issue', 'missing_h1': 'h1_tag_issue', 'multiple_h1_tags': 'h1_tag_issue', 'weak_homepage_h1': 'h1_tag_issue',
+        'missing_image_alt': 'image_alt_issue', 'no_alt_text': 'image_alt_issue', 'images_lack_alt_text': 'image_alt_issue',
         'no_add_to_cart_found': 'atc_missing', 'add_to_cart_not_visible': 'atc_missing',
-        'missing_product_schema': 'schema_missing', 'no_product_schema': 'schema_missing'
+        'missing_product_schema': 'schema_missing', 'no_product_schema': 'schema_missing', 'missing_product_schema_markup': 'schema_missing',
+        'missing_og_tags': 'og_tags_missing', 'open_graph_incomplete': 'og_tags_missing',
+        'broken_canonical': 'canonical_broken', 'canonical_missing': 'canonical_broken'
     }
     
+
+    snippet_map = {
+        "shopify": {
+            "schema_missing": "\n\n🛠️ Code Snippet (Paste in theme.liquid before </head>):\n<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Product\",\n  \"name\": \"{{ product.title | escape }}\",\n  \"image\": \"{{ product.featured_image | img_url: 'master' }}\",\n  \"offers\": {\n    \"@type\": \"Offer\",\n    \"priceCurrency\": \"{{ shop.currency }}\",\n    \"price\": \"{{ product.price | money_without_currency }}\",\n    \"availability\": \"{% if product.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}\"\n  }\n}\n</script>",
+            "meta_pixel_missing": "\n\n🛠️ GTM Snippet (Custom HTML Tag):\n<script>\n  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');\n  fbq('init', 'YOUR_PIXEL_ID'); fbq('track', 'PageView');\n</script>"
+        },
+        "woocommerce": {
+            "schema_missing": "\n\n🛠️ Code Snippet (Paste in functions.php):\nadd_action('wp_head', function() {\n  if (is_product()) {\n    global $product;\n    $schema = array('@context'=>'https://schema.org','@type'=>'Product','name'=>$product->get_name(),'offers'=>array('@type'=>'Offer','priceCurrency'=>get_woocommerce_currency(),'price'=>$product->get_price()));\n    echo '<script type=\"application/ld+json\">'.json_encode($schema).'</script>';\n  }\n});"
+        },
+        "custom": {
+            "schema_missing": "\n\n🛠️ JSON-LD Template:\n<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Product\",\n  \"name\": \"[Product Name]\",\n  \"offers\": { \"@type\": \"Offer\", \"price\": \"[Price]\", \"priceCurrency\": \"[Currency]\" }\n}\n</script>"
+        }
+    }
     seen_codes = set()
     high_issues, med_issues, low_issues, seo_issues = [], [], [], []
     
@@ -150,6 +177,10 @@ def generate_report(findings: dict) -> str:
         if code not in seo_codes_set and "📍 Where to apply" not in raw_fix:
             raw_fix += where_note
             
+        # Inject Platform-Specific Code Snippets
+        if platform in snippet_map and code in snippet_map[platform]:
+            raw_fix += snippet_map[platform][code]
+            
         # Update issue dict
         issue["code"] = code
         issue["title"] = desc
@@ -163,7 +194,8 @@ def generate_report(findings: dict) -> str:
         issue["severity"] = issue.get("severity", "medium")
         issue["confidence"] = str(issue.get("confidence", "VERIFIED")).upper()
         
-        # Categorize (Mutually Exclusive to prevent double rendering)
+        # STRICT CATEGORIZATION: SEO codes go ONLY to seo_issues. CRO codes go to high/med/low.
+        # This mathematically prevents "Page Title" or "Schema" from appearing in both CRO and SEO sections.
         if code in seo_codes_set:
             seo_issues.append(issue)
         else:
@@ -188,7 +220,8 @@ def generate_report(findings: dict) -> str:
 
     # 5. SCREENSHOTS
     popup_ann = findings.get("popup_annotation")
-    screenshot_b64 = _process_screenshot(findings.get("screenshot_path"))
+    main_ann = findings.get("annotations", [])
+    screenshot_b64 = _process_screenshot(findings.get("screenshot_path"), main_ann)
     popup_b64 = None
     has_popup_finding = any(i.get("code") == "intrusive_popup" for i in findings.get("issues", []))
     if has_popup_finding:
@@ -206,7 +239,14 @@ def generate_report(findings: dict) -> str:
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         audit_status=audit_status,
         evidence_summary=evidence_summary,
-        findings=findings
+        findings=findings,
+        run_id=findings.get("run_id", "N/A"),
+        engine_version=findings.get("engine_version", "N/A"),
+        viewport=findings.get("viewport", "390x844"),
+        findings_hash=findings.get("findings_hash", "N/A"),
+        checks_completed=findings.get("checks_completed", {}),
+        checks_total=len(findings.get("checks_completed", {})),
+        checks_passed=len([v for v in findings.get("checks_completed", {}).values() if v])
     )
     
     with open(output_path, "w", encoding="utf-8") as f:

@@ -145,7 +145,6 @@ def _perf_load_ms(page):
             """() => {
                 const nav = performance.getEntriesByType('navigation')[0];
                 if (!nav) return null;
-                // Client-side processing time (Excludes Cloudflare/WAF network hold time)
                 return Math.round(nav.domContentLoadedEventEnd - nav.responseEnd);
             }"""
         )
@@ -164,7 +163,6 @@ def _extract_cwv_and_friction(page):
                         const clsEntries = performance.getEntriesByType('layout-shift');
                         cls = clsEntries.reduce((sum, e) => sum + (e.hadRecentInput ? 0 : e.value), 0);
                     } catch(e) {}
-                    
                     try {
                         const lcpObs = new PerformanceObserver((list) => {
                             const entries = list.getEntries();
@@ -172,7 +170,6 @@ def _extract_cwv_and_friction(page):
                         });
                         lcpObs.observe({ type: 'largest-contentful-paint', buffered: true });
                     } catch(e) {}
-
                     try {
                         const clsObs = new PerformanceObserver((list) => {
                             list.getEntries().forEach(entry => {
@@ -181,7 +178,6 @@ def _extract_cwv_and_friction(page):
                         });
                         clsObs.observe({ type: 'layout-shift', buffered: true });
                     } catch(e) {}
-
                     setTimeout(() => {
                         let touch_target_ok = false;
                         const atc = document.querySelector("button[name='add'], [data-add-to-cart], .single_add_to_cart_button");
@@ -199,74 +195,54 @@ def _extract_cwv_and_friction(page):
 
 
 def find_a_product_url(page, domain: str) -> str | None:
-    # Strategy 1: Shopify public JSON — immune to popups and JS stalls (Fast fail)
     try:
-        page.goto(f"https://{domain}/products.json?limit=10",
-                  timeout=10000, wait_until="domcontentloaded")
+        page.goto(f"https://{domain}/products.json?limit=10", timeout=10000, wait_until="domcontentloaded")
         data = _json.loads(page.inner_text("body"))
         for prod in data.get("products", []):
             if prod.get("handle"):
                 return f"https://{domain}/products/{prod['handle']}"
     except Exception:
         pass
-        
-    # Strategy 2: Platform-Agnostic rendered links (Shopify, Woo, BigC, Custom)
+
     discovery_urls = [
-        f"https://{domain}/collections/all",
-        f"https://{domain}/collections",
-        f"https://{domain}/shop",
-        f"https://{domain}/catalog",
-        f"https://{domain}/product-category",
-        f"https://{domain}/products",
-        f"https://{domain}/store",
-        f"https://{domain}/items",
-        f"https://{domain}/product",
-        f"https://{domain}/all-products",
-        f"https://{domain}/shop/all",
-        f"https://{domain}"
+        f"https://{domain}/collections/all", f"https://{domain}/collections",
+        f"https://{domain}/shop", f"https://{domain}/catalog",
+        f"https://{domain}/product-category", f"https://{domain}/products",
+        f"https://{domain}/store", f"https://{domain}/items",
+        f"https://{domain}/product", f"https://{domain}/all-products",
+        f"https://{domain}/shop/all", f"https://{domain}"
     ]
-    
-    # Broad regex for product URLs across all major platforms
+
     product_url_pattern = re.compile(r'/(products?|p|shop|item|dp|catalog|buy)/[a-zA-Z0-9_\-]+/?$', re.I)
     blacklist = ['cart', 'checkout', 'account', 'search', 'policies', 'blogs', 'pages', 'gift-card', 'login', 'register']
-    
+
     for url in discovery_urls:
-        if not _goto_resilient(page, url):
-            continue
+        if not _goto_resilient(page, url): continue
         page.wait_for_timeout(1500)
         dismiss_overlays(page)
-        
-        links = page.evaluate("""
-            () => Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'))
-        """)
-        
+        links = page.evaluate("() => Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'))")
         for href in links:
             if not href: continue
             clean_href = href.split('?')[0].split('#')[0]
-            # Broad match: WooCommerce (/product/), Shopify (/products/), Custom (/p/, /item/)
             is_product_path = any(p in clean_href.lower() for p in ['/product/', '/products/', '/p/', '/item/', '/dp/', '/buy/'])
             if is_product_path or product_url_pattern.search(clean_href):
                 if any(bl in clean_href.lower() for bl in blacklist): continue
                 if '/product-category/' in clean_href.lower() or '/collections/' in clean_href.lower(): continue
                 return href if href.startswith("http") else f"https://{domain}{clean_href}"
-    
-    # BULLETPROOF FALLBACK: Use curl_cffi to aggressively hunt product URLs in raw HTML
+
     try:
         from curl_cffi import requests as cffi_requests
         r = cffi_requests.get(f"https://{domain}", timeout=15, impersonate="chrome120")
         if r.status_code == 200:
             html_raw = r.text
-            import re as _re
-            matches = _re.findall(r'href=["\'](https?://[^"\']*(?:/product/|/products/|/p/|/item/|/dp/|/shop/)[^"\']*)["\']', html_raw, _re.I)
+            matches = re.findall(r'href=["\'](https?://[^"\']*(?:/product/|/products/|/p/|/item/|/dp/|/shop/)[^"\']*)["\']', html_raw, re.I)
             blacklist = ['cart', 'checkout', 'account', 'search', 'policies', 'blogs', 'pages', 'gift-card', 'login', 'register', 'category']
             for m in matches:
                 clean = m.split('?')[0].split('#')[0].lower()
-                if not any(bl in clean for bl in blacklist):
-                    return m
+                if not any(bl in clean for bl in blacklist): return m
     except Exception:
         pass
-        
-    # HEURISTIC FALLBACK: Scan homepage for "Subscribe", "Buy", "Add to Cart" + Price
+
     try:
         page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
         page.wait_for_timeout(1500)
@@ -276,9 +252,7 @@ def find_a_product_url(page, domain: str) -> str | None:
                 for (const btn of btns) {
                     const text = (btn.innerText || '').toLowerCase();
                     const href = btn.getAttribute('href') || '';
-                    const has_price = btn.closest('body').innerText.includes('$');
                     const is_buy_btn = text.includes('add to cart') || text.includes('buy now') || text.includes('subscribe') || text.includes('select plan') || text.includes('join now');
-                    
                     if (is_buy_btn && href && href !== '#' && !href.includes('cart') && !href.includes('checkout')) {
                         if (href.startsWith('http')) return href;
                         return window.location.origin + href;
@@ -287,123 +261,87 @@ def find_a_product_url(page, domain: str) -> str | None:
                 return null;
             }
         """)
-        if heuristic_url:
-            return heuristic_url
+        if heuristic_url: return heuristic_url
     except Exception:
         pass
     return None
 
 
-# ---------------- main audit ----------------
-
-
 def _audit_homepage_and_collection(page, domain: str, findings: dict):
-    """Lightweight audit of Homepage and Collection page before PDP."""
-    # 1. Homepage Trust & Navigation
     try:
         page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
         page.wait_for_timeout(1500)
-        
         hp_data = page.evaluate("""
             () => {
                 const html = document.body ? document.body.innerText.toLowerCase() : '';
                 const footer = document.querySelector('footer') ? document.querySelector('footer').innerText.toLowerCase() : html;
-                
                 const has_free_shipping = html.includes('free shipping') || html.includes('free delivery');
                 const has_returns = html.includes('return') || html.includes('refund') || html.includes('guarantee');
-                
                 const payment_icons = document.querySelectorAll('img[alt*="visa" i], img[alt*="mastercard" i], img[alt*="paypal" i], img[alt*="amex" i], [class*="payment-icon"], svg[aria-label*="payment" i]');
                 const has_payment_trust = payment_icons.length > 0 || footer.includes('secure checkout') || footer.includes('ssl');
-                
                 return { has_free_shipping, has_returns, has_payment_trust };
             }
         """)
-        
         if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
             findings["issues"].append({
-                "code": "missing_global_trust_signals",
-                "description": "Homepage lacks global trust signals (Free Shipping, Returns, or Guarantees).",
-                "evidence": "No shipping or return policy mentions found in homepage text or footer.",
-                "severity": "medium", "confidence": "VERIFIED",
+                "code": "missing_global_trust_signals", "description": "Homepage lacks global trust signals (Free Shipping, Returns, or Guarantees).",
+                "evidence": "No shipping or return policy mentions found in homepage text or footer.", "severity": "medium", "confidence": "VERIFIED",
                 "business_impact": "Shoppers look for shipping/return policies before clicking a product. Missing them increases bounce rate.",
                 "fix": "Add a global announcement bar or footer badges for 'Free Shipping over $X' and 'Easy Returns'."
             })
-            
         if not hp_data.get('has_payment_trust'):
             findings["issues"].append({
-                "code": "missing_payment_trust_badges",
-                "description": "Footer lacks recognizable payment method icons or secure checkout badges.",
-                "evidence": "No Visa/Mastercard/PayPal icons or 'Secure Checkout' text found in footer.",
-                "severity": "low", "confidence": "VERIFIED",
+                "code": "missing_payment_trust_badges", "description": "Footer lacks recognizable payment method icons or secure checkout badges.",
+                "evidence": "No Visa/Mastercard/PayPal icons or 'Secure Checkout' text found in footer.", "severity": "low", "confidence": "VERIFIED",
                 "business_impact": "Payment badges subconsciously reassure users that the site is legitimate and safe.",
                 "fix": "Display standard payment method SVGs and a 'Secure SSL Checkout' badge in the global footer."
             })
-    except Exception:
-        pass
+    except Exception: pass
 
-    # 2. Collection Page Grid (Friction Check)
     try:
         coll_paths = ["/collections/all", "/shop", "/catalog", "/products", "/collections"]
         coll_loaded = False
         for p in coll_paths:
             try:
                 resp = page.goto(f"https://{domain}{p}", timeout=8000, wait_until="domcontentloaded")
-                if resp and resp.status < 400:
-                    coll_loaded = True
-                    break
-            except Exception:
-                continue
-                
+                if resp and resp.status < 400: coll_loaded = True; break
+            except Exception: continue
         if coll_loaded:
             page.wait_for_timeout(1500)
             coll_data = page.evaluate("""
                 () => {
                     const cards = document.querySelectorAll('[class*="product-card" i], [class*="product-item" i], .product, article, li[class*="product"]');
                     if (cards.length < 2) return { has_grid: false };
-                    
                     let cards_with_price = 0;
-                    cards.forEach(card => {
-                        if (card.querySelector('[class*="price" i], .price, [data-price]') || card.innerText.match(/\\$\\d+/)) {
-                            cards_with_price++;
-                        }
-                    });
+                    cards.forEach(card => { if (card.querySelector('[class*="price" i], .price, [data-price]') || card.innerText.match(/\\$\\d+/)) cards_with_price++; });
                     return { has_grid: true, total_cards: cards.length, cards_with_price: cards_with_price };
                 }
             """)
-            
             if coll_data.get('has_grid') and coll_data.get('cards_with_price', 0) < coll_data.get('total_cards', 1) * 0.5:
                 findings["issues"].append({
-                    "code": "collection_grid_missing_prices",
-                    "description": "Product grid on collection page hides prices on many items.",
+                    "code": "collection_grid_missing_prices", "description": "Product grid on collection page hides prices on many items.",
                     "evidence": f"Only {coll_data.get('cards_with_price')} of {coll_data.get('total_cards')} product cards show a price.",
-                    "severity": "medium", "confidence": "VERIFIED",
-                    "business_impact": "Forcing users to click into every product to see the price causes massive drop-off.",
+                    "severity": "medium", "confidence": "VERIFIED", "business_impact": "Forcing users to click into every product to see the price causes massive drop-off.",
                     "fix": "Ensure base prices (and sale prices) are clearly visible directly on the collection grid cards."
                 })
-    except Exception:
-        pass
+    except Exception: pass
 
 
 def _check_advanced_ux_seo(page, findings):
-    """Deep interrogation of Shipping, Returns, Variants, Media, and Schema."""
     try:
         ux_data = page.evaluate("""
             () => {
                 const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
                 const buyBox = document.querySelector('[class*="product" i], [class*="buy" i], form[action*="cart"], [class*="price" i]');
                 const buyBoxText = buyBox ? buyBox.innerText.toLowerCase() : bodyText;
-                
                 const hasVariants = document.querySelector('[class*="variant" i], [class*="swatch" i], select[name*="variant"], [data-option]') !== null;
                 const hasShippingInfo = /free shipping|shipping cost|delivery|ships in|estimated delivery/.test(buyBoxText);
                 const hasReturnsInfo = /return|refund|guarantee|exchange|money back/.test(buyBoxText);
-                
                 const imgs = document.querySelectorAll('img');
                 const hasVideo = document.querySelector('video, iframe[src*="youtube"], iframe[src*="vimeo"], [class*="video"]') !== null;
-                
                 const hasSizing = /size guide|sizing|fit guide|dimensions|measurements/.test(bodyText);
                 const hasFAQ = /faq|frequently asked|questions/.test(bodyText);
                 const hasIngredients = /ingredients|materials|fabric|composition|nutritional/.test(bodyText);
-                
                 const schemas = document.querySelectorAll('script[type="application/ld+json"]');
                 let hasProductSchema = false, hasReviewSchema = false;
                 schemas.forEach(s => {
@@ -411,58 +349,22 @@ def _check_advanced_ux_seo(page, findings):
                     if (txt.includes('"@type"') && txt.includes('product')) hasProductSchema = true;
                     if (txt.includes('aggregaterating') || txt.includes('review')) hasReviewSchema = true;
                 });
-
                 return { hasVariants, hasShippingInfo, hasReturnsInfo, imgCount: imgs.length, hasVideo, hasSizing, hasFAQ, hasIngredients, hasProductSchema, hasReviewSchema };
             }
         """)
-    except Exception:
-        return
+    except Exception: return
 
     if not ux_data.get('hasShippingInfo'):
-        findings["issues"].append({
-            "code": "hidden_shipping_costs", "severity": "high", "confidence": "VERIFIED",
-            "observation": "Shipping costs and delivery times are hidden on the product page.",
-            "evidence": "No mention of shipping, delivery, or free shipping thresholds detected near the buy box.",
-            "interpretation": "Baymard Institute data shows 68% of shoppers abandon carts when shipping costs are a surprise at checkout. Hiding this on the PDP kills high-intent buyers.",
-            "recommendation": "Add a dynamic shipping estimator or a clear 'Free Shipping over $X' badge directly inside the buy box."
-        })
-
+        findings["issues"].append({"code": "hidden_shipping_costs", "severity": "high", "confidence": "VERIFIED", "observation": "Shipping costs and delivery times are hidden on the product page.", "evidence": "No mention of shipping, delivery, or free shipping thresholds detected near the buy box.", "interpretation": "Baymard Institute data shows 68% of shoppers abandon carts when shipping costs are a surprise at checkout.", "recommendation": "Add a dynamic shipping estimator or a clear 'Free Shipping over $X' badge directly inside the buy box."})
     if not ux_data.get('hasReturnsInfo'):
-        findings["issues"].append({
-            "code": "hidden_return_policy", "severity": "medium", "confidence": "VERIFIED",
-            "observation": "Return policy and guarantees are not visible near the purchase decision area.",
-            "evidence": "No mentions of returns, refunds, or guarantees detected in the product details or buy box.",
-            "interpretation": "Shoppers hesitate when they feel trapped by a purchase. Visible return policies reduce purchase anxiety and increase conversion.",
-            "recommendation": "Display a concise 'Easy 30-Day Returns' or 'Money-Back Guarantee' badge directly below the Add to Cart button."
-        })
-
+        findings["issues"].append({"code": "hidden_return_policy", "severity": "medium", "confidence": "VERIFIED", "observation": "Return policy and guarantees are not visible near the purchase decision area.", "evidence": "No mentions of returns, refunds, or guarantees detected in the product details or buy box.", "interpretation": "Shoppers hesitate when they feel trapped by a purchase.", "recommendation": "Display a concise 'Easy 30-Day Returns' or 'Money-Back Guarantee' badge directly below the Add to Cart button."})
     if not ux_data.get('hasProductSchema'):
-        findings["issues"].append({
-            "code": "missing_product_schema", "severity": "high", "confidence": "VERIFIED",
-            "observation": "Missing Product Schema Markup (Structured Data).",
-            "evidence": "No application/ld+json Product schema detected in the page head.",
-            "interpretation": "Without Product schema, Google and AI search engines (SGE) cannot display rich snippets (price, stock, reviews), severely reducing CTR and AI visibility.",
-            "recommendation": "Implement standard JSON-LD Product schema including price, availability, SKU, and aggregateRating."
-        })
-        
+        findings["issues"].append({"code": "missing_product_schema", "severity": "high", "confidence": "VERIFIED", "observation": "Missing Product Schema Markup (Structured Data).", "evidence": "No application/ld+json Product schema detected in the page head.", "interpretation": "Without Product schema, Google and AI search engines (SGE) cannot display rich snippets.", "recommendation": "Implement standard JSON-LD Product schema including price, availability, SKU, and aggregateRating."})
     if not ux_data.get('hasSizing') and not ux_data.get('hasIngredients'):
         if ux_data.get('imgCount', 0) > 0:
-            findings["issues"].append({
-                "code": "missing_product_specs", "severity": "medium", "confidence": "VERIFIED",
-                "observation": "Critical product details (Sizing, Materials, or Ingredients) are missing or hard to find.",
-                "evidence": "No size guides, material breakdowns, or ingredient lists detected on the page.",
-                "interpretation": "Shoppers cannot evaluate if the product fits their specific needs, leading to hesitation and high return rates.",
-                "recommendation": "Add expandable accordion tabs for 'Sizing/Fit', 'Materials/Ingredients', and 'Care Instructions' directly below the product description."
-            })
-
+            findings["issues"].append({"code": "missing_product_specs", "severity": "medium", "confidence": "VERIFIED", "observation": "Critical product details (Sizing, Materials, or Ingredients) are missing or hard to find.", "evidence": "No size guides, material breakdowns, or ingredient lists detected on the page.", "interpretation": "Shoppers cannot evaluate if the product fits their specific needs.", "recommendation": "Add expandable accordion tabs for 'Sizing/Fit', 'Materials/Ingredients', and 'Care Instructions'."})
     if ux_data.get('imgCount', 0) < 4 and not ux_data.get('hasVideo'):
-        findings["issues"].append({
-            "code": "poor_media_richness", "severity": "medium", "confidence": "VERIFIED",
-            "observation": "Product gallery lacks sufficient visual assets to build buyer confidence.",
-            "evidence": f"Only {ux_data.get('imgCount', 0)} images found and no product video detected.",
-            "interpretation": "Online shoppers cannot touch the product. Insufficient imagery or lack of video prevents them from evaluating quality, texture, and scale.",
-            "recommendation": "Upload at least 5-7 high-resolution images (multiple angles, lifestyle, scale) and add a 15-second product demonstration video."
-        })
+        findings["issues"].append({"code": "poor_media_richness", "severity": "medium", "confidence": "VERIFIED", "observation": "Product gallery lacks sufficient visual assets to build buyer confidence.", "evidence": f"Only {ux_data.get('imgCount', 0)} images found and no product video detected.", "interpretation": "Online shoppers cannot touch the product.", "recommendation": "Upload at least 5-7 high-resolution images and add a 15-second product demonstration video."})
 
 
 def _apply_stealth(page):
@@ -485,168 +387,268 @@ def _check_waf_block(page):
                 return waf_sigs.some(sig => text.includes(sig) || title.includes(sig));
             }
         """)
-    except Exception:
-        return False
+    except Exception: return False
 
 
 def _check_enterprise_heuristics(page, findings, platform):
-    """Deep-dive Baymard & Enterprise SEO heuristics."""
     try:
         heuristics = page.evaluate("""
             () => {
                 const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
                 const buyBox = document.querySelector('[class*="product" i], [class*="buy" i], form[action*="cart"], [class*="price" i]');
                 const buyBoxText = buyBox ? buyBox.innerText.toLowerCase() : bodyText;
-                
                 const stickyAtc = document.querySelector('[class*="sticky" i][class*="cart" i], [class*="fixed" i][class*="bottom" i] button, [id*="sticky-atc"]');
                 const breadcrumbs = document.querySelector('[class*="breadcrumb" i], nav[aria-label="Breadcrumb"], [itemtype*="BreadcrumbList"]');
                 const hasDeliveryEstimate = /delivery by|arrives by|get it by|ships in|estimated delivery|order within/.test(buyBoxText);
                 const hasShippingThreshold = /free shipping on orders over|free shipping over|spend .* more for free shipping/.test(buyBoxText) || /free shipping on orders over|free shipping over|spend .* more for free shipping/.test(bodyText);
-                
                 const canonical = document.querySelector('link[rel="canonical"]');
                 const canonicalHref = canonical ? canonical.href : null;
                 const currentUrl = window.location.href.split('?')[0].split('#')[0];
                 const isCanonicalCorrect = canonicalHref && (canonicalHref.split('?')[0].split('#')[0] === currentUrl);
-                
                 const hasCrossSell = document.querySelector('[class*="related" i], [class*="also-like" i], [class*="frequently-bought" i], [class*="recommendations" i]') !== null;
-                
-                return {
-                    hasStickyAtc: stickyAtc !== null,
-                    hasBreadcrumbs: breadcrumbs !== null,
-                    hasDeliveryEstimate: hasDeliveryEstimate,
-                    hasShippingThreshold: hasShippingThreshold,
-                    isCanonicalCorrect: isCanonicalCorrect,
-                    hasCrossSell: hasCrossSell
-                };
+                return { hasStickyAtc: stickyAtc !== null, hasBreadcrumbs: breadcrumbs !== null, hasDeliveryEstimate: hasDeliveryEstimate, hasShippingThreshold: hasShippingThreshold, isCanonicalCorrect: isCanonicalCorrect, hasCrossSell: hasCrossSell };
             }
         """)
-    except Exception:
-        return
+    except Exception: return
 
     if not heuristics.get('hasStickyAtc'):
-        findings["issues"].append({
-            "code": "missing_sticky_atc", "severity": "medium", "confidence": "VERIFIED",
-            "description": "Missing Sticky Add-to-Cart bar on mobile scroll.",
-            "observation": "Missing Sticky Add-to-Cart bar on mobile scroll.",
-            "evidence": "No fixed/sticky purchase bar detected when scrolling past the main buy box.",
-            "business_impact": "Baymard Institute data shows users scroll extensively to read reviews. Forcing them to scroll all the way back up to buy causes massive friction.",
-            "interpretation": "Baymard Institute data shows users scroll extensively to read reviews. Forcing them to scroll all the way back up to buy causes massive friction.",
-            "fix": "Implement a sticky bottom bar containing the Price and Add to Cart button that appears once the main buy box scrolls out of the viewport.",
-            "recommendation": "Implement a sticky bottom bar containing the Price and Add to Cart button that appears once the main buy box scrolls out of the viewport."
-        })
-
+        findings["issues"].append({"code": "missing_sticky_atc", "severity": "medium", "confidence": "VERIFIED", "description": "Missing Sticky Add-to-Cart bar on mobile scroll.", "observation": "Missing Sticky Add-to-Cart bar on mobile scroll.", "evidence": "No fixed/sticky purchase bar detected when scrolling past the main buy box.", "business_impact": "Baymard Institute data shows users scroll extensively to read reviews.", "interpretation": "Forcing them to scroll all the way back up to buy causes massive friction.", "fix": "Implement a sticky bottom bar containing the Price and Add to Cart button.", "recommendation": "Implement a sticky bottom bar containing the Price and Add to Cart button."})
     if not heuristics.get('hasBreadcrumbs'):
-        findings["issues"].append({
-            "code": "missing_breadcrumbs", "severity": "low", "confidence": "VERIFIED",
-            "description": "Missing Breadcrumb navigation on the product page.",
-            "observation": "Missing Breadcrumb navigation on the product page.",
-            "evidence": "No breadcrumb DOM structure or BreadcrumbList schema detected.",
-            "business_impact": "Users landing from search/ads want to browse similar items. Missing breadcrumbs force them to hit 'Back', increasing bounce rates.",
-            "interpretation": "Users landing from search/ads want to browse similar items. Missing breadcrumbs force them to hit 'Back', increasing bounce rates.",
-            "fix": "Add a clear Home > Category > Subcategory breadcrumb trail above the product title.",
-            "recommendation": "Add a clear Home > Category > Subcategory breadcrumb trail above the product title."
-        })
-
+        findings["issues"].append({"code": "missing_breadcrumbs", "severity": "low", "confidence": "VERIFIED", "description": "Missing Breadcrumb navigation on the product page.", "observation": "Missing Breadcrumb navigation on the product page.", "evidence": "No breadcrumb DOM structure or BreadcrumbList schema detected.", "business_impact": "Missing breadcrumbs force them to hit 'Back', increasing bounce rates.", "interpretation": "Users landing from search/ads want to browse similar items.", "fix": "Add a clear Home > Category > Subcategory breadcrumb trail.", "recommendation": "Add a clear Home > Category > Subcategory breadcrumb trail."})
     if not heuristics.get('hasDeliveryEstimate') and not heuristics.get('hasShippingThreshold'):
-        findings["issues"].append({
-            "code": "missing_delivery_urgency", "severity": "medium", "confidence": "VERIFIED",
-            "description": "Missing Delivery Estimates or Shipping Thresholds in the buy box.",
-            "observation": "Missing Delivery Estimates or Shipping Thresholds in the buy box.",
-            "evidence": "No text matching 'Delivery by', 'Arrives by', or 'Free shipping over $X' found near the purchase button.",
-            "business_impact": "Shoppers need to know when they will receive the item. Hiding this pushes them to Amazon or competitors.",
-            "interpretation": "Shoppers need to know when they will receive the item. Hiding this pushes them to Amazon or competitors.",
-            "fix": "Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping' directly inside the buy box.",
-            "recommendation": "Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping' directly inside the buy box."
-        })
-
+        findings["issues"].append({"code": "missing_delivery_urgency", "severity": "medium", "confidence": "VERIFIED", "description": "Missing Delivery Estimates or Shipping Thresholds in the buy box.", "observation": "Missing Delivery Estimates or Shipping Thresholds in the buy box.", "evidence": "No text matching 'Delivery by', 'Arrives by', or 'Free shipping over $X' found.", "business_impact": "Hiding this pushes them to Amazon or competitors.", "interpretation": "Shoppers need to know when they will receive the item.", "fix": "Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping'.", "recommendation": "Add a dynamic 'Get it by [Date]' estimator and a progress bar."})
     if not heuristics.get('hasCrossSell'):
-        findings["issues"].append({
-            "code": "missing_cross_sell", "severity": "low", "confidence": "VERIFIED",
-            "description": "Missing Cross-sell / Upsell modules on the PDP.",
-            "observation": "Missing Cross-sell / Upsell modules on the PDP.",
-            "evidence": "No 'Frequently Bought Together', 'You May Also Like', or 'Related Products' sections detected.",
-            "business_impact": "Failing to offer complementary products leaves Average Order Value (AOV) on the table.",
-            "interpretation": "Failing to offer complementary products leaves Average Order Value (AOV) on the table.",
-            "fix": "Implement a 'Frequently Bought Together' or 'You May Also Like' carousel below the product description to boost AOV.",
-            "recommendation": "Implement a 'Frequently Bought Together' or 'You May Also Like' carousel below the product description to boost AOV."
-        })
-
+        findings["issues"].append({"code": "missing_cross_sell", "severity": "low", "confidence": "VERIFIED", "description": "Missing Cross-sell / Upsell modules on the PDP.", "observation": "Missing Cross-sell / Upsell modules on the PDP.", "evidence": "No 'Frequently Bought Together' or 'Related Products' sections detected.", "business_impact": "Failing to offer complementary products leaves Average Order Value (AOV) on the table.", "interpretation": "Failing to offer complementary products leaves AOV on the table.", "fix": "Implement a 'Frequently Bought Together' carousel.", "recommendation": "Implement a 'Frequently Bought Together' carousel."})
     if not heuristics.get('isCanonicalCorrect'):
-        findings["issues"].append({
-            "code": "broken_canonical", "severity": "high", "confidence": "VERIFIED",
-            "description": "Canonical tag is missing or not self-referencing.",
-            "observation": "Canonical tag is missing or not self-referencing.",
-            "evidence": "Canonical URL does not match the current clean page URL.",
-            "business_impact": "Search engines may index duplicate or parameterized URLs, diluting page authority and killing organic rankings.",
-            "interpretation": "Search engines may index duplicate or parameterized URLs, diluting page authority and killing organic rankings.",
-            "fix": "Ensure every PDP has a <link rel='canonical'> tag pointing exactly to its own clean, parameter-free URL.",
-            "recommendation": "Ensure every PDP has a <link rel='canonical'> tag pointing exactly to its own clean, parameter-free URL."
-        })
-
+        findings["issues"].append({"code": "broken_canonical", "severity": "high", "confidence": "VERIFIED", "description": "Canonical tag is missing or not self-referencing.", "observation": "Canonical tag is missing or not self-referencing.", "evidence": "Canonical URL does not match the current clean page URL.", "business_impact": "Search engines may index duplicate or parameterized URLs.", "interpretation": "Diluting page authority and killing organic rankings.", "fix": "Ensure every PDP has a <link rel='canonical'> tag.", "recommendation": "Ensure every PDP has a <link rel='canonical'> tag."})
 
 
 def _audit_homepage_and_awareness(page, findings):
-    """Audits Homepage Value Prop, Navigation, and detects Business Model."""
     try:
         page.goto(f"https://{findings.get('domain', '')}", timeout=15000, wait_until="domcontentloaded")
         page.wait_for_timeout(1500)
-        
         awareness = page.evaluate("""
             () => {
                 const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
                 const h1 = document.querySelector('h1');
                 const heroText = h1 ? h1.innerText.toLowerCase() : '';
-                
-                // Business Model Detection
                 const isEcommerce = document.querySelector('[class*="product" i], [class*="cart" i], [class*="shop" i]') !== null;
                 const isSubscription = /subscribe|membership|monthly|box/.test(bodyText);
                 const isSaaS = /login|sign in|dashboard|pricing|features/.test(bodyText) && !isEcommerce;
-                
-                // Homepage Health
                 const hasClearH1 = h1 && h1.innerText.length > 5 && h1.innerText.length < 100;
                 const hasPrimaryCTA = document.querySelector('a[href*="shop"], a[href*="product"], button[class*="cta"], a[class*="button"]') !== null;
-                
-                return {
-                    isEcommerce, isSubscription, isSaaS,
-                    hasClearH1, hasPrimaryCTA,
-                    heroText: heroText.slice(0, 50)
-                };
+                return { isEcommerce, isSubscription, isSaaS, hasClearH1, hasPrimaryCTA, heroText: heroText.slice(0, 50) };
             }
         """)
-        
         findings["business_model"] = "subscription" if awareness.get('isSubscription') else ("saas" if awareness.get('isSaaS') else "ecommerce")
-        
         if not awareness.get('hasClearH1'):
-            findings["issues"].append({
-                "code": "weak_homepage_h1", "severity": "medium", "confidence": "VERIFIED",
-                "description": "Homepage H1 is missing, too short, or unclear.",
-                "observation": "Homepage H1 is missing, too short, or unclear.",
-                "evidence": f"Detected H1: '{awareness.get('heroText', 'None')}'",
-                "business_impact": "A weak H1 confuses visitors about what you sell, increasing bounce rates.",
-                "fix": "Rewrite the H1 to clearly state your unique value proposition (e.g., 'Premium Leather Goods').",
-                "recommendation": "Rewrite the H1 to clearly state your unique value proposition."
-            })
-            
+            findings["issues"].append({"code": "weak_homepage_h1", "severity": "medium", "confidence": "VERIFIED", "description": "Homepage H1 is missing, too short, or unclear.", "observation": "Homepage H1 is missing, too short, or unclear.", "evidence": f"Detected H1: '{awareness.get('heroText', 'None')}'", "business_impact": "A weak H1 confuses visitors about what you sell.", "fix": "Rewrite the H1 to clearly state your unique value proposition.", "recommendation": "Rewrite the H1 to clearly state your unique value proposition."})
         if not awareness.get('hasPrimaryCTA'):
-             findings["issues"].append({
-                "code": "missing_hero_cta", "severity": "high", "confidence": "VERIFIED",
-                "description": "Missing primary Call-to-Action in the Hero section.",
-                "observation": "Missing primary Call-to-Action in the Hero section.",
-                "evidence": "No 'Shop Now', 'Subscribe', or primary button detected in the top viewport.",
-                "business_impact": "Users must scroll to find how to buy. This friction kills mobile conversions.",
-                "fix": "Add a high-contrast 'Shop Now' or 'Get Started' button in the hero section.",
-                "recommendation": "Add a high-contrast 'Shop Now' or 'Get Started' button in the hero section."
-            })
+             findings["issues"].append({"code": "missing_hero_cta", "severity": "high", "confidence": "VERIFIED", "description": "Missing primary Call-to-Action in the Hero section.", "observation": "Missing primary Call-to-Action in the Hero section.", "evidence": "No 'Shop Now', 'Subscribe', or primary button detected in the top viewport.", "business_impact": "Users must scroll to find how to buy. This friction kills mobile conversions.", "fix": "Add a high-contrast 'Shop Now' or 'Get Started' button in the hero section.", "recommendation": "Add a high-contrast 'Shop Now' or 'Get Started' button."})
+             findings["annotations"].append({"type": "missing_hero_cta", "x": 0, "y": 0, "width": 400, "height": 300, "label": "Hero Zone: No Primary CTA"})
+    except Exception: pass
+
+
+def _curl_cffi_fallback_audit(url, findings, reason="waf_detected"):
+    """Single source of truth for shallow structural audit when Playwright is blocked."""
+    findings["notes"] += f"{reason}_curl_cffi_fallback. "
+    findings["audit_status"] = "PARTIAL_WAF"
+    try:
+        from curl_cffi import requests as cffi_requests
+        from bs4 import BeautifulSoup
+        r = cffi_requests.get(url, impersonate="chrome120", timeout=15)
+        if r.status_code != 200: return False
+        soup = BeautifulSoup(r.text, 'html.parser')
+        title = soup.title.string.strip() if soup.title and soup.title.string else ""
+        meta_tag = soup.find('meta', attrs={'name': 'description'})
+        meta_content = meta_tag.get('content', '').strip() if meta_tag and meta_tag.get('content') else ""
+        atc_text = soup.find(string=re.compile(r'add to cart|subscribe|buy now|join|select plan', re.I))
+
+        findings["load_time_ms"] = int(r.elapsed.total_seconds() * 1000)
+        findings["checks_completed"]["speed"] = True
+        findings["checks_completed"]["seo"] = True
+        findings["screenshot_context"] = "WAF Bypass: Structural audit via curl_cffi. Interactive checks skipped."
+
+        if len(title) > 60:
+            findings["issues"].append({"code": "poor_title_tag", "severity": "medium", "confidence": "VERIFIED",
+                "description": f"Page title is {len(title)} chars (target: 30-60).", "evidence": f"Title: '{title[:50]}...'",
+                "fix": "Rewrite title to 30-60 chars, front-loading primary keyword.",
+                "business_impact": "Long titles truncate in SERPs, reducing CTR."})
+        if len(meta_content) < 120:
+            findings["issues"].append({"code": "poor_meta_description", "severity": "low", "confidence": "VERIFIED",
+                "description": f"Meta description is {len(meta_content)} chars (target: 120-160).",
+                "evidence": f"Meta: '{meta_content[:50]}...'" if meta_content else "Meta missing.",
+                "fix": "Write 120-160 char benefit-driven meta with clear CTA.",
+                "business_impact": "Missing meta lets Google pick random snippets."})
+        if not atc_text:
+            findings["issues"].append({"code": "no_add_to_cart_found", "severity": "high", "confidence": "VERIFIED",
+                "description": "No Add to Cart button detected via WAF bypass.",
+                "evidence": "Raw HTML search found no purchase intent elements.",
+                "fix": "Ensure visible, clearly labelled ATC button on mobile PDP.",
+                "business_impact": "Shoppers cannot buy."})
+        return True
+    except Exception as e:
+        findings["notes"] += f"waf_fallback_failed: {e}. "
+        return False
+
+
+def _check_variant_integrity(page, findings):
+    """Checks if clicking a variant (size/color) breaks the buy box."""
+    try:
+        variants = page.query_selector_all('select[name*="variant"], [class*="swatch"] button, [data-option] button, input[type="radio"][name*="variant"] + label')
+        if not variants or len(variants) < 2: return
+        
+        initial_price = page.evaluate("""() => {
+            const el = document.querySelector('[class*="price" i], .price, [data-price]');
+            return el ? el.innerText.trim() : '';
+        }""")
+        
+        if variants[1].is_visible():
+            variants[1].click()
+            page.wait_for_timeout(1500)
             
+            new_price = page.evaluate("""() => {
+                const el = document.querySelector('[class*="price" i], .price, [data-price]');
+                return el ? el.innerText.trim() : '';
+            }""")
+            atc_disabled = page.evaluate("""() => {
+                const btn = document.querySelector('button[name="add"], .single_add_to_cart_button, [data-add-to-cart]');
+                return btn ? (btn.disabled || btn.classList.contains('disabled') || window.getComputedStyle(btn).opacity < 0.5) : false;
+            }""")
+            
+            if initial_price == new_price and initial_price:
+                findings["issues"].append({
+                    "code": "variant_price_update_failed", "severity": "high", "confidence": "VERIFIED",
+                    "description": "Product price does not update when a variant (size/color) is selected.",
+                    "evidence": f"Price remained '{initial_price}' after selecting a different variant.",
+                    "business_impact": "Shoppers lose trust if the price doesn't reflect their selection, leading to cart abandonment.",
+                    "fix": "Ensure variant selection triggers an immediate DOM update to the primary price element."
+                })
+            if atc_disabled:
+                findings["issues"].append({
+                    "code": "variant_atc_disabled", "severity": "high", "confidence": "VERIFIED",
+                    "description": "Add to Cart button becomes disabled or unclickable when a variant is selected.",
+                    "evidence": "ATC button opacity dropped or disabled attribute was added after variant click.",
+                    "business_impact": "Shoppers are physically prevented from adding valid variant combinations to the cart.",
+                    "fix": "Check inventory management logic and ensure valid variants do not trigger 'Sold Out' states erroneously."
+                })
+    except Exception: pass
+
+def _audit_checkout_telemetry(page, findings, domain):
+    """Navigates to checkout to detect hidden fees and trust badge failures."""
+    try:
+        checkout_paths = [f"https://{domain}/checkout", f"https://{domain}/cart"]
+        loaded = False
+        for p in checkout_paths:
+            try:
+                resp = page.goto(p, timeout=6000, wait_until="domcontentloaded")
+                if resp and resp.status < 400: loaded = True; break
+            except Exception: continue
+        if not loaded: return
+        
+        page.wait_for_timeout(1500)
+        checkout_data = page.evaluate("""() => {
+            const text = document.body ? document.body.innerText.toLowerCase() : '';
+            const hasTrustBadges = document.querySelectorAll('img[alt*="secure" i], img[alt*="guarantee" i], [class*="trust-badge" i], svg[aria-label*="secure" i]').length > 0;
+            const hasHiddenFees = /surcharge|handling fee|service fee|environmental fee/.test(text);
+            const hasProgress = document.querySelector('[class*="progress" i], [class*="step" i], [aria-label*="checkout step" i]') !== null;
+            return { hasTrustBadges, hasHiddenFees, hasProgress };
+        }""")
+        
+        if not checkout_data.get('hasTrustBadges'):
+            findings["issues"].append({"code": "checkout_missing_trust_badges", "severity": "medium", "confidence": "VERIFIED", "description": "Checkout page lacks security trust badges (SSL, Guarantees).", "evidence": "No secure checkout imagery detected near the payment form.", "business_impact": "Shoppers abandon carts at checkout without visual reassurance of payment security.", "fix": "Add 'Secure SSL Checkout' and payment gateway logos directly above the payment button."})
+        if checkout_data.get('hasHiddenFees'):
+            findings["issues"].append({"code": "checkout_hidden_fees_detected", "severity": "high", "confidence": "VERIFIED", "description": "Surprise fees (handling, service) detected in the checkout text.", "evidence": "Regex matched penalty terms like 'handling fee' or 'surcharge'.", "business_impact": "48% of abandonments happen because extra costs were unexpected at checkout.", "fix": "Roll all handling fees into the base product price or shipping cost to maintain transparency."})
+        if not checkout_data.get('hasProgress'):
+            findings["issues"].append({"code": "checkout_missing_progress", "severity": "low", "confidence": "VERIFIED", "description": "No multi-step progress indicator found in the checkout flow.", "evidence": "No 'Step 1 of 3' or progress bar DOM detected.", "business_impact": "Shoppers feel trapped without knowing how many steps remain to complete their purchase.", "fix": "Implement a clear 'Cart > Shipping > Payment' progress bar at the top of the checkout template."})
+    except Exception: pass
+
+def _sample_product_integrity(page, domain, findings, primary_url):
+    """Checks 2 additional products to confirm if critical bugs are site-wide."""
+    try:
+        page.goto(f"https://{domain}/collections/all", timeout=8000, wait_until="domcontentloaded")
+        page.wait_for_timeout(1500)
+        links = page.evaluate("""() => Array.from(document.querySelectorAll('a[href*="/products/"], a[href*="/product/"], a[href*="/p/"]')).map(a => a.href).slice(0, 10)""")
+        samples = list(set([l for l in links if l != primary_url and ('/products/' in l or '/product/' in l or '/p/' in l)]))[:2]
+        if not samples: return
+        
+        site_wide_atc_missing = 0
+        site_wide_schema_missing = 0
+        for url in samples:
+            try:
+                page.goto(url, timeout=6000, wait_until="domcontentloaded")
+                page.wait_for_timeout(1000)
+                checks = page.evaluate("""() => {
+                    const hasAtc = document.querySelector('button[name="add"], .single_add_to_cart_button, [data-add-to-cart]') !== null;
+                    const hasSchema = document.querySelectorAll('script[type="application/ld+json"]').some(s => s.innerText.includes('"@type"') && s.innerText.includes('Product'));
+                    return { hasAtc, hasSchema };
+                }""")
+                if not checks.get('hasAtc'): site_wide_atc_missing += 1
+                if not checks.get('hasSchema'): site_wide_schema_missing += 1
+            except Exception: continue
+            
+        if site_wide_atc_missing == len(samples):
+            findings["notes"] += "site_wide_atc_failure_confirmed. "
+            for issue in findings["issues"]:
+                if issue.get("code") in ["no_add_to_cart_found", "atc_missing"]:
+                    issue["business_impact"] += " (CONFIRMED SITE-WIDE BUG: Tested across multiple products)."
+        if site_wide_schema_missing == len(samples):
+            findings["notes"] += "site_wide_schema_failure_confirmed. "
+            for issue in findings["issues"]:
+                if issue.get("code") in ["missing_product_schema", "schema_missing"]:
+                    issue["business_impact"] += " (CONFIRMED SITE-WIDE BUG: Tested across multiple products)."
+    except Exception: pass
+
+
+def _attempt_interactive_waf_solve(page):
+    """Attempts to interactively solve Cloudflare Turnstile or hCaptcha via humanized clicks."""
+    try:
+        page.wait_for_timeout(2500) # Wait for challenge iframe to inject
+        for frame in page.frames:
+            frame_url = frame.url.lower()
+            if any(sig in frame_url for sig in ['challenges.cloudflare.com', 'hcaptcha.com', 'recaptcha']):
+                checkbox_selectors = [
+                    'input[type="checkbox"]', '.mark', '#challenge-stage input[type="checkbox"]',
+                    'label.ctp-checkbox-label', '[aria-label*="verify" i]', '[aria-label*="human" i]',
+                    'button:has-text("Verify")', 'button:has-text("I am human")',
+                ]
+                for sel in checkbox_selectors:
+                    try:
+                        el = frame.query_selector(sel)
+                        if el and el.is_visible():
+                            box = el.bounding_box()
+                            if box:
+                                import random
+                                # Humanized mouse movement and click
+                                page.mouse.move(box['x'] + box['width']/2 + random.uniform(-2, 2), box['y'] + box['height']/2 + random.uniform(-2, 2))
+                                page.wait_for_timeout(random.randint(100, 300))
+                                page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
+                            else:
+                                el.click()
+                            
+                            page.wait_for_timeout(5000) # Wait for CF to process and redirect
+                            
+                            # Verify solve
+                            current_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 1000) : ''")
+                            current_title = page.title().lower()
+                            waf_sigs = ['just a moment', 'verify you are human', 'attention required', 'checking your browser']
+                            if not any(sig in current_text or sig in current_title for sig in waf_sigs):
+                                return True # Solved!
+                    except Exception:
+                        continue
+        return False
     except Exception:
-        pass
+        return False
 
 def audit_site(domain: str) -> dict:
+    import uuid as _uuid
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
-        "checks_completed": {"speed": False, "atc_probe": False, "seo": False, "cwv": False},
-        "issues": [], "screenshot_path": None, "popup_screenshot_path": None,
+        "checks_completed": {"speed": False, "atc_probe": False, "seo": False, "cwv": False, "homepage": False, "collection": False, "advanced_ux": False, "enterprise_heuristics": False, "funnel_cart": False},
+        "issues": [], "annotations": [], "screenshot_path": None, "popup_screenshot_path": None,
         "notes": "", "error": None, "platform": "custom",
+        "run_id": str(_uuid.uuid4())[:8], "engine_version": "v60.4",
+        "viewport": f"{MOBILE_VIEWPORT.get('width', 390)}x{MOBILE_VIEWPORT.get('height', 844)}",
     }
     safe = domain.replace(".", "_")
     viewport_h = MOBILE_VIEWPORT.get("height", 844)
@@ -655,40 +657,23 @@ def audit_site(domain: str) -> dict:
     console_errors: list[str] = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=False,
-            args=["--disable-blink-features=AutomationControlled"],
-        )
+        browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
         context = browser.new_context(
-            viewport=MOBILE_VIEWPORT,
-            user_agent=(
-                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-                "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
-                "Mobile/15E148 Safari/604.1"
-            ),
-            has_touch=True,
-            ignore_https_errors=True,
+            viewport=MOBILE_VIEWPORT, has_touch=True, ignore_https_errors=True,
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         )
         page = context.new_page()
-        # Industrial WAF evasion via playwright-stealth (replaces manual init_script)
         try:
             from playwright_stealth import stealth_sync
             stealth_sync(page)
         except ImportError:
-            # Fallback to manual stealth if library missing
             page.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                 window.chrome = { runtime: {} };
                 Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
                 Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
             """)
-        
-        # HOMEPAGE & AWARENESS HOOK (called unconditionally - same module)
-        try:
-            _audit_homepage_and_awareness(page, findings)
-        except Exception as _e:
-            findings["notes"] += f"homepage_awareness_failed: {_e}. "
-            
+
         page.on("request", lambda req: seen_urls.append(req.url))
         page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
 
@@ -699,27 +684,38 @@ def audit_site(domain: str) -> dict:
                 page.wait_for_timeout(1000)
                 if "_audit_homepage_and_awareness" in globals():
                     _audit_homepage_and_awareness(page, findings)
+                    findings["checks_completed"]["homepage"] = True
             except Exception:
                 pass
 
             product_url = find_a_product_url(page, domain)
             if not product_url:
-                # NUCLEAR FALLBACK: D2C & Subscription brands convert directly on the homepage.
                 product_url = f"https://{domain}"
                 findings["notes"] += "homepage_audited_as_primary_conversion_surface. "
                 findings["product_url"] = product_url
 
             findings["product_url"] = product_url
             start = time.time()
+
+            # Pre-flight WAF probe
+            try:
+                from curl_cffi import requests as cffi_requests
+                probe = cffi_requests.get(product_url, impersonate="chrome120", timeout=10)
+                if probe.status_code == 200:
+                    probe_lower = probe.text.lower()
+                    waf_sigs = ['just a moment', 'verify you are human', 'challenge-platform', 'cf-turnstile', 'hcaptcha', 'g-recaptcha', 'attention required', 'checking your browser', 'ray id']
+                    if any(sig in probe_lower for sig in waf_sigs):
+                        findings["notes"] += "waf_detected_preflight_will_attempt_interactive_solve. "
+            except Exception:
+                pass
+
             if not _goto_resilient(page, product_url):
-                # ENTERPRISE TIMEOUT FALLBACK: If Playwright fails, use curl_cffi stealth fetch
                 try:
                     from curl_cffi import requests as cffi_requests
                     r = cffi_requests.get(product_url, timeout=15, impersonate="chrome120")
                     if r.status_code == 200 and len(r.text) > 500:
-                        findings["load_time_ms"] = 9999 # Flag as slow/fallback
+                        findings["load_time_ms"] = 9999
                         findings["notes"] += "playwright_timeout_used_curl_cffi_fallback. "
-                        # Inject basic HTML into page via data URI or evaluate
                         page.goto(f"data:text/html;charset=utf-8,{r.text[:50000].replace('#', '%23')}")
                     else:
                         findings["error"] = "timeout"
@@ -729,80 +725,44 @@ def audit_site(domain: str) -> dict:
                     findings["error"] = "timeout"
                     browser.close()
                     return findings
-            
-            # FORCE CSS NUKE: Neutralize overlays immediately before DOM settles
+
             try:
                 from revenue_leak_engine.audit.popup_handler import REMOVE_OVERLAY_JS
                 page.evaluate(REMOVE_OVERLAY_JS)
             except Exception:
                 pass
-            # WAF & CAPTCHA AWARENESS PROTOCOL (Bypass instead of abort)
+                
+            # WAF & CAPTCHA AWARENESS PROTOCOL
             if _check_waf_block(page):
-                findings["notes"] += "waf_detected_attempting_bypass. "
-                try:
-                    from curl_cffi import requests as cffi_requests
-                    from bs4 import BeautifulSoup
-                    r = cffi_requests.get(product_url, impersonate="chrome120", timeout=20)
-                    if r.status_code == 200 and len(r.text) > 1000:
-                        soup = BeautifulSoup(r.text, 'html.parser')
-                        title = soup.title.string.strip() if soup.title and soup.title.string else ""
-                        meta_tag = soup.find('meta', attrs={'name': 'description'})
-                        meta_content = meta_tag.get('content', '').strip() if meta_tag and meta_tag.get('content') else ""
-                        h1 = soup.find('h1')
-                        atc_text = soup.find(string=re.compile(r'add to cart|subscribe|buy now', re.I))
-                        
-                        findings["load_time_ms"] = int(r.elapsed.total_seconds() * 1000)
-                        findings["checks_completed"]["speed"] = True
-                        findings["checks_completed"]["seo"] = True
-                        findings["screenshot_context"] = "WAF Bypass: Audit conducted via curl_cffi stealth client. Visual evidence unavailable due to Turnstile/CAPTCHA."
-                        
-                        if len(title) > 60:
-                            findings["issues"].append({"code": "poor_title_tag", "severity": "medium", "confidence": "VERIFIED", "description": f"Page title is {len(title)} chars (target: 30-60).", "evidence": f"Title: '{title[:50]}...'", "fix": "Rewrite title to 30-60 chars, front-loading primary keyword.", "business_impact": "Long titles truncate in SERPs, reducing CTR."})
-                        if len(meta_content) < 120:
-                            findings["issues"].append({"code": "poor_meta_description", "severity": "low", "confidence": "VERIFIED", "description": f"Meta description is {len(meta_content)} chars (target: 120-160).", "evidence": f"Meta: '{meta_content[:50]}...'" if meta_content else "Meta missing.", "fix": "Write 120-160 char benefit-driven meta with clear CTA.", "business_impact": "Missing meta lets Google pick random snippets."})
-                        if not atc_text:
-                            findings["issues"].append({"code": "no_add_to_cart_found", "severity": "high", "confidence": "VERIFIED", "description": "No Add to Cart button detected via WAF bypass.", "evidence": "Raw HTML search found no purchase intent elements.", "fix": "Ensure visible, clearly labelled ATC button on mobile PDP.", "business_impact": "Shoppers cannot buy."})
-                        
-                        # Skip Playwright-dependent checks but return valid findings
+                findings["notes"] += "waf_detected_attempting_interactive_solve. "
+                if _attempt_interactive_waf_solve(page):
+                    findings["notes"] += "waf_solved_interactively. "
+                    page.wait_for_timeout(2000)
+                else:
+                    if _curl_cffi_fallback_audit(product_url, findings, "waf_post_load"):
                         browser.close()
                         return findings
-                except Exception as _e:
-                    findings["error"] = f"waf_bypass_failed: {_e}"
-                    browser.close()
-                    return findings
 
             findings["load_time_ms"] = _perf_load_ms(page)
-            findings["checks_completed"]["speed"] = True or int((time.time() - start) * 1000)
-            
-            # ROBUST PLATFORM DETECTION (via HTML CDN signatures)
+            findings["checks_completed"]["speed"] = True
+
             try:
                 html_has_plat = page.evaluate("() => document.documentElement.outerHTML.slice(0, 400000)")
                 html_lower = html_has_plat.lower()
-                if 'cdn.shopify.com' in html_lower or 'shopify-checkout' in html_lower or 'window.shopify' in html_lower:
-                    platform = 'shopify'
-                elif 'woocommerce' in html_lower or 'wp-content/plugins/woocommerce' in html_lower or 'wp-json/wc/' in html_lower:
-                    platform = 'woocommerce'
-                elif 'bigcommerce' in html_lower or 'cdn11.bigcommerce.com' in html_lower:
-                    platform = 'bigcommerce'
-                elif 'x-magento-init' in html_lower or 'mage/cookies' in html_lower or 'magento_version' in html_lower:
-                    platform = 'magento'
-                elif 'squarespace' in html_lower or 'static1.1.sqsp.net' in html_lower or 'squarespace-cdn.com' in html_lower:
-                    platform = 'squarespace'
-                elif 'wixstatic.com' in html_lower or 'wix.com' in html_lower:
-                    platform = 'wix'
-                elif 'prestashop' in html_lower or 'presta' in html_lower:
-                    platform = 'prestashop'
-                elif '3dcart' in html_lower or 'shift4shop' in html_lower:
-                    platform = 'shift4shop'
-                elif 'demandware' in html_lower or 'salesforce commerce cloud' in html_lower or 'sfcc' in html_lower:
-                    platform = 'salesforce'
-                elif 'vtex' in html_lower or 'vteximg' in html_lower or 'vtexcommercestable' in html_lower:
-                    platform = 'vtex'
-                else:
-                    platform = 'custom'
+                if 'cdn.shopify.com' in html_lower or 'shopify-checkout' in html_lower or 'window.shopify' in html_lower: platform = 'shopify'
+                elif 'woocommerce' in html_lower or 'wp-content/plugins/woocommerce' in html_lower or 'wp-json/wc/' in html_lower: platform = 'woocommerce'
+                elif 'bigcommerce' in html_lower or 'cdn11.bigcommerce.com' in html_lower: platform = 'bigcommerce'
+                elif 'x-magento-init' in html_lower or 'mage/cookies' in html_lower or 'magento_version' in html_lower: platform = 'magento'
+                elif 'squarespace' in html_lower or 'static1.1.sqsp.net' in html_lower or 'squarespace-cdn.com' in html_lower: platform = 'squarespace'
+                elif 'wixstatic.com' in html_lower or 'wix.com' in html_lower: platform = 'wix'
+                elif 'prestashop' in html_lower or 'presta' in html_lower: platform = 'prestashop'
+                elif '3dcart' in html_lower or 'shift4shop' in html_lower: platform = 'shift4shop'
+                elif 'demandware' in html_lower or 'salesforce commerce cloud' in html_lower or 'sfcc' in html_lower: platform = 'salesforce'
+                elif 'vtex' in html_lower or 'vteximg' in html_lower or 'vtexcommercestable' in html_lower: platform = 'vtex'
+                else: platform = 'custom'
                 findings["platform"] = platform
             except Exception:
-                pass # Falls back to "custom" initialized at the top
+                pass
 
             head = _page_text_head(page)
             if any(s in head for s in CHALLENGE_SIGS):
@@ -816,12 +776,37 @@ def audit_site(domain: str) -> dict:
                 browser.close()
                 return findings
 
-            page.wait_for_timeout(2500)  # let delayed overlays appear
+            page.wait_for_timeout(2500)
+            
+            # Human-like behavior to help bypass WAF behavioral analysis
+            try:
+                import random
+                page.mouse.move(100 + random.randint(-20, 20), 200 + random.randint(-20, 20))
+                page.mouse.wheel(0, 300)
+                page.wait_for_timeout(600)
+                page.mouse.wheel(0, -150)
+            except Exception:
+                pass
 
-            # ---- overlays: evidence first, then dismiss ----
+            # POST-LOAD WAF VERIFICATION
+            try:
+                page_title = page.title().lower()
+                page_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 1000) : ''")
+                waf_sigs_post = ['just a moment', 'verify you are human', 'attention required', 'checking your browser', 'cloudflare']
+                is_waf = any(sig in page_title or sig in page_text for sig in waf_sigs_post)
+                if is_waf:
+                    if _attempt_interactive_waf_solve(page):
+                        findings["notes"] += "waf_solved_interactively_post_load. "
+                        page.wait_for_timeout(2000)
+                    else:
+                        if _curl_cffi_fallback_audit(product_url, findings, "waf_post_load_verify"):
+                            browser.close()
+                            return findings
+            except Exception:
+                pass
+
             overlay = detect_overlay(page)
             if overlay.get("blocked"):
-                # P1 VISUAL PROOF: Capture bounding box for annotation before dismissal
                 try:
                     overlay_box = page.evaluate("""
                         () => {
@@ -838,24 +823,18 @@ def audit_site(domain: str) -> dict:
                             return null;
                         }
                     """)
-                    if overlay_box:
-                        findings["popup_annotation"] = [overlay_box]
+                    if overlay_box: findings["popup_annotation"] = [overlay_box]
                 except Exception: pass
                 kind = classify_overlay(overlay)
                 popup_shot = SCREENSHOTS_DIR / f"{safe}_popup.png"
                 page.screenshot(path=str(popup_shot), full_page=False)
                 findings["popup_screenshot_path"] = str(popup_shot)
-                if kind == "marketing_popup":
-                    findings["notes"] += f"marketing_popup_detected_and_dismissed. "
-                    # Human auditor principle: If we successfully closed it, it's not a critical revenue leak.
-                else:
-                    findings["notes"] += f"Overlay on load ({kind}) dismissed; not counted as a leak. "
+                if kind == "marketing_popup": findings["notes"] += f"marketing_popup_detected_and_dismissed. "
+                else: findings["notes"] += f"Overlay on load ({kind}) dismissed; not counted as a leak. "
                 actions = dismiss_overlays(page)
-                if actions:
-                    findings["notes"] += f"Overlay dismissed via: {', '.join(actions)}. "
+                if actions: findings["notes"] += f"Overlay dismissed via: {', '.join(actions)}. "
 
             if detect_overlay(page).get("blocked"):
-                # Last resort: aggressive DOM cleanup before giving up
                 try:
                     page.evaluate("""() => {
                         document.querySelectorAll('[class*="modal"], [class*="popup"], [class*="overlay"], [class*="dialog"], [id*="modal"], [id*="popup"]').forEach(el => {
@@ -866,75 +845,43 @@ def audit_site(domain: str) -> dict:
                         document.body.style.overflow = '';
                     }""")
                     page.wait_for_timeout(500)
-                except Exception:
-                    pass
+                except Exception: pass
 
             overlay_blocked = detect_overlay(page).get("blocked")
             skip_interactive = False
             if overlay_blocked:
                 findings["notes"] += "unclosable_overlay_detected_interactive_checks_skipped. "
                 skip_interactive = True
-                findings["issues"].append({
-                    "code": "unclosable_overlay",
-                    "description": "A viewport-blocking overlay could not be automatically dismissed.",
-                    "evidence": "Overlay persisted after dismissal attempts and DOM nuke.",
-                    "severity": "high", "confidence": "VERIFIED",
-                    "business_impact": "Viewport-blocking overlays without accessible dismissals cause immediate user abandonment and trigger SEO penalties.",
-                    "fix": "Ensure marketing popups have a visible, accessible close button and do not block immediate page interaction."
-                })
+                findings["issues"].append({"code": "unclosable_overlay", "description": "A viewport-blocking overlay could not be automatically dismissed.", "evidence": "Overlay persisted after dismissal attempts and DOM nuke.", "severity": "high", "confidence": "VERIFIED", "business_impact": "Viewport-blocking overlays without accessible dismissals cause immediate user abandonment.", "fix": "Ensure marketing popups have a visible, accessible close button."})
 
-            # DOM STABILITY: Wait for JS rendering to settle before element queries
-            try:
-                page.wait_for_load_state("networkidle", timeout=8000)
-            except Exception:
-                pass
+            try: page.wait_for_load_state("networkidle", timeout=8000)
+            except Exception: pass
             page.wait_for_timeout(1000)
 
             shot_path = SCREENSHOTS_DIR / f"{safe}.png"
             page.screenshot(path=str(shot_path), full_page=False)
-            # DYNAMIC SCREENSHOT CONTEXT
             _ctx = "Mobile Viewport: Clean page load. Primary CTA verified."
-            if "unclosable_overlay" in findings.get("notes", ""):
-                _ctx = "Mobile Viewport: Unclosable overlay detected. Interactive checks skipped."
-            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower():
-                _ctx = "Mobile Viewport: Overlay dismissed. Buy box verified visible."
+            if "unclosable_overlay" in findings.get("notes", ""): _ctx = "Mobile Viewport: Unclosable overlay detected. Interactive checks skipped."
+            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower(): _ctx = "Mobile Viewport: Overlay dismissed. Buy box verified visible."
             findings["screenshot_context"] = _ctx
             findings["screenshot_path"] = str(shot_path)
 
-            # ---- CRO / SPEED / SEO checks (no clicks yet) ----
             cwv = _extract_cwv_and_friction(page)
+            findings["checks_completed"]["cwv"] = True
             findings["cwv"] = cwv
             if cwv.get("lcp", 0) > 2500:
-                findings["issues"].append({
-                    "code": "poor_lcp",
-                    "description": f"Largest Contentful Paint (LCP) is {cwv['lcp']}ms (target <2500ms).",
-                    "evidence": f"LCP: {cwv['lcp']}ms",
-                    "severity": "high", "confidence": "high",
-                    "fix": "Optimize hero image delivery, preload critical fonts, and reduce server response time (TTFB)."
-                })
+                findings["issues"].append({"code": "poor_lcp", "description": f"Largest Contentful Paint (LCP) is {cwv['lcp']}ms (target <2500ms).", "evidence": f"LCP: {cwv['lcp']}ms", "severity": "high", "confidence": "high", "fix": "Optimize hero image delivery, preload critical fonts, and reduce server response time (TTFB)."})
             if cwv.get("cls", 0) > 0.1:
-                findings["issues"].append({
-                    "code": "poor_cls",
-                    "description": f"Cumulative Layout Shift (CLS) is {cwv['cls']} (target <0.1).",
-                    "evidence": f"CLS: {cwv['cls']}",
-                    "severity": "medium", "confidence": "high",
-                    "fix": "Reserve space for images/video embeds and avoid injecting dynamic content above the fold without placeholders."
-                })
+                findings["issues"].append({"code": "poor_cls", "description": f"Cumulative Layout Shift (CLS) is {cwv['cls']} (target <0.1).", "evidence": f"CLS: {cwv['cls']}", "severity": "medium", "confidence": "high", "fix": "Reserve space for images/video embeds and avoid injecting dynamic content above the fold without placeholders."})
             _check_load_speed(findings)
             atc_btn = _check_add_to_cart(page, findings, viewport_h)
-            
+            findings["checks_completed"]["atc_probe"] = True
+
             if atc_btn and not cwv.get("touch_target_ok"):
-                findings["issues"].append({
-                    "code": "small_touch_target",
-                    "description": "Add to Cart button is smaller than 32x32px on mobile.",
-                    "evidence": "Touch target analysis failed minimum 32px requirement.",
-                    "severity": "medium", "confidence": "high",
-                    "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."
-                })
+                findings["issues"].append({"code": "small_touch_target", "description": "Add to Cart button is smaller than 32x32px on mobile.", "evidence": "Touch target analysis failed minimum 32px requirement.", "severity": "medium", "confidence": "high", "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."})
             pdp_express = False
             if not skip_interactive:
                 pdp_express = _visible_any(page, EXPRESS_SELECTOR)
-                # Shadow DOM fallback for express checkout web components
                 if not pdp_express:
                     try:
                         pdp_express = page.evaluate("""
@@ -949,328 +896,195 @@ def audit_site(domain: str) -> dict:
                                 return false;
                             }
                         """)
-                    except Exception:
-                        pass
+                    except Exception: pass
             _check_reviews(page, findings)
             _check_trust_signals(page, findings)
             _check_heavy_images(page, findings)
             _check_script_bloat(page, findings)
             _check_console_errors(findings, console_errors)
             _check_seo(page, findings)
-            # Technical SEO (Isolated Module)
             audit_seo_onpage(page, findings)
             findings["checks_completed"]["seo"] = True
 
-            # ---- tracking presence (from observed network + DOM) ----
             html_has = page.evaluate("() => document.documentElement.outerHTML.slice(0, 400000)")
             meta_pixel = any("facebook.com/tr" in u or "connect.facebook.net" in u for u in seen_urls) or "fbq" in html_has
             tiktok_pixel = any("analytics.tiktok.com" in u for u in seen_urls) or "ttq" in html_has
             ga4 = any("googletagmanager.com/gtag" in u or "/g/collect" in u for u in seen_urls) or "gtag(" in html_has
-            if not meta_pixel:
-                findings["issues"].append({
-                    "code": "meta_pixel_missing",
-                    "description": "Meta (Facebook/Instagram) Pixel not detected on the product page.",
-                    "evidence": "no facebook.com/tr request and no fbq in page HTML",
-                    "severity": "medium", "confidence": "high",
-                    "fix": get_pixel_fix(findings.get("platform", "custom")),
-                })
-            if not tiktok_pixel:
-                findings["issues"].append({
-                    "code": "tiktok_pixel_missing",
-                    "description": "TikTok Pixel not detected.",
-                    "evidence": "no analytics.tiktok.com request and no ttq in page HTML",
-                    "severity": "low", "confidence": "high",
-                    "fix": get_tiktok_fix(findings.get("platform", "custom")),
-                })
-            if not ga4:
-                findings["issues"].append({
-                    "code": "ga4_missing",
-                    "description": "Google Analytics 4 not detected.",
-                    "evidence": "no gtag/collect requests and no gtag in page HTML",
-                    "severity": "low", "confidence": "high",
-                    "fix": "Add GA4 with e-commerce events to measure what ads and CRO changes actually do.",
-                })
+            if not meta_pixel: findings["issues"].append({"code": "meta_pixel_missing", "description": "Meta (Facebook/Instagram) Pixel not detected on the product page.", "evidence": "no facebook.com/tr request and no fbq in page HTML", "severity": "medium", "confidence": "high", "fix": get_pixel_fix(findings.get("platform", "custom"))})
+            if not tiktok_pixel: findings["issues"].append({"code": "tiktok_pixel_missing", "description": "TikTok Pixel not detected.", "evidence": "no analytics.tiktok.com request and no ttq in page HTML", "severity": "low", "confidence": "high", "fix": get_tiktok_fix(findings.get("platform", "custom"))})
+            if not ga4: findings["issues"].append({"code": "ga4_missing", "description": "Google Analytics 4 not detected.", "evidence": "no gtag/collect requests and no gtag in page HTML", "severity": "low", "confidence": "high", "fix": "Add GA4 with e-commerce events to measure what ads and CRO changes actually do."})
 
-            # ---- cart probe: ONE safe click, multiple observations ----
             if not skip_interactive and atc_btn is not None:
                 req_before = len(seen_urls)
-                try:
-                    dl_before = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
-                except Exception:
-                    dl_before = 0
+                try: dl_before = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
+                except Exception: dl_before = 0
                 url_before = page.url
                 try:
                     if atc_btn == "JS_BTN":
                         page.evaluate("""
                             () => {
                                 const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button"];
-                                const textMatches = (el) => {
-                                    const t = (el.innerText || el.textContent || "").toLowerCase();
-                                    return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now');
-                                };
+                                const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now'); };
                                 const searchRoot = (root) => {
-                                    for (const sel of selectors) {
-                                        const el = root.querySelector(sel);
-                                        if (el) return el;
-                                    }
-                                    for (const btn of root.querySelectorAll('button, [role="button"]')) {
-                                        if (textMatches(btn)) return btn;
-                                    }
+                                    for (const sel of selectors) { const el = root.querySelector(sel); if (el) return el; }
+                                    for (const btn of root.querySelectorAll('button, [role="button"]')) { if (textMatches(btn)) return btn; }
                                     return null;
                                 };
                                 let found = searchRoot(document);
-                                if (!found) {
-                                    for (const node of document.querySelectorAll('*')) {
-                                        if (node.shadowRoot) {
-                                            found = searchRoot(node.shadowRoot);
-                                            if (found) break;
-                                        }
-                                    }
-                                }
+                                if (!found) { for (const node of document.querySelectorAll('*')) { if (node.shadowRoot) { found = searchRoot(node.shadowRoot); if (found) break; } } }
                                 if (found) found.click();
                             }
                         """)
-                    else:
-                        atc_btn.click(timeout=1500)
+                    else: atc_btn.click(timeout=1500)
                     page.wait_for_timeout(1500)
-                except Exception:
-                    pass
-                # Navigation guard: if page navigated, wait for stability
+                except Exception: pass
                 try:
-                    if page.url != url_before:
-                        page.wait_for_load_state("domcontentloaded", timeout=5000)
-                except Exception:
-                    pass
+                    if page.url != url_before: page.wait_for_load_state("domcontentloaded", timeout=5000)
+                except Exception: pass
 
-                if not pdp_express and _visible_any(page, EXPRESS_SELECTOR):
-                    pass  # express exists in cart drawer -> no issue
-                elif not pdp_express:
-                    findings["issues"].append({
-                        "code": "no_express_checkout",
-                        "description": "No express checkout (Shop Pay/Apple Pay) on PDP or in the cart drawer.",
-                        "evidence": "not visible on PDP nor after a safe Add-to-Cart click",
-                        "severity": "medium", "confidence": "high",
-                        "fix": get_express_fix(findings.get("platform", "custom")),
-                    })
+                if not pdp_express and _visible_any(page, EXPRESS_SELECTOR): pass
+                elif not pdp_express: findings["issues"].append({"code": "no_express_checkout", "description": "No express checkout (Shop Pay/Apple Pay) on PDP or in the cart drawer.", "evidence": "not visible on PDP nor after a safe Add-to-Cart click", "severity": "medium", "confidence": "high", "fix": get_express_fix(findings.get("platform", "custom"))})
 
-                event_seen = any(
-                    ("facebook.com/tr" in u or "/g/collect" in u or "analytics.tiktok.com" in u)
-                    for u in seen_urls[req_before:]
-                )
-                try:
-                    dl_after = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
-                except Exception:
-                    dl_after = 0
+                event_seen = any(("facebook.com/tr" in u or "/g/collect" in u or "analytics.tiktok.com" in u) for u in seen_urls[req_before:])
+                try: dl_after = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
+                except Exception: dl_after = 0
                 if (meta_pixel or ga4 or tiktok_pixel) and not event_seen and dl_after <= dl_before:
-                    findings["issues"].append({
-                        "code": "add_to_cart_event_missing",
-                        "description": "Pixels are installed but no AddToCart event fired when the button was clicked.",
-                        "evidence": "no pixel request and no dataLayer growth within 1.5s of a real Add-to-Cart click",
-                        "severity": "medium", "confidence": "medium",
-                        "fix": "Wire the add_to_cart / AddToCart event in the pixel setup (Shopify Facebook channel or GTM) so campaigns optimize on purchase intent.",
-                    })
+                    findings["issues"].append({"code": "add_to_cart_event_missing", "description": "Pixels are installed but no AddToCart event fired when the button was clicked.", "evidence": "no pixel request and no dataLayer growth within 1.5s of a real Add-to-Cart click", "severity": "medium", "confidence": "medium", "fix": "Wire the add_to_cart / AddToCart event in the pixel setup (Shopify Facebook channel or GTM)."})
 
                 navigated = page.url != url_before
-                drawer = page.query_selector(
-                    "[id*='cart-drawer' i], [class*='cart-drawer' i], [class*='mini-cart' i], [class*='cart-modal' i], "
-                    "cart-drawer, [id*='slide-cart' i], [class*='slide-cart' i], [class*='drawer' i][class*='cart' i]"
-                )
-                # Wait for dynamic drawer injection (common in headless/Shopify Plus)
+                drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], [class*='mini-cart' i], [class*='cart-modal' i], cart-drawer, [id*='slide-cart' i], [class*='slide-cart' i], [class*='drawer' i][class*='cart' i]")
                 if not drawer:
                     try:
                         page.wait_for_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]", state="attached", timeout=3000)
                         drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]")
-                    except Exception:
-                        pass
-                        
-                if navigated or not (drawer and drawer.is_visible()):
-                    findings["issues"].append({
-                        "code": "no_cart_drawer",
-                        "description": "Adding to cart leaves the product page (full-page cart) instead of opening a cart drawer.",
-                        "evidence": "URL changed or no visible drawer element after Add-to-Cart click",
-                        "severity": "low", "confidence": "medium",
-                        "fix": get_drawer_fix(findings.get("platform", "custom")),
-                    })
+                    except Exception: pass
 
-            # WIRE PREVIOUSLY-DEAD ENTERPRISE FUNCTIONS
+                if navigated or not (drawer and drawer.is_visible()):
+                    findings["issues"].append({"code": "no_cart_drawer", "description": "Adding to cart leaves the product page (full-page cart) instead of opening a cart drawer.", "evidence": "URL changed or no visible drawer element after Add-to-Cart click", "severity": "low", "confidence": "medium", "fix": get_drawer_fix(findings.get("platform", "custom"))})
+
             try:
                 _check_advanced_ux_seo(page, findings)
-            except Exception as _e:
-                findings["notes"] += f"advanced_ux_failed: {_e}. "
+                findings["checks_completed"]["advanced_ux"] = True
+            except Exception as _e: findings["notes"] += f"advanced_ux_failed: {_e}. "
             try:
                 _check_enterprise_heuristics(page, findings, findings.get("platform", "custom"))
-            except Exception as _e:
-                findings["notes"] += f"enterprise_heuristics_failed: {_e}. "
+                findings["checks_completed"]["enterprise_heuristics"] = True
+            except Exception as _e: findings["notes"] += f"enterprise_heuristics_failed: {_e}. "
 
-            # FUNNEL NAVIGATION: Probe Cart page for checkout friction
             try:
-                cart_urls = [
-                    f"https://{domain}/cart",
-                    f"https://{domain}/checkout",
-                    f"https://{domain}/basket",
-                    f"https://{domain}/bag",
-                ]
+                cart_urls = [f"https://{domain}/cart", f"https://{domain}/checkout", f"https://{domain}/basket", f"https://{domain}/bag"]
                 cart_loaded = False
                 for cu in cart_urls:
                     try:
                         resp = page.goto(cu, timeout=8000, wait_until="domcontentloaded")
-                        if resp and resp.status < 400:
-                            cart_loaded = True
-                            break
-                    except Exception:
-                        continue
+                        if resp and resp.status < 400: cart_loaded = True; break
+                    except Exception: continue
                 if cart_loaded:
                     page.wait_for_timeout(1500)
                     findings["checks_completed"]["funnel_cart"] = True
-                    # Check for express checkout, trust badges, shipping estimator on cart
                     cart_express = _visible_any(page, EXPRESS_SELECTOR)
                     if not cart_express:
                         try:
                             cart_express = page.evaluate("""
                                 () => {
                                     const sels = ['shop-pay-button', 'apple-pay-button', 'paypal-button'];
-                                    for (const sel of sels) {
-                                        if (document.querySelector(sel)) return true;
-                                        for (const node of document.querySelectorAll('*')) {
-                                            if (node.shadowRoot && node.shadowRoot.querySelector(sel)) return true;
-                                        }
-                                    }
+                                    for (const sel of sels) { if (document.querySelector(sel)) return true; for (const node of document.querySelectorAll('*')) { if (node.shadowRoot && node.shadowRoot.querySelector(sel)) return true; } }
                                     return false;
                                 }
                             """)
-                        except Exception:
-                            pass
-                    if not cart_express:
-                        findings["issues"].append({
-                            "code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED",
-                            "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).",
-                            "evidence": "No express wallet buttons detected on /cart or /checkout page.",
-                            "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.",
-                            "fix": get_express_fix(findings.get("platform", "custom")),
-                        })
-                    
-                    # Check for shipping estimator on cart
+                        except Exception: pass
+                    if not cart_express: findings["issues"].append({"code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).", "evidence": "No express wallet buttons detected on /cart or /checkout page.", "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.", "fix": get_express_fix(findings.get("platform", "custom"))})
                     cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
                     if not any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $']):
-                        findings["issues"].append({
-                            "code": "cart_no_shipping_estimator", "severity": "medium", "confidence": "VERIFIED",
-                            "description": "Cart page lacks shipping cost estimator or free-shipping threshold.",
-                            "evidence": "No shipping/delivery language found on cart page.",
-                            "business_impact": "Baymard: 48% of abandonments are due to surprise shipping costs at checkout.",
-                            "fix": "Add a dynamic 'Spend $X more for Free Shipping' progress bar and shipping estimator on the cart page.",
-                        })
-            except Exception as _e:
-                findings["notes"] += f"funnel_cart_probe_failed: {_e}. "
+                        findings["issues"].append({"code": "cart_no_shipping_estimator", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks shipping cost estimator or free-shipping threshold.", "evidence": "No shipping/delivery language found on cart page.", "business_impact": "Baymard: 48% of abandonments are due to surprise shipping costs at checkout.", "fix": "Add a dynamic 'Spend $X more for Free Shipping' progress bar and shipping estimator on the cart page."})
+            except Exception as _e: findings["notes"] += f"funnel_cart_probe_failed: {_e}. "
 
         except PWTimeout:
             findings["error"] = "timeout"
         except Exception as e:
             findings["error"] = f"audit_failed: {e}"
+            import traceback
+            findings["error_traceback"] = traceback.format_exc()
+            print(f"CRO AUDIT FAILED for {domain}: {e}")
         finally:
-            browser.close()
+            try: browser.close()
+            except Exception: pass
 
-    # ENTERPRISE SCORING PARITY: Calculate actual opportunity score based on issues
-    # Base score 10. High severity = -2, Medium = -1, Low = -0.5
-    score = 10.0
+    # CONFIDENCE ENGINE: Assign 0-100% confidence to every finding
     for issue in findings.get("issues", []):
-        sev = issue.get("severity", "low")
-        if sev == "high": score -= 2.0
-        elif sev == "medium": score -= 1.0
-        else: score -= 0.5
-    
-    # Absolute penalty for missing the revenue button
-    if any(i.get("code") == "no_add_to_cart_found" for i in findings.get("issues", [])):
-        score = min(score, 2.0) # Cannot score higher than 2 if the buy button is missing
-        
-    findings["opportunity_score"] = max(0.0, round(score, 1))
-    
-        
+        conf = issue.get("confidence", "")
+        if isinstance(conf, str):
+            conf_lower = conf.lower()
+            if conf_lower in ["verified", "high"]: issue["confidence_pct"] = 95
+            elif conf_lower in ["medium", "partial"]: issue["confidence_pct"] = 70
+            elif conf_lower in ["low", "unverified"]: issue["confidence_pct"] = 40
+            else: issue["confidence_pct"] = 50
+        elif isinstance(conf, (int, float)):
+            issue["confidence_pct"] = min(100, max(0, int(conf)))
+        else:
+            issue["confidence_pct"] = 50
+        # Boost confidence if we have visual evidence
+        if issue.get("code") in [a.get("type", "") for a in findings.get("annotations", [])]:
+            issue["confidence_pct"] = min(100, issue["confidence_pct"] + 5)
+
+    # DETERMINISM HASH: SHA-256 of sorted issue codes for regression detection
+    import hashlib as _hl
+    issue_sig = "|".join(sorted([i.get("code", "") for i in findings.get("issues", [])]))
+    findings["findings_hash"] = _hl.sha256(issue_sig.encode()).hexdigest()[:16]
+
+    # ENTERPRISE SCORING PARITY: Deduplicate BEFORE returning (by code AND text similarity)
+    seen_codes = set()
+    seen_texts = set()
+    deduped_issues = []
+    for issue in findings.get("issues", []):
+        code = issue.get("code")
+        desc = (issue.get("description") or issue.get("observation") or "").lower().strip()[:40]
+        if code and code in seen_codes: continue
+        if desc and desc in seen_texts: continue
+        if code: seen_codes.add(code)
+        if desc: seen_texts.add(desc)
+        deduped_issues.append(issue)
+
+    findings["issues"] = deduped_issues
     return findings
 
 
-# ---------------- individual checks ----------------
-
-
 def _safe_query(page, action_func, retries=2):
-    """Wraps DOM queries to catch 'Execution context was destroyed' during redirects."""
     for attempt in range(retries):
-        try:
-            return action_func()
+        try: return action_func()
         except Exception as e:
             if "Execution context was destroyed" in str(e) or "Target page, context or browser has been closed" in str(e):
-                try:
-                    page.wait_for_load_state("domcontentloaded", timeout=3000)
-                    page.wait_for_timeout(1000)
-                except Exception:
-                    pass
-            else:
-                raise
+                try: page.wait_for_load_state("domcontentloaded", timeout=3000); page.wait_for_timeout(1000)
+                except Exception: pass
+            else: raise
     return None
-
 
 def _visible_any(page, selector: str) -> bool:
     return any(b.is_visible() for b in page.query_selector_all(selector))
-
 
 def _check_load_speed(findings: dict):
     ms = findings["load_time_ms"]
     cwv = findings.get("cwv", {})
     lcp = cwv.get("lcp", 0)
-    
-    # Industrial Standard: LCP is the gold standard for perceived speed. 
-    # Raw load time is often inflated by third-party trackers.
     if lcp > 4000:
-        findings["issues"].append({
-            "code": "slow_lcp",
-            "description": f"Largest Contentful Paint (LCP) is {lcp}ms. Mobile users bounce if hero content takes >2.5s to render.",
-            "evidence": f"LCP: {lcp}ms (Target: <2500ms)",
-            "severity": "high", "confidence": "high",
-            "business_impact": "Slow LCP directly correlates with higher bounce rates and lower conversion on mobile networks.",
-            "fix": "Optimize hero image delivery (WebP/AVIF), preload critical fonts, and defer non-critical third-party scripts."
-        })
+        findings["issues"].append({"code": "slow_lcp", "description": f"Largest Contentful Paint (LCP) is {lcp}ms. Mobile users bounce if hero content takes >2.5s to render.", "evidence": f"LCP: {lcp}ms (Target: <2500ms)", "severity": "high", "confidence": "high", "business_impact": "Slow LCP directly correlates with higher bounce rates and lower conversion on mobile networks.", "fix": "Optimize hero image delivery (WebP/AVIF), preload critical fonts, and defer non-critical third-party scripts."})
     elif ms and ms > 8000 and lcp == 0:
-        findings["issues"].append({
-            "code": "slow_load_fallback",
-            "description": f"Total page load time is {ms}ms, indicating severe main-thread blocking.",
-            "evidence": f"{ms}ms measured via navigation timing.",
-            "severity": "medium", "confidence": "medium",
-            "fix": "Audit main-thread blocking scripts and compress above-the-fold imagery."
-        })
-
+        findings["issues"].append({"code": "slow_load_fallback", "description": f"Total page load time is {ms}ms, indicating severe main-thread blocking.", "evidence": f"{ms}ms measured via navigation timing.", "severity": "medium", "confidence": "medium", "fix": "Audit main-thread blocking scripts and compress above-the-fold imagery."})
 
 def _check_add_to_cart(page, findings, viewport_h: int):
-    # Industrial Upgrade: Pierce Shadow DOM and verify actual CSS visibility
     atc_data = page.evaluate("""
         () => {
-            const selectors = [
-                "button[name='add']", "[data-add-to-cart]",
-                ".single_add_to_cart_button", ".add_to_cart_button",
-                "form[action*='/cart/add'] button", "[data-action='add-to-cart']",
-                "button[type='submit'][class*='product']"
-            ];
-            const textMatches = (el) => {
-                const t = (el.innerText || el.textContent || "").toLowerCase();
-                return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now');
-            };
+            const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button", "form[action*='/cart/add'] button", "[data-action='add-to-cart']", "button[type='submit'][class*='product']"];
+            const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now'); };
             const searchRoot = (root) => {
-                for (const sel of selectors) {
-                    const el = root.querySelector(sel);
-                    if (el) return el;
-                }
-                for (const btn of root.querySelectorAll('button, [role="button"]')) {
-                    if (textMatches(btn)) return btn;
-                }
+                for (const sel of selectors) { const el = root.querySelector(sel); if (el) return el; }
+                for (const btn of root.querySelectorAll('button, [role="button"]')) { if (textMatches(btn)) return btn; }
                 return null;
             };
             const deepQuery = () => {
                 let found = searchRoot(document);
                 if (found) return found;
-                for (const node of document.querySelectorAll('*')) {
-                    if (node.shadowRoot) {
-                        found = searchRoot(node.shadowRoot);
-                        if (found) return found;
-                    }
-                }
+                for (const node of document.querySelectorAll('*')) { if (node.shadowRoot) { found = searchRoot(node.shadowRoot); if (found) return found; } }
                 return null;
             };
             const btn = deepQuery();
@@ -1278,213 +1092,82 @@ def _check_add_to_cart(page, findings, viewport_h: int):
             const rect = btn.getBoundingClientRect();
             const cs = window.getComputedStyle(btn);
             const is_visible = cs.display !== 'none' && cs.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-            return { found: true, visible: is_visible, width: rect.width, height: rect.height, y: rect.y, text: (btn.innerText || '').trim().slice(0, 50) };
+            return { found: true, visible: is_visible, width: rect.width, height: rect.height, x: rect.x, y: rect.y, text: (btn.innerText || '').trim().slice(0, 50) };
         }
     """)
-    
+
     if not atc_data.get("found"):
-        findings["issues"].append({
-            "code": "no_add_to_cart_found",
-            "description": "No Add to Cart button detected on the product page.",
-            "evidence": "Deep DOM & Shadow Root search returned no match.",
-            "severity": "high", "confidence": "high",
-            "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."
-        })
+        try:
+            atc_loc = page.get_by_role("button", name=re.compile(r"add|cart|buy|shop|subscribe", re.I)).first
+            if atc_loc and atc_loc.is_visible(timeout=3000):
+                atc_data["found"] = True; atc_data["visible"] = True
+                findings["notes"] += "atc_found_via_native_locator. "
+        except Exception: pass
+
+    if not atc_data.get("found"):
+        findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM & Shadow Root search returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
         return None
 
     if not atc_data.get("visible"):
-        # INDUSTRIAL PRINCIPLE: dimensions=0 through Shadow DOM is UNVERIFIED, not HIDDEN
         btn_text = atc_data.get("text", "")
         if btn_text and len(btn_text) > 3:
-            # Element has real text content — likely Shadow DOM measurement failure, not truly hidden
             findings["notes"] += f"atc_unmeasurable_shadow_dom: '{btn_text}'. "
             return "JS_BTN"
         else:
-            findings["issues"].append({
-                "code": "add_to_cart_not_visible",
-                "description": "Add to Cart button exists in DOM but appears hidden from the mobile viewport.",
-                "evidence": f"Element found but CSS hides it or dimensions are 0.",
-                "severity": "high", "confidence": "medium",
-                "fix": "Verify the buy box renders visibly on mobile; check for CSS display:none or zero-height containers."
-            })
+            findings["issues"].append({"code": "add_to_cart_not_visible", "description": "Add to Cart button exists in DOM but appears hidden from the mobile viewport.", "evidence": f"Element found but CSS hides it or dimensions are 0.", "severity": "high", "confidence": "medium", "fix": "Verify the buy box renders visibly on mobile; check for CSS display:none or zero-height containers."})
             return "JS_BTN"
 
     w, h = atc_data.get("width", 0), atc_data.get("height", 0)
-    # INDUSTRIAL PRINCIPLE: If dimensions are 0, measurement failed — do NOT report "too small"
     if 0 < w < 32 or 0 < h < 32:
-        findings["issues"].append({
-            "code": "small_touch_target",
-            "description": f"Add to Cart button ({int(w)}x{int(h)}px) is smaller than the 32x32px mobile minimum.",
-            "evidence": f"Touch target analysis: {int(w)}x{int(h)}px.",
-            "severity": "medium", "confidence": "high",
-            "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."
-        })
-        
+        findings["issues"].append({"code": "small_touch_target", "description": f"Add to Cart button ({int(w)}x{int(h)}px) is smaller than the 32x32px mobile minimum.", "evidence": f"Touch target analysis: {int(w)}x{int(h)}px.", "severity": "medium", "confidence": "high", "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."})
+        findings["annotations"].append({"type": "small_touch_target", "x": atc_data.get("x", 0), "y": atc_data.get("y", 0), "width": w, "height": h, "label": "Touch Target < 32px"})
+
     if atc_data.get("y", 0) > viewport_h * 0.95:
-        findings["issues"].append({
-            "code": "add_to_cart_below_fold",
-            "description": "Add to Cart sits below the mobile fold with no sticky purchase bar.",
-            "evidence": f"button top at y={int(atc_data.get('y', 0))} on a {viewport_h}px viewport",
-            "severity": "medium", "confidence": "high",
-            "fix": "Add a sticky mobile Add to Cart bar or move the buy box above the fold."
-        })
+        findings["issues"].append({"code": "add_to_cart_below_fold", "description": "Add to Cart sits below the mobile fold with no sticky purchase bar.", "evidence": f"button top at y={int(atc_data.get('y', 0))} on a {viewport_h}px viewport", "severity": "medium", "confidence": "high", "fix": "Add a sticky mobile Add to Cart bar or move the buy box above the fold."})
     return "JS_BTN"
-
-    if box["y"] <= viewport_h * 0.95:
-        return btn  # above the fold: ideal
-
-    page.evaluate("window.scrollTo(0, 800)")
-    page.wait_for_timeout(700)
-    sticky = page.evaluate("""
-        () => {
-            for (const b of document.querySelectorAll('button')) {
-                const t = (b.innerText || '').toLowerCase();
-                if (!/add to (cart|bag)|buy now/.test(t)) continue;
-                let n = b, depth = 0;
-                while (n && n !== document.body && depth < 6) {
-                    const cs = getComputedStyle(n);
-                    if (cs.position === 'fixed' || cs.position === 'sticky') {
-                        const r = n.getBoundingClientRect();
-                        if (r.top < innerHeight && r.bottom > 0 && r.height > 20) return true;
-                    }
-                    n = n.parentElement; depth++;
-                }
-            }
-            return false;
-        }
-    """)
-    if sticky:
-        return btn  # sticky purchase bar = good pattern
-
-    findings["issues"].append({
-        "code": "add_to_cart_below_fold",
-        "description": "Add to Cart sits below the mobile fold with no sticky purchase bar.",
-        "evidence": f"button top at y={int(box['y'])} on a {viewport_h}px viewport; no sticky bar after scroll",
-        "severity": "medium", "confidence": "high",
-        "fix": "Add a sticky mobile Add to Cart bar or move the buy box above the fold.",
-    })
-    return btn
-
 
 def _check_reviews(page, findings):
     widget = page.query_selector(REVIEW_APP_SELECTOR)
     visible_widget = widget.is_visible() if widget else False
     schema = page.evaluate("() => document.body.innerHTML.includes('aggregateRating')")
-    text_sig = page.evaluate(
-        "() => /\\d(\\.\\d+)?\\s*(reviews|ratings)|rated\\s\\d/i.test("
-        "(document.body.innerText || '').slice(0, 20000))"
-    )
+    text_sig = page.evaluate("() => /\\d(\\.\\d+)?\\s*(reviews|ratings)|rated\\s\\d/i.test((document.body.innerText || '').slice(0, 20000))")
     if not (visible_widget or schema or text_sig):
-        findings["issues"].append({
-            "code": "no_review_widget",
-            "description": "No social proof (reviews/ratings) detectable near the product.",
-            "evidence": "no review-app DOM, no aggregateRating schema, no 'N reviews' text",
-            "severity": "low", "confidence": "high",
-            "fix": "Add a review app (Judge.me/Loox/Yotpo) and surface the star rating above the fold — trust drives beauty conversion.",
-        })
-
+        findings["issues"].append({"code": "no_review_widget", "description": "No social proof (reviews/ratings) detectable near the product.", "evidence": "no review-app DOM, no aggregateRating schema, no 'N reviews' text", "severity": "low", "confidence": "high", "fix": "Add a review app (Judge.me/Loox/Yotpo) and surface the star rating above the fold."})
 
 def _check_trust_signals(page, findings):
-    found = page.evaluate(
-        "() => /free shipping|money.back|guarantee|easy returns|free returns|"
-        "secure checkout|cruelty.free|dermatologist|vegan|clean ingredients/i.test("
-        "(document.body.innerText || '').slice(0, 20000))"
-    )
+    found = page.evaluate("() => /free shipping|money.back|guarantee|easy returns|free returns|secure checkout|cruelty.free|dermatologist|vegan|clean ingredients/i.test((document.body.innerText || '').slice(0, 20000))")
     if not found:
-        findings["issues"].append({
-            "code": "no_trust_signals",
-            "description": "No trust/reassurance signals (shipping, returns, guarantee) detectable on the PDP.",
-            "evidence": "no trust-language match in page text",
-            "severity": "low", "confidence": "medium",
-            "fix": "Add shipping/returns/guarantee reassurance near the buy box; hesitation at the buy box is where carts die.",
-        })
-
+        findings["issues"].append({"code": "no_trust_signals", "description": "No trust/reassurance signals (shipping, returns, guarantee) detectable on the PDP.", "evidence": "no trust-language match in page text", "severity": "low", "confidence": "medium", "fix": "Add shipping/returns/guarantee reassurance near the buy box."})
 
 def _check_heavy_images(page, findings):
     top5 = page.evaluate("""
         () => {
-            const imgs = performance.getEntriesByType('resource').filter(e =>
-                e.initiatorType === 'img' || /\\.(png|jpe?g|webp|avif)(\\?|$)/i.test(e.name));
-            return imgs.map(e => e.transferSize || 0).sort((a, b) => b - a).slice(0, 5)
-                       .reduce((a, b) => a + b, 0);
+            const imgs = performance.getEntriesByType('resource').filter(e => e.initiatorType === 'img' || /\\.(png|jpe?g|webp|avif)(\\?|$)/i.test(e.name));
+            return imgs.map(e => e.transferSize || 0).sort((a, b) => b - a).slice(0, 5).reduce((a, b) => a + b, 0);
         }
     """)
     if top5 and top5 > 1_500_000:
-        findings["issues"].append({
-            "code": "heavy_images",
-            "description": f"Top 5 images transfer {top5 // 1000}KB — far above what a mobile PDP should ship.",
-            "evidence": f"{top5 // 1000}KB combined transferSize for the 5 largest images",
-            "severity": "medium", "confidence": "high",
-            "fix": "Serve compressed WebP/AVIF at responsive sizes (Shopify image CDN params) and lazy-load below-fold media.",
-        })
-
+        findings["issues"].append({"code": "heavy_images", "description": f"Top 5 images transfer {top5 // 1000}KB.", "evidence": f"{top5 // 1000}KB combined transferSize for the 5 largest images", "severity": "medium", "confidence": "high", "fix": "Serve compressed WebP/AVIF at responsive sizes and lazy-load below-fold media."})
 
 def _check_script_bloat(page, findings):
-    counts = page.evaluate("""
-        () => {
-            const scripts = [...document.querySelectorAll('script[src]')];
-            return [scripts.length, scripts.filter(s => !s.src.startsWith(location.origin)).length];
-        }
-    """)
+    counts = page.evaluate("() => { const scripts = [...document.querySelectorAll('script[src]')]; return [scripts.length, scripts.filter(s => !s.src.startsWith(location.origin)).length]; }")
     total, third_party = counts or [0, 0]
     if third_party > 25:
-        findings["issues"].append({
-            "code": "script_bloat",
-            "description": f"{third_party} third-party scripts load on the PDP — app bloat is taxing every visitor.",
-            "evidence": f"{total} scripts total, {third_party} third-party",
-            "severity": "medium", "confidence": "high",
-            "fix": get_app_bloat_fix(findings.get("platform", "custom")),
-        })
-
+        findings["issues"].append({"code": "script_bloat", "description": f"{third_party} third-party scripts load on the PDP.", "evidence": f"{total} scripts total, {third_party} third-party", "severity": "medium", "confidence": "high", "fix": get_app_bloat_fix(findings.get("platform", "custom"))})
 
 def _check_console_errors(findings, console_errors):
-    real_js_errors = [
-        err for err in console_errors 
-        if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties", "Uncaught"])
-        and not any(noise in err.lower() for noise in ["cors", "net::err", "failed to load resource", "access-control-allow-origin", "favicon.ico", "404", "403", "500", "502", "503", "timeout", "blocked by"])
-    ]
+    real_js_errors = [err for err in console_errors if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties", "Uncaught"]) and not any(noise in err.lower() for noise in ["cors", "net::err", "failed to load resource", "access-control-allow-origin", "favicon.ico", "404", "403", "500", "502", "503", "timeout", "blocked by"])]
     if real_js_errors:
-        findings["issues"].append({
-            "code": "console_errors", "severity": "medium", "confidence": "VERIFIED",
-            "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.",
-            "evidence": "; ".join(real_js_errors[:3])[:300],
-            "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.",
-            "fix": "Debug the throwing script - execution errors break the purchase path or pixel tracking."
-        })
-
-
+        findings["issues"].append({"code": "console_errors", "severity": "medium", "confidence": "VERIFIED", "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.", "evidence": "; ".join(real_js_errors[:3])[:300], "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.", "fix": "Debug the throwing script."})
 
 def _check_seo(page, findings):
     seo = page.evaluate("""
         () => ({
-            schema: [...document.querySelectorAll('script[type="application/ld+json"]')]
-                        .some(s => /"product"/i.test(s.textContent || '')),
+            schema: [...document.querySelectorAll('script[type="application/ld+json"]')].some(s => /"product"/i.test(s.textContent || '')),
             meta_desc: !!document.querySelector('meta[name="description"][content]'),
-            og: !!document.querySelector('meta[property="og:title"]') &&
-                !!document.querySelector('meta[property="og:image"]'),
+            og: !!document.querySelector('meta[property="og:title"]') && !!document.querySelector('meta[property="og:image"]'),
         })
     """)
-    if not seo.get("schema"):
-        findings["issues"].append({
-            "code": "missing_product_schema",
-            "description": "No Product structured data (schema) on the PDP.",
-            "evidence": "no ld+json script containing a Product object",
-            "severity": "low", "confidence": "high",
-            "fix": "Add Product schema (price, availability, aggregateRating) for rich results in Google.",
-        })
-    if not seo.get("meta_desc"):
-        findings["issues"].append({
-            "code": "missing_meta_description",
-            "description": "No meta description on the product page.",
-            "evidence": "meta[name=description] missing or empty",
-            "severity": "low", "confidence": "high",
-            "fix": "Write a benefit-led meta description per product template so Google shows your copy, not a random snippet.",
-        })
-    if not seo.get("og"):
-        findings["issues"].append({
-            "code": "missing_og_tags",
-            "description": "OpenGraph social preview tags incomplete.",
-            "evidence": "og:title or og:image missing",
-            "severity": "low", "confidence": "high",
-            "fix": "Set og:title/og:description/og:image so shared links render rich previews.",
-        })
+    if not seo.get("schema"): findings["issues"].append({"code": "missing_product_schema", "description": "No Product structured data (schema) on the PDP.", "evidence": "no ld+json script containing a Product object", "severity": "low", "confidence": "high", "fix": "Add Product schema (price, availability, aggregateRating) for rich results in Google."})
+    if not seo.get("meta_desc"): findings["issues"].append({"code": "missing_meta_description", "description": "No meta description on the product page.", "evidence": "meta[name=description] missing or empty", "severity": "low", "confidence": "high", "fix": "Write a benefit-led meta description per product template."})
+    if not seo.get("og"): findings["issues"].append({"code": "missing_og_tags", "description": "OpenGraph social preview tags incomplete.", "evidence": "og:title or og:image missing", "severity": "low", "confidence": "high", "fix": "Set og:title/og:description/og:image so shared links render rich previews."})
