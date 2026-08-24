@@ -235,6 +235,17 @@ def generate_report(findings: dict) -> str:
         popup_b64 = _process_screenshot(findings.get("popup_screenshot_path"), popup_ann)
 
     # 6. RENDER
+    # NUCLEAR DEDUP PASS: Eradicate any remaining duplicates by description text
+    seen_descs = set()
+    final_high, final_med, final_low, final_seo = [], [], [], []
+    for lst, final_lst in [(high_issues, final_high), (med_issues, final_med), (low_issues, final_low), (seo_issues, final_seo)]:
+        for issue in lst:
+            desc = (issue.get("description") or issue.get("observation") or "").strip().lower()[:50]
+            if desc in seen_descs: continue
+            seen_descs.add(desc)
+            final_lst.append(issue)
+    high_issues, med_issues, low_issues, seo_issues = final_high, final_med, final_low, final_seo
+
     html_out = template.render(
         domain=domain, score=score, load_time=findings.get("load_time_ms", "N/A"),
         lcp=cwv.get("lcp", 0), cls=cwv.get("cls", 0),
