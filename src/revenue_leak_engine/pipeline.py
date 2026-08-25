@@ -1,4 +1,5 @@
 import argparse
+import time
 import csv
 from pathlib import Path
 from revenue_leak_engine.config import NICHE_PRESETS, DEFAULT_NICHE, LEADS_DIR, SUPPRESSION_LIST_PATH, DEFAULT_COUNTRY
@@ -87,6 +88,8 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         if cro_findings.get("error"):
             print(f"    warning: CRO audit error - {cro_findings['error']}")
 
+        time.sleep(2)
+
         # 2. Geo audit (Platform Agnostic) - Wrapped in try/except
         try:
             geo_findings = audit_geo(domain)
@@ -115,6 +118,13 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             cro_findings["niche"] = niche
             cro_score = opportunity_score(cro_findings)
             cro_report = generate_report(cro_findings)
+            try:
+                html = open(cro_report, "r", encoding="utf-8").read()
+                if html.count("Enterprise Revenue Leak Engine") > 1:
+                    parts = html.split("Enterprise Revenue Leak Engine")
+                    html = parts[0] + "Enterprise Revenue Leak Engine" + "".join(parts[2:])
+                    open(cro_report, "w", encoding="utf-8").write(html)
+            except: pass
             
             # PHASE H: PDF EXPORT
             cro_pdf_path = None
@@ -178,8 +188,9 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             elif geo_score_val >= 5.0:
                 geo_findings["opp_tier"] = "MEDIUM"
                 geo_findings["opp_color"] = "#f59e0b"
-            geo_findings["opp_tier"] = "HIGH"
-            geo_findings["opp_color"] = "#ef4444"
+            else:
+                geo_findings["opp_tier"] = "HIGH"
+                geo_findings["opp_color"] = "#ef4444"
 
             geo_report = generate_geo_report(geo_findings)
             lead_result.update({

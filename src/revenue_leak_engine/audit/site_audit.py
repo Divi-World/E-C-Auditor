@@ -218,7 +218,7 @@ def find_a_product_url(page, domain: str) -> str | None:
 
     for url in discovery_urls:
         if not _goto_resilient(page, url): continue
-        page.wait_for_timeout(1500)
+        time.sleep(0.8)
         dismiss_overlays(page)
         links = page.evaluate("() => Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'))")
         for href in links:
@@ -245,7 +245,7 @@ def find_a_product_url(page, domain: str) -> str | None:
 
     try:
         page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
-        page.wait_for_timeout(1500)
+        time.sleep(0.8)
         heuristic_url = page.evaluate("""
             () => {
                 const btns = document.querySelectorAll('a, button');
@@ -270,7 +270,7 @@ def find_a_product_url(page, domain: str) -> str | None:
 def _audit_homepage_and_collection(page, domain: str, findings: dict):
     try:
         page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
-        page.wait_for_timeout(1500)
+        time.sleep(0.8)
         hp_data = page.evaluate("""
             () => {
                 const html = document.body ? document.body.innerText.toLowerCase() : '';
@@ -307,7 +307,7 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
                 if resp and resp.status < 400: coll_loaded = True; break
             except Exception: continue
         if coll_loaded:
-            page.wait_for_timeout(1500)
+            time.sleep(0.8)
             coll_data = page.evaluate("""
                 () => {
                     const cards = document.querySelectorAll('[class*="product-card" i], [class*="product-item" i], .product, article, li[class*="product"]');
@@ -465,7 +465,7 @@ def _check_enterprise_heuristics(page, findings, platform):
 def _audit_homepage_and_awareness(page, findings):
     try:
         page.goto(f"https://{findings.get('domain', '')}", timeout=15000, wait_until="domcontentloaded")
-        page.wait_for_timeout(1500)
+        time.sleep(0.8)
         awareness = page.evaluate("""
             () => {
                 const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
@@ -554,7 +554,7 @@ def _check_variant_integrity(page, findings):
         
         if variants[1].is_visible():
             variants[1].click()
-            page.wait_for_timeout(1500)
+            time.sleep(0.8)
             
             new_price = page.evaluate("""() => {
                 const el = document.querySelector('[class*="price" i], .price, [data-price]');
@@ -595,7 +595,7 @@ def _audit_checkout_telemetry(page, findings, domain):
             except Exception: continue
         if not loaded: return
         
-        page.wait_for_timeout(1500)
+        time.sleep(0.8)
         checkout_data = page.evaluate("""() => {
             const text = document.body ? document.body.innerText.toLowerCase() : '';
             const hasTrustBadges = document.querySelectorAll('img[alt*="secure" i], img[alt*="guarantee" i], [class*="trust-badge" i], svg[aria-label*="secure" i]').length > 0;
@@ -616,7 +616,7 @@ def _sample_product_integrity(page, domain, findings, primary_url):
     """Checks 2 additional products to confirm if critical bugs are site-wide."""
     try:
         page.goto(f"https://{domain}/collections/all", timeout=8000, wait_until="domcontentloaded")
-        page.wait_for_timeout(1500)
+        time.sleep(0.8)
         links = page.evaluate("""() => Array.from(document.querySelectorAll('a[href*="/products/"], a[href*="/product/"], a[href*="/p/"]')).map(a => a.href).slice(0, 10)""")
         samples = list(set([l for l in links if l != primary_url and ('/products/' in l or '/product/' in l or '/p/' in l)]))[:2]
         if not samples: return
@@ -652,7 +652,7 @@ def _sample_product_integrity(page, domain, findings, primary_url):
 def _attempt_interactive_waf_solve(page):
     """Attempts to interactively solve Cloudflare Turnstile or hCaptcha via humanized clicks."""
     try:
-        page.wait_for_timeout(2500) # Wait for challenge iframe to inject
+        time.sleep(1.0) # Wait for challenge iframe to inject
         for frame in page.frames:
             frame_url = frame.url.lower()
             if any(sig in frame_url for sig in ['challenges.cloudflare.com', 'hcaptcha.com', 'recaptcha']):
@@ -853,7 +853,7 @@ def audit_site(domain: str) -> dict:
                 browser.close()
                 return findings
 
-            page.wait_for_timeout(2500)
+            time.sleep(1.0)
             
             # Human-like behavior to help bypass WAF behavioral analysis
             try:
@@ -949,7 +949,7 @@ def audit_site(domain: str) -> dict:
             # Anti-Blank Fallback
             import os
             if os.path.exists(str(shot_path)) and os.path.getsize(str(shot_path)) < 4000:
-                page.wait_for_timeout(2500)
+                time.sleep(1.0)
                 page.screenshot(path=str(shot_path), full_page=False)
             _ctx = "Mobile Viewport: Clean page load. Primary CTA verified."
             if "unclosable_overlay" in findings.get("notes", ""): _ctx = "Mobile Viewport: Unclosable overlay detected. Interactive checks skipped."
@@ -1041,7 +1041,7 @@ for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new 
                             }
                         """)
                     else: atc_btn.click(timeout=1500)
-                    page.wait_for_timeout(1500)
+                    time.sleep(0.8)
                 except Exception as e:
                     findings["notes"] += f"atc_click_failed_degraded: {e}. "
                     findings["issues"].append({"code": "degraded_interactive_audit", "severity": "medium", "confidence": "VERIFIED", "description": "Interactive funnel checks degraded due to navigation failure or WAF block.", "evidence": "Add-to-Cart click failed to execute or timed out.", "business_impact": "Unable to verify cart drawer, express checkout, or pixel firing.", "fix": "Manual verification required."})
@@ -1088,7 +1088,7 @@ for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new 
                     except Exception:
                         if any(x in page.url.lower() for x in ["cart", "checkout", "bag", "basket"]): cart_loaded = True; break
                 if cart_loaded:
-                    page.wait_for_timeout(1500)
+                    time.sleep(0.8)
                     findings["checks_completed"]["funnel_cart"] = True
                     
                     # PHASE C: SAFE SYNTHETIC CART INTERACTION (Zip Code / Shipping Estimator)
@@ -1100,7 +1100,7 @@ for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new 
                                 calc_btn = page.query_selector('button:has-text("Calculate"), button:has-text("Update"), button:has-text("Estimate"), button[type="submit"]')
                                 if calc_btn and calc_btn.is_visible():
                                     calc_btn.click()
-                                    page.wait_for_timeout(1500)
+                                    time.sleep(0.8)
                                     break
                     except Exception: pass
 
@@ -1240,7 +1240,7 @@ def _check_checkout_behavior(page, domain, findings):
             except Exception: continue
         
         if checkout_loaded:
-            page.wait_for_timeout(1500)
+            time.sleep(0.8)
             
             # Promo Code Distraction (Check on Cart page)
             promo_data = page.evaluate("""
@@ -1265,7 +1265,7 @@ def _check_checkout_behavior(page, domain, findings):
             # Checkout Page Friction (Forced Login & Input Types)
             try:
                 page.goto(f"https://{domain}/checkout", timeout=8000, wait_until="domcontentloaded")
-                page.wait_for_timeout(1500)
+                time.sleep(0.8)
                 checkout_friction = page.evaluate("""
                     () => {
                         let forced_login = false;
@@ -1408,7 +1408,7 @@ def _check_add_to_cart(page, findings, viewport_h: int):
     # PHASE M.2: ULTIMATE ATC PRE-FLIGHT HUNTER (Hydration + Form Action + Proximity)
     if not atc_data.get("found"):
         try:
-            page.wait_for_selector("form, [data-action], [aria-label*='add' i], [class*='add' i], [class*='bag' i]", timeout=4000)
+            page.wait_for_selector("form, [data-action], [aria-label*='add' i], [class*='add' i], [class*='bag' i]", timeout=1500)
         except: pass
         
         try:
@@ -1419,7 +1419,7 @@ def _check_add_to_cart(page, findings, viewport_h: int):
                     else if(el.offsetWidth > 10 && el.offsetHeight > 10) { el.click(); break; }
                 }
             }''')
-            page.wait_for_timeout(1500)
+            time.sleep(0.8)
         except: pass
 
         ultimate_atc = None
@@ -1458,7 +1458,7 @@ def _check_add_to_cart(page, findings, viewport_h: int):
             atc_data["visible"] = True
             try:
                 page.mouse.click(ultimate_atc['x'], ultimate_atc['y'])
-                page.wait_for_timeout(1500)
+                time.sleep(0.8)
             except: pass
             return "ULTIMATE_BTN"
 
