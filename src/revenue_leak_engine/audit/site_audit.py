@@ -1161,10 +1161,13 @@ def _check_ttfb(page, findings):
     """Phase G: TTFB Server Health Isolation"""
     try:
         ttfb = page.evaluate("""
-            () => {
-                const timing = performance.timing;
-                if (!timing || timing.responseStart === 0 || timing.navigationStart === 0) return null;
-                return Math.round(timing.responseStart - timing.navigationStart);
+            async () => {
+                try {
+                    const start = performance.now();
+                    await fetch(window.location.href, { method: 'HEAD', cache: 'no-store', credentials: 'omit' });
+                    const end = performance.now();
+                    return Math.round(end - start);
+                } catch(e) { return null; }
             }
         """)
         findings["ttfb_ms"] = ttfb
@@ -1395,7 +1398,7 @@ def _check_script_bloat(page, findings):
             const total = scripts.length;
             const third_party = scripts.filter(s => !s.src.startsWith(location.origin)).length;
             const resources = performance.getEntriesByType('resource');
-            const js_resources = resources.filter(r => r.initiatorType === 'script' || r.name.endsWith('.js'));
+            const js_resources = resources.filter(r => r.name.includes('.js') || r.initiatorType === 'script');
             const sorted = js_resources.sort((a, b) => b.transferSize - a.transferSize).slice(0, 3);
             const top3 = sorted.map(s => {
                 try { const url = new URL(s.name); return url.hostname.replace('www.', '') + ' (' + Math.round(s.transferSize / 1024) + 'KB)'; } catch(e) { return ''; }

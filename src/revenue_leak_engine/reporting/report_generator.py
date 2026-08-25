@@ -210,6 +210,18 @@ def generate_report(findings: dict) -> str:
                 raw_fix += f"\n\n📍 Where to apply: {specific_where[code][platform]}"
             else:
                 raw_fix += where_note
+        # PHASE L: Prescriptive App Recommendations
+        if 'app_map' in locals() and code in app_map and platform in app_map[code]:
+            app_rec = app_map[code][platform]
+            if app_rec not in raw_fix:
+                raw_fix += "\n\n[RECOMMENDED APP] " + app_rec
+
+        # PHASE L: Prescriptive App Recommendations
+        if code in app_map and platform in app_map[code]:
+            app_rec = app_map[code][platform]
+            if app_rec not in raw_fix:
+                raw_fix += "\n\n🚀 " + app_rec
+
                 
         # PHASE L: Prescriptive App Recommendations
         if code in app_map and platform in app_map[code] and app_map[code][platform] not in raw_fix:
