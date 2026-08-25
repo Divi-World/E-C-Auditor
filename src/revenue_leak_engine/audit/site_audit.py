@@ -418,7 +418,25 @@ def _check_enterprise_heuristics(page, findings, platform):
                 const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
                 const buyBox = document.querySelector('[class*="product" i], [class*="buy" i], form[action*="cart"], [class*="price" i]');
                 const buyBoxText = buyBox ? buyBox.innerText.toLowerCase() : bodyText;
-                const stickyAtc = document.querySelector('[class*="sticky" i][class*="cart" i], [class*="fixed" i][class*="bottom" i] button, [id*="sticky-atc"]');
+                // PHASE M: VIEWPORT-INTERSECTION STICKY ATC DETECTION
+        let stickyAtc = document.querySelector('[class*="sticky" i][class*="cart" i], [class*="fixed" i][class*="bottom" i] button, [id*="sticky-atc"]');
+        if (!stickyAtc) {
+            const allBtns = document.querySelectorAll('button, [role="button"], a');
+            for (const btn of allBtns) {
+                const text = (btn.innerText || btn.getAttribute('aria-label') || '').toLowerCase();
+                if (text.includes('add to cart') || text.includes('buy') || text.includes('cart')) {
+                    const rect = btn.getBoundingClientRect();
+                    // If it's in the viewport and near the bottom or fixed
+                    if (rect.height > 20 && rect.top < window.innerHeight && rect.bottom > 0) {
+                        const style = window.getComputedStyle(btn);
+                        if (style.position === 'fixed' || style.position === 'sticky' || rect.top > window.innerHeight * 0.7) {
+                            stickyAtc = btn;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
                 const breadcrumbs = document.querySelector('[class*="breadcrumb" i], nav[aria-label="Breadcrumb"], [itemtype*="BreadcrumbList"]');
                 const hasDeliveryEstimate = /delivery by|arrives by|get it by|ships in|estimated delivery|order within/.test(buyBoxText);
                 const hasShippingThreshold = /free shipping on orders over|free shipping over|spend .* more for free shipping/.test(buyBoxText) || /free shipping on orders over|free shipping over|spend .* more for free shipping/.test(bodyText);
@@ -959,12 +977,16 @@ def audit_site(domain: str) -> dict:
                     try:
                         pdp_express = page.evaluate("""
                             () => {
-                                const sels = ['shop-pay-button', 'apple-pay-button', 'paypal-button', '[data-testid="shop-pay-button"]'];
+                                const deepQueryAll = (root, selector) => {
+                                    let results = Array.from(root.querySelectorAll(selector));
+                                    root.querySelectorAll('*').forEach(el => {
+                                        if (el.shadowRoot) results = results.concat(deepQueryAll(el.shadowRoot, selector));
+                                    });
+                                    return results;
+                                };
+                                const sels = ['shop-pay-button', 'apple-pay-button', 'paypal-button', 'shop-pay', '[data-testid*="shop-pay" i]', '[aria-label*="shop pay" i]', '[aria-label*="apple pay" i]'];
                                 for (const sel of sels) {
-                                    if (document.querySelector(sel)) return true;
-                                    for (const node of document.querySelectorAll('*')) {
-                                        if (node.shadowRoot && node.shadowRoot.querySelector(sel)) return true;
-                                    }
+                                    if (deepQueryAll(document, sel).length > 0) return true;
                                 }
                                 return false;
                             }
@@ -1293,26 +1315,37 @@ def _check_add_to_cart(page, findings, viewport_h: int):
             };
             const deepQuery = () => {
                 let candidates = [];
+                const deepQueryAllRecursive = (root, selector) => {
+                    let results = Array.from(root.querySelectorAll(selector));
+                    root.querySelectorAll('*').forEach(el => {
+                        if (el.shadowRoot) results = results.concat(deepQueryAllRecursive(el.shadowRoot, selector));
+                    });
+                    return results;
+                };
                 const gather = (root) => {
-                    for (const sel of selectors) { 
+                    for (const sel of selectors) {
                         const els = root.querySelectorAll(sel);
                         els.forEach(el => candidates.push(el));
                     }
-                    for (const btn of root.querySelectorAll('button, [role="button"], a')) { 
-                        if (textMatches(btn)) candidates.push(btn); 
+                    for (const btn of root.querySelectorAll('button, [role="button"], a')) {
+                        if (textMatches(btn)) candidates.push(btn);
                     }
+                    const ariaSels = '[aria-label*="cart" i], [aria-label*="buy" i], [aria-label*="add" i], shop-pay, apple-pay-button, [data-testid*="add-to-cart" i]';
+                    const ariaBtns = deepQueryAllRecursive(root, ariaSels);
+                    ariaBtns.forEach(el => candidates.push(el));
                 };
-                gather(document);
-                for (const node of document.querySelectorAll('*')) { if (node.shadowRoot) gather(node.shadowRoot); }
-                
-                // SMART FILTER: Ignore hidden/0-dimension duplicates (common in Shopify mobile/desktop splits)
+                const gatherRoots = (node) => {
+                    gather(node);
+                    node.querySelectorAll('*').forEach(el => {
+                        if (el.shadowRoot) gatherRoots(el.shadowRoot);
+                    });
+                };
+                gatherRoots(document);
                 const validBtns = candidates.filter(b => {
                     const r = b.getBoundingClientRect();
                     return r.width > 10 && r.height > 10;
                 });
                 if (validBtns.length === 0) return null;
-                
-                // Pick the largest visible button
                 return validBtns.sort((a,b) => {
                     const rA = a.getBoundingClientRect(); const rB = b.getBoundingClientRect();
                     return (rB.width * rB.height) - (rA.width * rA.height);
