@@ -1405,8 +1405,64 @@ def _check_add_to_cart(page, findings, viewport_h: int):
                 findings["notes"] += "atc_found_via_native_locator. "
         except Exception: pass
 
+    # PHASE M.2: ULTIMATE ATC PRE-FLIGHT HUNTER (Hydration + Form Action + Proximity)
     if not atc_data.get("found"):
-        findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM & Shadow Root search returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
+        try:
+            page.wait_for_selector("form, [data-action], [aria-label*='add' i], [class*='add' i], [class*='bag' i]", timeout=4000)
+        except: pass
+        
+        try:
+            page.evaluate('''() => {
+                const els = document.querySelectorAll('[class*="swatch" i], [class*="variant" i], [class*="option" i], [role="radio"], [role="option"], select');
+                for(const el of els) {
+                    if(el.tagName === 'SELECT' && el.options.length > 1) { el.selectedIndex = 1; el.dispatchEvent(new Event('change', {bubbles:true})); break; }
+                    else if(el.offsetWidth > 10 && el.offsetHeight > 10) { el.click(); break; }
+                }
+            }''')
+            page.wait_for_timeout(1500)
+        except: pass
+
+        ultimate_atc = None
+        try:
+            ultimate_atc = page.evaluate('''() => {
+                const forms = document.querySelectorAll('form');
+                for(const f of forms) {
+                    const action = (f.getAttribute('action') || '').toLowerCase();
+                    const hasPrice = f.querySelector('[class*="price" i], [data-price]') !== null;
+                    if(action.includes('cart') || action.includes('add') || action.includes('bag') || hasPrice) {
+                        const btn = f.querySelector('button[type="submit"], input[type="submit"], button:not([type]), [role="button"]');
+                        if(btn && btn.offsetWidth > 20) {
+                            const r = btn.getBoundingClientRect();
+                            return {x: r.x + r.width/2, y: r.y + r.height/2};
+                        }
+                    }
+                }
+                const prices = document.querySelectorAll('[class*="price" i], [data-price]');
+                for(const p of prices) {
+                    let container = p.parentElement;
+                    for(let i=0; i<5 && container; i++) container = container.parentElement;
+                    if(!container) continue;
+                    const btns = container.querySelectorAll('button, [role="button"], a[class*="btn"]');
+                    for(const b of btns) {
+                        const r = b.getBoundingClientRect();
+                        if(r.width > 50 && r.height > 20) return {x: r.x + r.width/2, y: r.y + r.height/2};
+                    }
+                }
+                return null;
+            }''')
+        except: pass
+        
+        if ultimate_atc and ultimate_atc.get('x'):
+            findings["notes"] += "atc_found_via_ultimate_hunter. "
+            atc_data["found"] = True
+            atc_data["visible"] = True
+            try:
+                page.mouse.click(ultimate_atc['x'], ultimate_atc['y'])
+                page.wait_for_timeout(1500)
+            except: pass
+            return "ULTIMATE_BTN"
+
+        findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM, Shadow Root, and Ultimate Hunter returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
         return None
 
     if not atc_data.get("visible"):
