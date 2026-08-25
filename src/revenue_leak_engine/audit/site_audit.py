@@ -965,6 +965,16 @@ def audit_site(domain: str) -> dict:
             if cwv.get("cls", 0) > 0.15:  # HYSTERESIS
                 findings["issues"].append({"code": "poor_cls", "description": f"Cumulative Layout Shift (CLS) is {cwv['cls']} (target <0.1).", "evidence": f"CLS: {cwv['cls']}", "severity": "medium", "confidence": "high", "fix": "Reserve space for images/video embeds and avoid injecting dynamic content above the fold without placeholders."})
             _check_load_speed(findings)
+                        # PHASE M.1: VARIANT AUTO-UNLOCK
+            try:
+                page.evaluate("""() => {
+const sw=document.querySelectorAll('[class*="swatch" i] button, [class*="variant" i] button, [data-option] button, label[class*="variant" i], input[type="radio"][name*="variant"] + label');
+for(const s of sw){if(s.offsetWidth>10){s.click();break;}}
+const se=document.querySelectorAll('select[name*="variant" i], select[name*="size" i], select[name*="color" i]');
+for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new Event('change',{bubbles:true}));break;}}}""")
+                page.wait_for_timeout(800)
+            except: pass
+
             atc_btn = _check_add_to_cart(page, findings, viewport_h)
             findings["checks_completed"]["atc_probe"] = True
 
