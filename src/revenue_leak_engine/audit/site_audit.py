@@ -1162,9 +1162,9 @@ def _check_ttfb(page, findings):
     try:
         ttfb = page.evaluate("""
             () => {
-                const nav = performance.getEntriesByType('navigation')[0];
-                if (!nav) return null;
-                return Math.round(nav.responseStart - nav.requestStart);
+                const timing = performance.timing;
+                if (!timing || timing.responseStart === 0 || timing.navigationStart === 0) return null;
+                return Math.round(timing.responseStart - timing.navigationStart);
             }
         """)
         findings["ttfb_ms"] = ttfb
@@ -1389,12 +1389,28 @@ def _check_heavy_images(page, findings):
         findings["issues"].append({"code": "heavy_images", "description": f"Top 5 images transfer {top5 // 1000}KB.", "evidence": f"{top5 // 1000}KB combined transferSize for the 5 largest images", "severity": "medium", "confidence": "high", "fix": "Serve compressed WebP/AVIF at responsive sizes and lazy-load below-fold media."})
 
 def _check_script_bloat(page, findings):
-    counts = page.evaluate("() => { const scripts = [...document.querySelectorAll('script[src]')]; return [scripts.length, scripts.filter(s => !s.src.startsWith(location.origin)).length]; }")
-    total, third_party = counts or [0, 0]
+    script_data = page.evaluate("""
+        () => {
+            const scripts = [...document.querySelectorAll('script[src]')];
+            const total = scripts.length;
+            const third_party = scripts.filter(s => !s.src.startsWith(location.origin)).length;
+            const resources = performance.getEntriesByType('resource');
+            const js_resources = resources.filter(r => r.initiatorType === 'script' || r.name.endsWith('.js'));
+            const sorted = js_resources.sort((a, b) => b.transferSize - a.transferSize).slice(0, 3);
+            const top3 = sorted.map(s => {
+                try { const url = new URL(s.name); return url.hostname.replace('www.', '') + ' (' + Math.round(s.transferSize / 1024) + 'KB)'; } catch(e) { return ''; }
+            }).filter(Boolean);
+            return { total, third_party, top3 };
+        }
+    """)
+    total = script_data.get('total', 0)
+    third_party = script_data.get('third_party', 0)
+    top3 = script_data.get('top3', [])
     third_party = round(third_party / 2) * 2
     findings["script_bloat_count"] = third_party
-    if third_party > 28:  # HYSTERESIS
-        findings["issues"].append({"code": "script_bloat", "description": f"{third_party} third-party scripts load on the PDP.", "evidence": f"{total} scripts total, {third_party} third-party", "severity": "medium", "confidence": "high", "fix": get_app_bloat_fix(findings.get("platform", "custom"))})
+    if third_party > 28:
+        top3_str = ", ".join(top3) if top3 else "unidentified scripts"
+        findings["issues"].append({"code": "script_bloat", "description": f"{third_party} third-party scripts load on the PDP.", "evidence": f"{total} scripts total, {third_party} third-party. Heaviest: {top3_str}", "severity": "medium", "confidence": "high", "fix": get_app_bloat_fix(findings.get("platform", "custom"))})
 
 def _check_console_errors(findings, console_errors):
     real_js_errors = [err for err in console_errors if any(sig in err for sig in ["SyntaxError", "TypeError", "ReferenceError", "is not defined", "Cannot read properties", "Uncaught"]) and not any(noise in err.lower() for noise in ["cors", "net::err", "failed to load resource", "access-control-allow-origin", "favicon.ico", "404", "403", "500", "502", "503", "timeout", "blocked by"])]

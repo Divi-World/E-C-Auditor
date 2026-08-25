@@ -138,6 +138,16 @@ def generate_report(findings: dict) -> str:
     }
     where_note = generic_where.get(platform, generic_where["custom"])
     
+    # PHASE L: PRESCRIPTIVE APP MAPPING
+    app_map = {
+        "missing_sticky_atc": {"shopify": "Recommended App: 'Sticky Add To Cart' by Codeinmatic.", "woocommerce": "Recommended Plugin: 'WooCommerce Sticky Add to Cart'."},
+        "no_cart_drawer": {"shopify": "Recommended App: 'Slide Cart' by Appstle.", "woocommerce": "Recommended Plugin: 'WooCommerce Side Cart'."},
+        "missing_product_schema": {"shopify": "Recommended App: 'JSON-LD for SEO' by Ilana Davis.", "woocommerce": "Recommended Plugin: Yoast SEO or RankMath."},
+        "no_review_widget": {"shopify": "Recommended App: Judge.me or Okendo.", "woocommerce": "Recommended Plugin: Judge.me or Yotpo."},
+        "missing_cross_sell": {"shopify": "Recommended App: 'Frequently Bought Together' by Shopify.", "woocommerce": "Recommended Plugin: 'WooCommerce Frequently Bought Together'."},
+        "missing_delivery_urgency": {"shopify": "Recommended App: 'Estimated Delivery Date' by Identix.", "woocommerce": "Recommended Plugin: 'WooCommerce Estimated Delivery Date'."}
+    }
+    
     # Codes that belong strictly to SEO (to prevent cross-section duplication)
     seo_codes_set = {
         'poor_title_tag', 'title_tag_issue', 'missing_title_tag', 'title_tag_length',
@@ -200,6 +210,10 @@ def generate_report(findings: dict) -> str:
                 raw_fix += f"\n\n📍 Where to apply: {specific_where[code][platform]}"
             else:
                 raw_fix += where_note
+                
+        # PHASE L: Prescriptive App Recommendations
+        if code in app_map and platform in app_map[code] and app_map[code][platform] not in raw_fix:
+            raw_fix += f"\n\n🚀 {app_map[code][platform]}"
             
         # Inject Platform-Specific Code Snippets
         if platform in snippet_map and code in snippet_map[platform]:
