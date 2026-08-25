@@ -62,9 +62,15 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Platform: <strong style="color: var(--accent-blue);">{{ platform | capitalize }}</strong></div>
         </div>
         <div class="score-badge">
-            <div class="score-label">Revenue Opportunity</div>
-            <div class="score-value {% if score is number and score >= 8 %}good{% elif score is number and score >= 5 %}warn{% else %}bad{% endif %}">{% if score == "BLOCKED" or score == "TIMEOUT" or score == "PARTIAL" %}<span style="color: #ef4444; font-weight: 800; font-size: 28px;">AUDIT {{ score }}</span>{% else %}{{ score }}<span style="font-size: 24px; color: var(--text-muted); font-weight: 600;">/10</span>{% endif %}
-            <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted); line-height: 1.5;">{{ evidence_summary }}</div></div>
+            <div class="score-label">CRO Health Score</div>
+            <div class="score-value {% if score is number and score >= 8 %}good{% elif score is number and score >= 5 %}warn{% else %}bad{% endif %}">{% if score == "BLOCKED" or score == "TIMEOUT" or score == "PARTIAL" %}<span style="color: #ef4444; font-weight: 800; font-size: 28px;">AUDIT {{ score }}</span>{% else %}{{ score }}<span style="font-size: 24px; color: var(--text-muted); font-weight: 600;">/10</span>{% endif %}</div>
+            <div style="margin-top: 12px; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 800; text-transform: uppercase; display: inline-block;
+                {% if score is number and score < 5.0 %}background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);
+                {% elif score is number and score < 7.5 %}background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);
+                {% elif score is number %}background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);{% endif %}">
+                Priority to Fix: {% if score is number and score < 5.0 %}HIGH{% elif score is number and score < 7.5 %}MEDIUM{% elif score is number %}LOW{% else %}N/A{% endif %}
+            </div>
+            <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted); line-height: 1.5;">{{ evidence_summary }}</div>
         </div>
     </div>
 

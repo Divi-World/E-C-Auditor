@@ -100,30 +100,43 @@ def generate_report(findings: dict) -> str:
     elif error_state and "timeout" in str(error_state).lower():
         audit_status = "TIMEOUT"
         score = "TIMEOUT"
-    elif audit_status == "PARTIAL_WAF" or "PARTIAL_WAF" in findings.get("notes", ""):
-        # INDUSTRIAL SAFEGUARD: Never award a numeric CRO score if interactive checks were blocked by WAF.
+    # SINGLE SOURCE OF TRUTH: Score and Status determination
+    checks = findings.get("checks_completed", {})
+
+    if checks.get("atc_probe"):
+        # Interactive telemetry verified. Overrides poisoned WAF notes.
+        audit_status = "VERIFIED"
+        findings["audit_status"] = "VERIFIED"
+        score = opportunity_score(findings)
+    elif audit_status == "PARTIAL_WAF" or "PARTIAL_WAF" in findings.get("notes", "") or "curl_cffi_fallback" in findings.get("notes", ""):
         score = "PARTIAL"
+        audit_status = "PARTIAL_WAF"
         findings["audit_status"] = "PARTIAL_WAF"
     else:
         score = opportunity_score(findings)
-        # Secondary safeguard: If score is 10.0 but critical interactive checks failed, cap it.
-        checks = findings.get("checks_completed", {})
-        if score == 10.0 and not checks.get("atc_probe") and not checks.get("funnel_cart"):
-            score = 5.0 # Cap at 5.0 if we couldn't verify the actual purchase path
 
 
     cwv = findings.get("cwv", {})
     platform = findings.get("platform", "custom")
     
-    # 2. PLATFORM FIX LOCATIONS
-    where_map = {
-        "shopify": "\n\n📍 Where to apply: Shopify Admin > Online Store > Themes > Edit Code (typically `product-template.liquid` or `theme.liquid`).",
-        "woocommerce": "\n\n📍 Where to apply: WordPress Admin > Appearance > Theme File Editor (typically `single-product.php`) or via WooCommerce Settings.",
+    # 2. PLATFORM FIX LOCATIONS (Granular per issue code)
+    generic_where = {
+        "shopify": "\n\n📍 Where to apply: Shopify Admin > Online Store > Themes > Edit Code.",
+        "woocommerce": "\n\n📍 Where to apply: WordPress Admin > Appearance > Theme File Editor or WooCommerce Settings.",
         "bigcommerce": "\n\n📍 Where to apply: BigCommerce Admin > Storefront > Script Manager or Theme Editor.",
-        "magento": "\n\n📍 Where to apply: Magento Admin > Content > Design > Configuration or via XML layout updates.",
-        "custom": "\n\n📍 Where to apply: Your CMS theme templates or global header/footer injection points."
+        "magento": "\n\n📍 Where to apply: Magento Admin > Content > Design > Configuration.",
+        "custom": "\n\n📍 Where to apply: Your CMS theme templates or global header/footer."
     }
-    where_note = where_map.get(platform, where_map["custom"])
+    specific_where = {
+        "meta_pixel_missing": {"shopify": "Shopify Admin > Settings > Apps > Facebook & Instagram > Data Sharing.", "woocommerce": "WooCommerce > Settings > Integration > Facebook for WooCommerce.", "custom": "GTM or global header template."},
+        "tiktok_pixel_missing": {"shopify": "Shopify Admin > Settings > Apps > TikTok > Data Sharing.", "woocommerce": "WooCommerce > Settings > Integration > TikTok.", "custom": "GTM or global header template."},
+        "no_cart_drawer": {"shopify": "Shopify Admin > Online Store > Themes > Customize > Theme Settings > Cart (Enable Drawer).", "woocommerce": "Appearance > Customize > WooCommerce > Cart (Enable AJAX mini-cart).", "custom": "Theme cart template or slide-out cart plugin."},
+        "no_express_checkout": {"shopify": "Shopify Admin > Settings > Payments > Shopify Payments > Manage (Enable Wallets).", "woocommerce": "WooCommerce > Settings > Payments > Stripe/PayPal (Enable Payment Request).", "custom": "Payment gateway dashboard and checkout integration."},
+        "missing_sticky_atc": {"shopify": "Online Store > Themes > Customize > Product Page (Enable Sticky ATC).", "woocommerce": "Appearance > Customize > Single Product (or use a Sticky ATC plugin).", "custom": "Product template (add fixed-position bottom bar)."},
+        "hidden_shipping_costs": {"shopify": "Online Store > Themes > Customize > Product Page (Add shipping estimator app block).", "woocommerce": "WooCommerce > Settings > Shipping (or use a shipping calculator plugin).", "custom": "Product template (integrate shipping API estimator)."},
+        "missing_product_schema": {"shopify": "Online Store > Themes > Edit Code (product-template.liquid) or use an SEO app.", "woocommerce": "Use Yoast/RankMath SEO plugin, or add to single-product.php.", "custom": "Global product template (inject JSON-LD script)."}
+    }
+    where_note = generic_where.get(platform, generic_where["custom"])
     
     # Codes that belong strictly to SEO (to prevent cross-section duplication)
     seo_codes_set = {
@@ -162,6 +175,7 @@ def generate_report(findings: dict) -> str:
         }
     }
     seen_codes = set()
+    seen_descs_global = set()
     high_issues, med_issues, low_issues, seo_issues = [], [], [], []
     
     for issue in findings.get("issues", []):
@@ -180,9 +194,12 @@ def generate_report(findings: dict) -> str:
         impact = issue.get("business_impact") or issue.get("interpretation") or "Directly impacts conversion velocity or shopper trust."
         raw_fix = issue.get("fix") or issue.get("recommendation") or "Consult your engineering team to resolve this friction point."
         
-        # Inject Platform Location for CRO issues
+        # Inject Platform Location for CRO issues (Granular)
         if code not in seo_codes_set and "📍 Where to apply" not in raw_fix:
-            raw_fix += where_note
+            if code in specific_where and platform in specific_where[code]:
+                raw_fix += f"\n\n📍 Where to apply: {specific_where[code][platform]}"
+            else:
+                raw_fix += where_note
             
         # Inject Platform-Specific Code Snippets
         if platform in snippet_map and code in snippet_map[platform]:
@@ -201,8 +218,13 @@ def generate_report(findings: dict) -> str:
         issue["severity"] = issue.get("severity", "medium")
         issue["confidence"] = str(issue.get("confidence", "VERIFIED")).upper()
         
+        # NUCLEAR TEXT DEDUP: If we have already seen this exact description, drop it entirely.
+        desc_sig = (issue.get("description") or issue.get("observation") or "").strip().lower()[:40]
+        if desc_sig in seen_descs_global:
+            continue
+        seen_descs_global.add(desc_sig)
+
         # STRICT CATEGORIZATION: SEO codes go ONLY to seo_issues. CRO codes go to high/med/low.
-        # This mathematically prevents "Page Title" or "Schema" from appearing in both CRO and SEO sections.
         if code in seo_codes_set:
             seo_issues.append(issue)
         else:
@@ -223,7 +245,7 @@ def generate_report(findings: dict) -> str:
     elif audit_status == "PARTIAL_WAF":
         evidence_summary = "⚠️ STATIC ANALYSIS ONLY: Enterprise WAF blocked interactive browser telemetry. CRO score is capped. Findings are limited to structural HTML analysis (Meta, Schema, basic DOM). Add-to-Cart and Checkout flows could not be physically verified."
     else:
-        evidence_summary = f"Score derived from {high_count} Critical, {med_count} Medium, and {low_count} Low friction points verified via headless telemetry."
+        evidence_summary = f"Health score derived from {high_count} Critical, {med_count} Medium, and {low_count} Low friction points verified via headless telemetry."
 
     # 5. SCREENSHOTS
     popup_ann = findings.get("popup_annotation")
@@ -235,17 +257,6 @@ def generate_report(findings: dict) -> str:
         popup_b64 = _process_screenshot(findings.get("popup_screenshot_path"), popup_ann)
 
     # 6. RENDER
-    # NUCLEAR DEDUP PASS: Eradicate any remaining duplicates by description text
-    seen_descs = set()
-    final_high, final_med, final_low, final_seo = [], [], [], []
-    for lst, final_lst in [(high_issues, final_high), (med_issues, final_med), (low_issues, final_low), (seo_issues, final_seo)]:
-        for issue in lst:
-            desc = (issue.get("description") or issue.get("observation") or "").strip().lower()[:50]
-            if desc in seen_descs: continue
-            seen_descs.add(desc)
-            final_lst.append(issue)
-    high_issues, med_issues, low_issues, seo_issues = final_high, final_med, final_low, final_seo
-
     html_out = template.render(
         domain=domain, score=score, load_time=findings.get("load_time_ms", "N/A"),
         lcp=cwv.get("lcp", 0), cls=cwv.get("cls", 0),

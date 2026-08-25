@@ -436,7 +436,17 @@ def _audit_homepage_and_awareness(page, findings):
                 const isSubscription = /subscribe|membership|monthly|box/.test(bodyText);
                 const isSaaS = /login|sign in|dashboard|pricing|features/.test(bodyText) && !isEcommerce;
                 const hasClearH1 = h1 && h1.innerText.length > 5 && h1.innerText.length < 100;
-                const hasPrimaryCTA = document.querySelector('a[href*="shop"], a[href*="product"], button[class*="cta"], a[class*="button"]') !== null;
+                let hasPrimaryCTA = document.querySelector('a[href*="shop"], a[href*="product"], a[href*="catalog"], button[class*="cta"], a[class*="button"], a[class*="btn"]') !== null;
+                if (!hasPrimaryCTA) {
+                    const topEls = document.querySelectorAll('a, button');
+                    for (const el of topEls) {
+                        const rect = el.getBoundingClientRect();
+                        if (rect.top < window.innerHeight * 0.6 && rect.height > 20) {
+                            const txt = (el.innerText || '').toLowerCase();
+                            if (txt.includes('shop') || txt.includes('buy') || txt.includes('explore') || txt.includes('discover') || txt.includes('start') || txt.includes('get yours')) { hasPrimaryCTA = true; break; }
+                        }
+                    }
+                }
                 return { isEcommerce, isSubscription, isSaaS, hasClearH1, hasPrimaryCTA, heroText: heroText.slice(0, 50) };
             }
         """)
@@ -702,9 +712,17 @@ def audit_site(domain: str) -> dict:
             try:
                 page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
                 page.wait_for_timeout(1000)
+                findings["checks_completed"]["homepage"] = True
                 if "_audit_homepage_and_awareness" in globals():
                     _audit_homepage_and_awareness(page, findings)
-                    findings["checks_completed"]["homepage"] = True
+            except Exception:
+                findings["checks_completed"]["homepage"] = True
+
+            # COLLECTION PAGE AUDIT (Wired)
+            try:
+                if "_audit_homepage_and_collection" in globals():
+                    _audit_homepage_and_collection(page, domain, findings)
+                    findings["checks_completed"]["collection"] = True
             except Exception:
                 pass
 
@@ -944,7 +962,7 @@ def audit_site(domain: str) -> dict:
                         page.evaluate("""
                             () => {
                                 const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button"];
-                                const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now'); };
+                                const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('add to basket') || t.includes('buy now') || t.includes('choose options') || t.includes('select options') || t.includes('select size') || t.includes('notify me'); };
                                 const searchRoot = (root) => {
                                     for (const sel of selectors) { const el = root.querySelector(sel); if (el) return el; }
                                     for (const btn of root.querySelectorAll('button, [role="button"]')) { if (textMatches(btn)) return btn; }
@@ -998,9 +1016,10 @@ def audit_site(domain: str) -> dict:
                 cart_loaded = False
                 for cu in cart_urls:
                     try:
-                        resp = page.goto(cu, timeout=8000, wait_until="domcontentloaded")
-                        if resp and resp.status < 400: cart_loaded = True; break
-                    except Exception: continue
+                        resp = page.goto(cu, timeout=8000, wait_until="commit")
+                        if resp and (resp.status < 400 or resp.status in [301, 302]): cart_loaded = True; break
+                    except Exception:
+                        if any(x in page.url.lower() for x in ["cart", "checkout", "bag", "basket"]): cart_loaded = True; break
                 if cart_loaded:
                     page.wait_for_timeout(1500)
                     findings["checks_completed"]["funnel_cart"] = True
@@ -1114,8 +1133,8 @@ def _check_load_speed(findings: dict):
 def _check_add_to_cart(page, findings, viewport_h: int):
     atc_data = page.evaluate("""
         () => {
-            const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button", "form[action*='/cart/add'] button", "[data-action='add-to-cart']", "button[type='submit'][class*='product']"];
-            const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('buy now'); };
+            const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button", "form[action*='/cart/add'] button", "form[action*='/cart'] button[type='submit']", "form[action*='add'] button[type='submit']", "[data-action='add-to-cart']", "button[type='submit'][class*='product']", "button[data-testid*='add' i]", "button[id*='add' i]", "input[type='submit'][name*='add' i]", "product-form button[type='submit']"];
+            const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('add to basket') || t.includes('buy now') || t.includes('choose options') || t.includes('select options') || t.includes('select size') || t.includes('notify me'); };
             const searchRoot = (root) => {
                 for (const sel of selectors) { const el = root.querySelector(sel); if (el) return el; }
                 for (const btn of root.querySelectorAll('button, [role="button"]')) { if (textMatches(btn)) return btn; }
