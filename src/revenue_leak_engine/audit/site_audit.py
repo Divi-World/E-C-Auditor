@@ -1399,7 +1399,7 @@ def _check_add_to_cart(page, findings, viewport_h: int):
 
     if not atc_data.get("found"):
         try:
-            atc_loc = page.get_by_role("button", name=re.compile(r"add|cart|buy|shop|subscribe", re.I)).first
+            atc_loc = page.locator("button, [role='button']").filter(has_text=re.compile(r"add|cart|bag|buy|shop|subscribe", re.I)).first
             if atc_loc and atc_loc.is_visible(timeout=3000):
                 atc_data["found"] = True; atc_data["visible"] = True
                 findings["notes"] += "atc_found_via_native_locator. "
@@ -1420,6 +1420,16 @@ def _check_add_to_cart(page, findings, viewport_h: int):
                 }
             }''')
             time.sleep(0.8)
+        except: pass
+
+        # PHASE R: BRUTE-FORCE VARIANT PHYSICAL CLICK
+        try:
+            swatches = page.locator('[class*="swatch" i], [class*="variant" i], [data-option], [role="radio"]').all()
+            for sw in swatches:
+                if sw.is_visible():
+                    sw.click(force=True)
+                    time.sleep(1.0)
+                    break
         except: pass
 
         ultimate_atc = None

@@ -63,7 +63,7 @@ NICHE_PRESETS = {
 
 # --- Audit settings -----------------------------------------------------
 MOBILE_VIEWPORT = {"width": 390, "height": 844}  # iPhone 12/13-ish
-AUDIT_TIMEOUT_MS = 20000
+AUDIT_TIMEOUT_MS = 60000
 
 REVIEW_APP_SIGNATURES = ["judge.me", "loox.io", "yotpo", "okendo", "stamped.io"]
 EXPRESS_CHECKOUT_SIGNATURES = ["shop-pay", "shopify-pay", "apple-pay", "google-pay"]
