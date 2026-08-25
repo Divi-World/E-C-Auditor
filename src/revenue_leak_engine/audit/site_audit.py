@@ -656,7 +656,7 @@ def audit_site(domain: str) -> dict:
         "domain": domain, "product_url": None, "load_time_ms": None,
         "checks_completed": {"speed": False, "atc_probe": False, "seo": False, "cwv": False, "homepage": False, "collection": False, "advanced_ux": False, "enterprise_heuristics": False, "funnel_cart": False},
         "issues": [], "annotations": [], "screenshot_path": None, "popup_screenshot_path": None,
-        "notes": "", "error": None, "platform": "custom",
+        "notes": "", "error": None, "platform": "custom", "tech_stack": [],
         "run_id": str(_uuid.uuid4())[:8], "engine_version": "v60.4",
         "viewport": f"{MOBILE_VIEWPORT.get('width', 390)}x{MOBILE_VIEWPORT.get('height', 844)}",
     }
@@ -1220,6 +1220,99 @@ def _check_console_errors(findings, console_errors):
     if real_js_errors:
         real_js_errors = sorted(list(set(real_js_errors))) # DETERMINISTIC SORT
         findings["issues"].append({"code": "console_errors", "severity": "medium", "confidence": "VERIFIED", "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.", "evidence": "; ".join(real_js_errors[:3])[:300], "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.", "fix": "Debug the throwing script."})
+
+
+def _fingerprint_tech_stack(seen_urls: list, html_has: str, findings: dict):
+    """Phase A: Enterprise Tech Stack Maturity Fingerprinting"""
+    stack = set()
+    url_blob = " ".join(seen_urls).lower()
+    html_lower = html_has.lower()
+    
+    # CDPs & Data
+    if "segment.com" in url_blob or "analytics.segment" in url_blob: stack.add("Segment (CDP)")
+    if "mparticle.com" in url_blob: stack.add("mParticle (CDP)")
+    
+    # ESPs & SMS
+    if "klaviyo.com" in url_blob or "klaviyo" in html_lower: stack.add("Klaviyo (ESP)")
+    if "attentive.com" in url_blob or "attentive" in html_lower: stack.add("Attentive (SMS)")
+    if "postscript.io" in url_blob: stack.add("Postscript (SMS)")
+    if "recharge" in url_blob or "rechargeapps" in url_blob: stack.add("Recharge (Subscriptions)")
+    
+    # A/B Testing & Personalization
+    if "optimizely.com" in url_blob: stack.add("Optimizely (A/B)")
+    if "vwo.com" in url_blob or "visualwebsiteoptimizer" in url_blob: stack.add("VWO (A/B)")
+    if "intellimize" in url_blob: stack.add("Intellimize (Personalization)")
+    
+    # Headless CMS
+    if "sanity.io" in url_blob: stack.add("Sanity (CMS)")
+    if "contentful.com" in url_blob: stack.add("Contentful (CMS)")
+    if "builder.io" in url_blob or "cdn.builder.io" in url_blob: stack.add("Builder.io (Visual CMS)")
+    
+    # Advanced Reviews
+    if "okendo.io" in url_blob or "okendo" in html_lower: stack.add("Okendo (Reviews)")
+    if "stamped.io" in url_blob: stack.add("Stamped (Reviews)")
+    
+    # Search & Discovery
+    if "algolia.net" in url_blob or "algolia" in html_lower: stack.add("Algolia (Search)")
+    if "searchspring" in url_blob: stack.add("Searchspring (Discovery)")
+    
+    findings["tech_stack"] = sorted(list(stack))
+
+
+def _check_accessibility_risk(page, findings):
+    """Phase B: ADA/WCAG Legal Risk Scanner"""
+    try:
+        a11y_data = page.evaluate("""
+            () => {
+                let violations = 0;
+                let details = [];
+                
+                // 1. HTML lang attribute
+                if (!document.documentElement.lang) {
+                    violations += 1;
+                    details.push("Missing <html lang='...'> attribute");
+                }
+                
+                // 2. Form inputs without labels
+                const inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
+                inputs.forEach(inp => {
+                    const id = inp.id;
+                    const hasAria = inp.getAttribute('aria-label') || inp.getAttribute('aria-labelledby');
+                    const hasLabel = id && document.querySelector(`label[for="${id}"]`);
+                    if (!hasAria && !hasLabel) {
+                        violations += 1;
+                        if (violations < 4) details.push("Form input missing <label> or aria-label");
+                    }
+                });
+                
+                // 3. Empty buttons/links
+                const interactives = document.querySelectorAll('button, a');
+                interactives.forEach(el => {
+                    const text = (el.innerText || '').trim();
+                    const aria = el.getAttribute('aria-label');
+                    const img = el.querySelector('img[alt]');
+                    if (!text && !aria && !img) {
+                        violations += 1;
+                        if (violations < 4) details.push("Interactive element missing accessible name");
+                    }
+                });
+                
+                return { violations, details };
+            }
+        """)
+        
+        if a11y_data.get("violations", 0) >= 3:
+            findings["issues"].append({
+                "code": "ada_wcag_accessibility_risk",
+                "severity": "high",
+                "confidence": "VERIFIED",
+                "description": f"High ADA/WCAG Accessibility Risk ({a11y_data['violations']}+ violations detected).",
+                "evidence": "Detected missing form labels, empty interactive elements, or missing HTML lang attributes. " + "; ".join(a11y_data.get("details", [])),
+                "business_impact": "Non-compliant sites face severe legal risk from ADA/website accessibility lawsuits and alienate 15% of the global population with disabilities.",
+                "fix": "Audit all form inputs for associated <label> tags, ensure all buttons have aria-labels or visible text, and verify <html lang='en'> is set."
+            })
+    except Exception:
+        pass
 
 def _check_seo(page, findings):
     seo = page.evaluate("""

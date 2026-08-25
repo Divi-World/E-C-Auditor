@@ -265,6 +265,7 @@ def generate_report(findings: dict) -> str:
         seo_issues=seo_issues, platform=platform,
         notes=findings.get("notes", ""), error=findings.get("error"),
         screenshot_b64=screenshot_b64, popup_b64=popup_b64,
+        tech_stack=findings.get("tech_stack", []),
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         audit_status=audit_status,
         evidence_summary=evidence_summary,
