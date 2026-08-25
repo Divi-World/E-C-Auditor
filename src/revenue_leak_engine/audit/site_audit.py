@@ -314,7 +314,12 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
                     if (cards.length < 2) return { has_grid: false };
                     let cards_with_price = 0;
                     cards.forEach(card => { if (card.querySelector('[class*="price" i], .price, [data-price]') || card.innerText.match(/\\$\\d+/)) cards_with_price++; });
-                    return { has_grid: true, total_cards: cards.length, cards_with_price: cards_with_price };
+                    
+                    // PHASE E: PLP FRICTION CHECKS
+                    const hasFilters = document.querySelector('[class*="filter" i], [class*="facet" i], [data-filter], [id*="filter" i]') !== null;
+                    const hasSort = document.querySelector('select[name*="sort" i], [class*="sort" i] select, [id*="sort" i]') !== null;
+                    
+                    return { has_grid: true, total_cards: cards.length, cards_with_price: cards_with_price, hasFilters, hasSort };
                 }
             """)
             if coll_data.get('has_grid') and coll_data.get('cards_with_price', 0) < coll_data.get('total_cards', 1) * 0.5:
@@ -323,6 +328,22 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
                     "evidence": f"Only {coll_data.get('cards_with_price')} of {coll_data.get('total_cards')} product cards show a price.",
                     "severity": "medium", "confidence": "VERIFIED", "business_impact": "Forcing users to click into every product to see the price causes massive drop-off.",
                     "fix": "Ensure base prices (and sale prices) are clearly visible directly on the collection grid cards."
+                })
+            if coll_data.get('has_grid') and not coll_data.get('hasFilters'):
+                findings["issues"].append({
+                    "code": "plp_missing_filters", "severity": "medium", "confidence": "VERIFIED",
+                    "description": "Collection page lacks faceted filtering (Price, Size, Color).",
+                    "evidence": "No filter/facet DOM detected on the product listing page.",
+                    "business_impact": "Users cannot narrow down large catalogs, leading to decision paralysis and bounce.",
+                    "fix": "Implement faceted navigation for key attributes (Price, Size, Color, Brand)."
+                })
+            if coll_data.get('has_grid') and not coll_data.get('hasSort'):
+                findings["issues"].append({
+                    "code": "plp_missing_sort", "severity": "low", "confidence": "VERIFIED",
+                    "description": "Collection page lacks sorting options (Price, Newest, Best Selling).",
+                    "evidence": "No sort dropdown detected on the product listing page.",
+                    "business_impact": "Users expect to sort by price or popularity to find what they want faster.",
+                    "fix": "Add a sort dropdown (Best Selling, Price Low-High, Newest)."
                 })
     except Exception: pass
 
@@ -1023,6 +1044,20 @@ def audit_site(domain: str) -> dict:
                 if cart_loaded:
                     page.wait_for_timeout(1500)
                     findings["checks_completed"]["funnel_cart"] = True
+                    
+                    # PHASE C: SAFE SYNTHETIC CART INTERACTION (Zip Code / Shipping Estimator)
+                    try:
+                        zip_inputs = page.query_selector_all('input[name*="zip" i], input[name*="postcode" i], input[name*="postal" i], input[id*="zip" i]')
+                        for z in zip_inputs:
+                            if z.is_visible():
+                                z.fill("10001")
+                                calc_btn = page.query_selector('button:has-text("Calculate"), button:has-text("Update"), button:has-text("Estimate"), button[type="submit"]')
+                                if calc_btn and calc_btn.is_visible():
+                                    calc_btn.click()
+                                    page.wait_for_timeout(1500)
+                                    break
+                    except Exception: pass
+
                     cart_express = _visible_any(page, EXPRESS_SELECTOR)
                     if not cart_express:
                         try:
@@ -1212,6 +1247,7 @@ def _check_script_bloat(page, findings):
     counts = page.evaluate("() => { const scripts = [...document.querySelectorAll('script[src]')]; return [scripts.length, scripts.filter(s => !s.src.startsWith(location.origin)).length]; }")
     total, third_party = counts or [0, 0]
     third_party = round(third_party / 2) * 2
+    findings["script_bloat_count"] = third_party
     if third_party > 28:  # HYSTERESIS
         findings["issues"].append({"code": "script_bloat", "description": f"{third_party} third-party scripts load on the PDP.", "evidence": f"{total} scripts total, {third_party} third-party", "severity": "medium", "confidence": "high", "fix": get_app_bloat_fix(findings.get("platform", "custom"))})
 

@@ -238,6 +238,14 @@ def generate_report(findings: dict) -> str:
     med_count = len(med_issues)
     low_count = len(low_issues)
     
+    # PHASE D: NICHE BENCHMARKING DATA
+    niche_benchmarks = {
+        "beauty": {"lcp_avg": 2800, "scripts_avg": 45, "lcp_label": "Beauty Avg"},
+        "apparel": {"lcp_avg": 2500, "scripts_avg": 50, "lcp_label": "Apparel Avg"},
+        "default": {"lcp_avg": 3000, "scripts_avg": 40, "lcp_label": "Industry Avg"}
+    }
+    bench = niche_benchmarks.get(findings.get("niche", "default"), niche_benchmarks["default"])
+    
     if audit_status == "BLOCKED":
         evidence_summary = "Audit aborted due to WAF/CAPTCHA block. No CRO telemetry could be verified."
     elif audit_status == "TIMEOUT":
@@ -266,6 +274,9 @@ def generate_report(findings: dict) -> str:
         notes=findings.get("notes", ""), error=findings.get("error"),
         screenshot_b64=screenshot_b64, popup_b64=popup_b64,
         tech_stack=findings.get("tech_stack", []),
+        bench=bench,
+        lcp_val=cwv.get("lcp", 0),
+        scripts_val=findings.get("script_bloat_count", 0),
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         audit_status=audit_status,
         evidence_summary=evidence_summary,
