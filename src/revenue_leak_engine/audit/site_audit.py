@@ -1299,7 +1299,34 @@ def _check_add_to_cart(page, findings, viewport_h: int):
                     return (rB.width * rB.height) - (rA.width * rA.height);
                 })[0];
             };
-            const btn = deepQuery();
+            let btn = deepQuery();
+            
+            // INDUSTRIAL FALLBACK: Price-Proximity Heuristic (Pierces Web Components/Shadow DOM)
+            if (!btn) {
+                const priceEls = document.querySelectorAll('[class*="price" i], [data-price], .price');
+                let bestCandidate = null;
+                let maxArea = 0;
+                
+                for (const p of priceEls) {
+                    // Look up to 3 levels up the DOM tree to find the buy-box container
+                    let container = p.parentElement;
+                    for(let i=0; i<3 && container; i++) { container = container.parentElement; }
+                    if (!container) continue;
+                    
+                    // Find all buttons/links in that container
+                    const candidates = container.querySelectorAll('button, a[role="button"], a[class*="btn"], input[type="submit"]');
+                    for (const c of candidates) {
+                        const r = c.getBoundingClientRect();
+                        const area = r.width * r.height;
+                        if (area > maxArea && r.height > 20 && r.width > 50) {
+                            maxArea = area;
+                            bestCandidate = c;
+                        }
+                    }
+                }
+                if (bestCandidate) btn = bestCandidate;
+            }
+
             if (!btn) return { found: false };
             const rect = btn.getBoundingClientRect();
             const cs = window.getComputedStyle(btn);
