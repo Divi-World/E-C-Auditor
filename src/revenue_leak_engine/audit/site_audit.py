@@ -185,7 +185,7 @@ def _extract_cwv_and_friction(page):
                             const r = atc.getBoundingClientRect();
                             touch_target_ok = (r.width >= 32 && r.height >= 32);
                         }
-                        resolve({ lcp: Math.round(lcp / 500) * 500, cls: Math.round(cls * 20) / 20, touch_target_ok });
+                        resolve({ lcp: lcp > 0 ? Math.max(Math.round(lcp / 100) * 100, 100) : 0, cls: cls > 0 ? Math.max(Math.round(cls * 100) / 100, 0.01) : 0, touch_target_ok });
                     }, 1500);
                 });
             }
@@ -464,7 +464,7 @@ def _audit_homepage_and_awareness(page, findings):
                         const rect = el.getBoundingClientRect();
                         if (rect.top < window.innerHeight * 0.6 && rect.height > 20) {
                             const txt = (el.innerText || '').toLowerCase();
-                            if (txt.includes('shop') || txt.includes('buy') || txt.includes('explore') || txt.includes('discover') || txt.includes('start') || txt.includes('get yours')) { hasPrimaryCTA = true; break; }
+                            if (txt.includes('shop') || txt.includes('buy') || txt.includes('explore') || txt.includes('discover') || txt.includes('start') || txt.includes('get yours') || txt.includes('join') || txt.includes('subscribe') || txt.includes('see this') || txt.includes('claim')) { hasPrimaryCTA = true; break; }
                         }
                     }
                 }
@@ -983,7 +983,7 @@ def audit_site(domain: str) -> dict:
                         page.evaluate("""
                             () => {
                                 const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button"];
-                                const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('add to basket') || t.includes('buy now') || t.includes('choose options') || t.includes('select options') || t.includes('select size') || t.includes('notify me'); };
+                                const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('add to basket') || t.includes('add to box') || t.includes('buy now') || t.includes('choose options') || t.includes('select options') || t.includes('select size') || t.includes('notify me') || t.includes('subscribe') || t.includes('join now') || t.includes('get this'); };
                                 const searchRoot = (root) => {
                                     for (const sel of selectors) { const el = root.querySelector(sel); if (el) return el; }
                                     for (const btn of root.querySelectorAll('button, [role="button"]')) { if (textMatches(btn)) return btn; }
@@ -1156,6 +1156,103 @@ def _safe_query(page, action_func, retries=2):
 def _visible_any(page, selector: str) -> bool:
     return any(b.is_visible() for b in page.query_selector_all(selector))
 
+
+def _check_ttfb(page, findings):
+    """Phase G: TTFB Server Health Isolation"""
+    try:
+        ttfb = page.evaluate("""
+            () => {
+                const nav = performance.getEntriesByType('navigation')[0];
+                if (!nav) return null;
+                return Math.round(nav.responseStart - nav.requestStart);
+            }
+        """)
+        findings["ttfb_ms"] = ttfb
+        if ttfb and ttfb > 800:
+            findings["issues"].append({
+                "code": "slow_ttfb_server_health", "severity": "high", "confidence": "VERIFIED",
+                "description": f"Server Response Time (TTFB) is dangerously slow ({ttfb}ms).",
+                "evidence": f"Time to First Byte is {ttfb}ms (Target: <800ms).",
+                "business_impact": "TTFB measures raw hosting/server health. A slow TTFB means the server is struggling, bottlenecking all subsequent frontend optimizations.",
+                "fix": "Upgrade hosting infrastructure, implement server-side caching (Redis/Varnish), or use a premium CDN (Cloudflare/Fastly)."
+            })
+    except Exception: pass
+
+def _check_checkout_behavior(page, domain, findings):
+    """Phase F: Checkout Behavioral Friction (Promo Distraction, Forced Login, Input Types)"""
+    try:
+        checkout_loaded = False
+        for co_url in [f"https://{domain}/checkout", f"https://{domain}/cart"]:
+            try:
+                resp = page.goto(co_url, timeout=8000, wait_until="domcontentloaded")
+                if resp and resp.status < 400: checkout_loaded = True; break
+            except Exception: continue
+        
+        if checkout_loaded:
+            page.wait_for_timeout(1500)
+            
+            # Promo Code Distraction (Check on Cart page)
+            promo_data = page.evaluate("""
+                () => {
+                    let promo_visible = false;
+                    const promoInputs = document.querySelectorAll('input[name*="coupon" i], input[name*="promo" i], input[name*="discount" i], input[id*="coupon" i]');
+                    for (const p of promoInputs) {
+                        if (p.offsetParent !== null) { promo_visible = true; break; }
+                    }
+                    return { promo_visible };
+                }
+            """)
+            if promo_data.get("promo_visible"):
+                findings["issues"].append({
+                    "code": "promo_code_distraction", "severity": "medium", "confidence": "VERIFIED",
+                    "description": "Visible Promo Code box on cart page causes abandonment.",
+                    "evidence": "An open coupon input field is visible before checkout.",
+                    "business_impact": "Baymard research shows visible promo boxes cause 15% of users to leave the site to search for coupons, often never returning.",
+                    "fix": "Hide the promo code input behind a 'Click here to enter promo code' toggle link."
+                })
+
+            # Checkout Page Friction (Forced Login & Input Types)
+            try:
+                page.goto(f"https://{domain}/checkout", timeout=8000, wait_until="domcontentloaded")
+                page.wait_for_timeout(1500)
+                checkout_friction = page.evaluate("""
+                    () => {
+                        let forced_login = false;
+                        let bad_inputs = 0;
+                        
+                        const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+                        const hasGuest = bodyText.includes('guest checkout') || bodyText.includes('continue as guest') || bodyText.includes('checkout as guest');
+                        const hasLoginReq = document.querySelector('input[type="password"]') !== null && !hasGuest;
+                        if (hasLoginReq) forced_login = true;
+                        
+                        const emails = document.querySelectorAll('input[name*="email" i], input[id*="email" i]');
+                        emails.forEach(e => { if (e.type !== 'email') bad_inputs++; });
+                        
+                        const phones = document.querySelectorAll('input[name*="phone" i], input[id*="phone" i], input[name*="tel" i]');
+                        phones.forEach(p => { if (p.type !== 'tel') bad_inputs++; });
+                        
+                        return { forced_login, bad_inputs };
+                    }
+                """)
+                if checkout_friction.get("forced_login"):
+                    findings["issues"].append({
+                        "code": "forced_account_creation", "severity": "high", "confidence": "VERIFIED",
+                        "description": "Checkout forces account creation (No Guest Checkout).",
+                        "evidence": "Password field detected with no 'Guest Checkout' option visible.",
+                        "business_impact": "Forced account creation is a top-3 conversion killer, causing up to 24% of users to abandon.",
+                        "fix": "Enable Guest Checkout and offer account creation *after* the purchase is complete."
+                    })
+                if checkout_friction.get("bad_inputs", 0) > 0:
+                    findings["issues"].append({
+                        "code": "mobile_input_friction", "severity": "medium", "confidence": "VERIFIED",
+                        "description": f"Checkout forms lack proper mobile keyboards ({checkout_friction['bad_inputs']} fields).",
+                        "evidence": "Email or Phone inputs are using standard QWERTY (type='text') instead of type='email' or type='tel'.",
+                        "business_impact": "Forces mobile users to manually switch keyboards to type '@' or numbers, causing severe micro-friction.",
+                        "fix": "Update checkout form HTML to use <input type='email'> and <input type='tel'>."
+                    })
+            except Exception: pass
+    except Exception: pass
+
 def _check_load_speed(findings: dict):
     ms = findings["load_time_ms"]
     cwv = findings.get("cwv", {})
@@ -1169,17 +1266,38 @@ def _check_add_to_cart(page, findings, viewport_h: int):
     atc_data = page.evaluate("""
         () => {
             const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button", "form[action*='/cart/add'] button", "form[action*='/cart'] button[type='submit']", "form[action*='add'] button[type='submit']", "[data-action='add-to-cart']", "button[type='submit'][class*='product']", "button[data-testid*='add' i]", "button[id*='add' i]", "input[type='submit'][name*='add' i]", "product-form button[type='submit']"];
-            const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('add to basket') || t.includes('buy now') || t.includes('choose options') || t.includes('select options') || t.includes('select size') || t.includes('notify me'); };
+            const textMatches = (el) => { const t = (el.innerText || el.textContent || "").toLowerCase(); return t.includes('add to cart') || t.includes('add to bag') || t.includes('add to basket') || t.includes('add to box') || t.includes('buy now') || t.includes('choose options') || t.includes('select options') || t.includes('select size') || t.includes('notify me') || t.includes('subscribe') || t.includes('join now') || t.includes('get this'); };
             const searchRoot = (root) => {
                 for (const sel of selectors) { const el = root.querySelector(sel); if (el) return el; }
                 for (const btn of root.querySelectorAll('button, [role="button"]')) { if (textMatches(btn)) return btn; }
                 return null;
             };
             const deepQuery = () => {
-                let found = searchRoot(document);
-                if (found) return found;
-                for (const node of document.querySelectorAll('*')) { if (node.shadowRoot) { found = searchRoot(node.shadowRoot); if (found) return found; } }
-                return null;
+                let candidates = [];
+                const gather = (root) => {
+                    for (const sel of selectors) { 
+                        const els = root.querySelectorAll(sel);
+                        els.forEach(el => candidates.push(el));
+                    }
+                    for (const btn of root.querySelectorAll('button, [role="button"], a')) { 
+                        if (textMatches(btn)) candidates.push(btn); 
+                    }
+                };
+                gather(document);
+                for (const node of document.querySelectorAll('*')) { if (node.shadowRoot) gather(node.shadowRoot); }
+                
+                // SMART FILTER: Ignore hidden/0-dimension duplicates (common in Shopify mobile/desktop splits)
+                const validBtns = candidates.filter(b => {
+                    const r = b.getBoundingClientRect();
+                    return r.width > 10 && r.height > 10;
+                });
+                if (validBtns.length === 0) return null;
+                
+                // Pick the largest visible button
+                return validBtns.sort((a,b) => {
+                    const rA = a.getBoundingClientRect(); const rB = b.getBoundingClientRect();
+                    return (rB.width * rB.height) - (rA.width * rA.height);
+                })[0];
             };
             const btn = deepQuery();
             if (!btn) return { found: false };

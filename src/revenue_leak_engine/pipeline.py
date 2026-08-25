@@ -112,11 +112,21 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         # Process CRO findings if any
         lead_result["cro_status"] = "complete" if cro_ok else ("error" if cro_findings.get("error") else "healthy")
         if cro_ok:
+            cro_findings["niche"] = niche
             cro_score = opportunity_score(cro_findings)
             cro_report = generate_report(cro_findings)
+            
+            # PHASE H: PDF EXPORT
+            cro_pdf_path = None
+            try:
+                from revenue_leak_engine.reporting.pdf_generator import generate_pdf
+                cro_pdf_path = generate_pdf(cro_report, cro_report.replace(".html", ".pdf"))
+            except Exception: pass
+
             lead_result.update({
                 "cro_score": cro_score,
-                "cro_report_path": cro_report
+                "cro_report_path": cro_report,
+                "cro_pdf_path": cro_pdf_path or ""
             })
             print(f"    CRO score {cro_score}/10 -> {cro_report}")
 

@@ -102,32 +102,42 @@ def draft_geo_email(geo_findings: dict, report_url: str = "") -> dict:
 
 
 def draft_email(findings: dict, report_url: str = "") -> dict:
-    domain = findings["domain"]
-    issue = top_issue(findings)
-
-    if not issue:
-        return {"domain": domain, "subject": None, "body": None,
-                "note": "Healthy site - skipped."}
-
-    subject = f"Mobile conversion leak on {domain}"
-    body = (
-        f"Hi,\n\n"
-        f"{_hook(findings, issue)}\n\n"
-        f"If you're running paid traffic to this page, that's a fixable leak. "
-        f"I put together a short breakdown with screenshots and the exact fixes.\n\n"
-        f"Mind if I send the link over?\n\n"
-        f"{YOUR_NAME or '[Your name]'}"
-        f"{' — ' + YOUR_COMPANY if YOUR_COMPANY else ''}\n"
-        f"(Reply STOP to opt out.)"
-    )
-
+    """Phase J: Hyper-Personalized Enterprise Outreach Draft"""
+    domain = findings.get("domain", "unknown")
+    from revenue_leak_engine.reporting.report_generator import opportunity_score
+    score = opportunity_score(findings)
+    priority = "HIGH" if score < 5.0 else ("MEDIUM" if score < 7.5 else "LOW")
+    ttfb = findings.get("ttfb_ms", 0)
+    tech_stack = findings.get("tech_stack", [])
+    high_issues = [i for i in findings.get("issues", []) if i.get("severity") == "high"]
+    top_issue_obj = high_issues[0] if high_issues else None
+    top_issue_desc = top_issue_obj.get("description", "critical conversion friction") if top_issue_obj else "critical conversion friction"
+    top_issue_code = top_issue_obj.get("code", "general_friction") if top_issue_obj else "general_friction"
+    subject = f"CRO Health Audit: {domain} ({score}/10 - Priority: {priority})"
+    NL = chr(10)
+    body = f"Hi Team,{NL}{NL}"
+    body += f"I was reviewing {domain}'s mobile checkout flow and ran a headless telemetry audit to benchmark your CRO Health against industry standards.{NL}{NL}"
+    body += f"Your current CRO Health Score is {score}/10 (Priority: {priority}).{NL}{NL}"
+    if ttfb and ttfb > 800:
+        body += f"1. Server Health (TTFB): Your Time to First Byte is {ttfb}ms. This indicates your hosting infrastructure is bottlenecking the frontend before the user even sees the page.{NL}"
+    elif high_issues:
+        body += f"1. Primary Leak: {top_issue_desc}.{NL}"
+    if tech_stack:
+        stack_str = ", ".join(tech_stack[:3])
+        body += f"{NL}I also noticed you're running an advanced stack ({stack_str}), which means your engineering team is more than capable of implementing these fixes quickly.{NL}"
+    body += f"{NL}I've generated a full interactive report with the exact DOM evidence and platform-specific code snippets to resolve these leaks.{NL}{NL}"
+    body += f"Report: {report_url}{NL}{NL}"
+    body += f"Are you open to a brief 10-minute walkthrough of the telemetry data this week?{NL}{NL}"
+    name = YOUR_NAME or "[Your Name]"
+    company = YOUR_COMPANY or "Enterprise Revenue Intelligence"
+    body += f"Best,{NL}{name}{NL}{company}"
     return {
         "domain": domain,
         "subject": subject,
         "body": body,
-        "referenced_issue": issue["code"],
+        "referenced_issue": top_issue_code,
         "report_url": report_url,
-        "note": "DRAFT ONLY — review, personalize, and send manually.",
+        "note": "DRAFT ONLY - review, personalize, and send manually.",
     }
 
 

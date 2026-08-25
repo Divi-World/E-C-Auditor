@@ -109,11 +109,15 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
         </div>
         <div class="vital-card">
             <div class="vital-label">LCP (Largest Contentful Paint)</div>
-            <div class="vital-value {% if lcp > 2500 %}bad{% elif lcp > 0 %}good{% else %}warn{% endif %}">{% if lcp > 0 %}{{ lcp }}ms{% else %}N/A{% endif %}</div>
+            <div class="vital-value {% if lcp > 2500 %}bad{% elif lcp >= 0 %}good{% else %}warn{% endif %}">{% if lcp is number and lcp >= 0 %}{{ lcp }}ms{% else %}N/A{% endif %}</div>
         </div>
         <div class="vital-card">
             <div class="vital-label">CLS (Cumulative Layout Shift)</div>
-            <div class="vital-value {% if cls > 0.1 %}bad{% elif cls > 0 %}good{% else %}warn{% endif %}">{% if cls > 0 %}{{ cls }}{% else %}N/A{% endif %}</div>
+            <div class="vital-value {% if cls > 0.1 %}bad{% elif cls >= 0 %}good{% else %}warn{% endif %}">{% if cls is number and cls >= 0 %}{{ cls }}{% else %}N/A{% endif %}</div>
+        </div>
+        <div class="vital-card">
+            <div class="vital-label">TTFB (Server Health)</div>
+            <div class="vital-value {% if ttfb > 800 %}bad{% elif ttfb > 400 %}warn{% elif ttfb >= 0 %}good{% else %}warn{% endif %}">{% if ttfb is number and ttfb >= 0 %}{{ ttfb }}ms{% else %}N/A{% endif %}</div>
         </div>
     </div>
 
@@ -235,13 +239,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     {% endif %}
 
     <div class="footer">
-        <strong><div style="margin-top: 16px; padding: 12px 16px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 11px; color: var(--text-muted); line-height: 1.8;">
-            <strong>Audit Provenance</strong><br>
+        <div style="margin-top: 16px; padding: 12px 16px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 11px; color: var(--text-muted); line-height: 1.8; text-align: left;">
+            <strong style="color: #fff;">Audit Provenance</strong><br>
             Run ID: {{ run_id }} &nbsp;|&nbsp; Engine: {{ engine_version }} &nbsp;|&nbsp; Viewport: {{ viewport }}<br>
             Checks Completed: {{ checks_passed }}/{{ checks_total }} &nbsp;|&nbsp; Findings Hash: <code>{{ findings_hash }}</code><br>
             {% for check, status in checks_completed.items() %}<span style="color: {% if status %}#22c55e{% else %}#ef4444{% endif %};">{{ "✓" if status else "✗" }} {{ check }}</span> &nbsp;{% endfor %}
         </div>
-        Enterprise Revenue Leak Engine</strong><br>
+        <strong>Enterprise Revenue Leak Engine</strong><br>
         This audit was conducted using headless browser telemetry to simulate real-user mobile conditions. 
         Data reflects verified DOM states, network performance, and Core Web Vitals. 
         Implement the prioritized directives to capture leaked revenue and optimize conversion velocity.
