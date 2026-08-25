@@ -300,7 +300,7 @@ def generate_report(findings: dict) -> str:
         notes=findings.get("notes", ""), error=findings.get("error"),
         screenshot_b64=screenshot_b64, popup_b64=popup_b64,
         tech_stack=findings.get("tech_stack", []),
-        ttfb=findings.get("ttfb_ms", 0),
+        ttfb=findings.get("ttfb_ms"),
         bench=bench,
         lcp_val=cwv.get("lcp", 0),
         scripts_val=findings.get("script_bloat_count", 0),

@@ -118,7 +118,7 @@ def draft_email(findings: dict, report_url: str = "") -> dict:
     body = f"Hi Team,{NL}{NL}"
     body += f"I was reviewing {domain}'s mobile checkout flow and ran a headless telemetry audit to benchmark your CRO Health against industry standards.{NL}{NL}"
     body += f"Your current CRO Health Score is {score}/10 (Priority: {priority}).{NL}{NL}"
-    if ttfb and ttfb > 800:
+    if ttfb is not None and ttfb > 800:
         body += f"1. Server Health (TTFB): Your Time to First Byte is {ttfb}ms. This indicates your hosting infrastructure is bottlenecking the frontend before the user even sees the page.{NL}"
     elif high_issues:
         body += f"1. Primary Leak: {top_issue_desc}.{NL}"

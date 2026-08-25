@@ -117,7 +117,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
         </div>
         <div class="vital-card">
             <div class="vital-label">TTFB (Server Health)</div>
-            <div class="vital-value {% if ttfb > 800 %}bad{% elif ttfb > 400 %}warn{% elif ttfb >= 0 %}good{% else %}warn{% endif %}">{% if ttfb is number and ttfb >= 0 %}{{ ttfb }}ms{% else %}N/A{% endif %}</div>
+            <div class="vital-value {% if ttfb is none %}warn{% elif ttfb > 800 %}bad{% elif ttfb > 400 %}warn{% else %}good{% endif %}">{% if ttfb is number %}{{ ttfb }}ms{% else %}N/A{% endif %}</div>
         </div>
     </div>
 

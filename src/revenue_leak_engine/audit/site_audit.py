@@ -918,7 +918,21 @@ def audit_site(domain: str) -> dict:
             page.wait_for_timeout(1000)
 
             shot_path = SCREENSHOTS_DIR / f"{safe}.png"
+            # Force lazy-loaded above-the-fold images to render
+            try:
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight / 3)")
+                page.wait_for_timeout(400)
+                page.evaluate("window.scrollTo(0, 0)")
+                page.wait_for_timeout(400)
+            except Exception: pass
+            
             page.screenshot(path=str(shot_path), full_page=False)
+            
+            # Anti-Blank Fallback
+            import os
+            if os.path.exists(str(shot_path)) and os.path.getsize(str(shot_path)) < 4000:
+                page.wait_for_timeout(2500)
+                page.screenshot(path=str(shot_path), full_page=False)
             _ctx = "Mobile Viewport: Clean page load. Primary CTA verified."
             if "unclosable_overlay" in findings.get("notes", ""): _ctx = "Mobile Viewport: Unclosable overlay detected. Interactive checks skipped."
             elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower(): _ctx = "Mobile Viewport: Overlay dismissed. Buy box verified visible."
@@ -1158,28 +1172,30 @@ def _visible_any(page, selector: str) -> bool:
 
 
 def _check_ttfb(page, findings):
-    """Phase G: TTFB Server Health Isolation"""
+    """Phase G: TTFB Server Health Isolation (Navigation Timing API)"""
     try:
         ttfb = page.evaluate("""
-            async () => {
-                try {
-                    const start = performance.now();
-                    await fetch(window.location.href, { method: 'HEAD', cache: 'no-store', credentials: 'omit' });
-                    const end = performance.now();
-                    return Math.round(end - start);
-                } catch(e) { return null; }
+            () => {
+                const entry = performance.getEntriesByType('navigation')[0];
+                if (!entry || entry.responseStart === 0) return null;
+                return Math.round(entry.responseStart - entry.startTime);
             }
         """)
-        findings["ttfb_ms"] = ttfb
-        if ttfb and ttfb > 800:
-            findings["issues"].append({
-                "code": "slow_ttfb_server_health", "severity": "high", "confidence": "VERIFIED",
-                "description": f"Server Response Time (TTFB) is dangerously slow ({ttfb}ms).",
-                "evidence": f"Time to First Byte is {ttfb}ms (Target: <800ms).",
-                "business_impact": "TTFB measures raw hosting/server health. A slow TTFB means the server is struggling, bottlenecking all subsequent frontend optimizations.",
-                "fix": "Upgrade hosting infrastructure, implement server-side caching (Redis/Varnish), or use a premium CDN (Cloudflare/Fastly)."
-            })
-    except Exception: pass
+        if ttfb is not None:
+            findings["ttfb_ms"] = ttfb
+            if ttfb > 800:
+                findings["issues"].append({
+                    "code": "slow_ttfb_server_health", "severity": "high", "confidence": "VERIFIED",
+                    "description": f"Server Response Time (TTFB) is dangerously slow ({ttfb}ms).",
+                    "evidence": f"Time to First Byte is {ttfb}ms (Target: <800ms). Measured via Navigation Timing API.",
+                    "business_impact": "TTFB measures raw hosting/server health. A slow TTFB means the server is struggling, bottlenecking all subsequent frontend optimizations.",
+                    "fix": "Upgrade hosting infrastructure, implement server-side caching (Redis/Varnish), or use a premium CDN (Cloudflare/Fastly)."
+                })
+        else:
+            findings["ttfb_ms"] = None
+    except Exception:
+        findings["ttfb_ms"] = None
+
 
 def _check_checkout_behavior(page, domain, findings):
     """Phase F: Checkout Behavioral Friction (Promo Distraction, Forced Login, Input Types)"""
