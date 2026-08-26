@@ -982,6 +982,7 @@ def audit_site(domain: str) -> dict:
             findings["screenshot_path"] = str(shot_path)
 
             cwv = _extract_cwv_and_friction(page)
+            _check_ttfb(page, findings)
             findings["checks_completed"]["cwv"] = True
             findings["cwv"] = cwv
             try:
@@ -1262,6 +1263,14 @@ def audit_site(domain: str) -> dict:
     if not findings.get("error"):
         findings["audit_status"] = "VERIFIED"
         
+    # OMEGA NUCLEAR DEDUP & REVENUE RISK
+    cart_evidence = any(('/cart/add' in u or '/cart.js' in u or '/add-to-cart' in u or '/checkout' in u) for u in seen_urls)
+    ghost_ok = "ghost_click" in findings.get("notes", "")
+    inconclusive = any(x.get("code") == "atc_detection_inconclusive" for x in findings.get("issues", []))
+    if cart_evidence or ghost_ok or inconclusive:
+        findings["issues"] = [x for x in findings.get("issues", []) if x.get("code") != "no_add_to_cart_found"]
+    _calculate_revenue_risk(findings)
+
     return findings
 
 
@@ -1288,6 +1297,15 @@ def _calculate_revenue_risk(findings):
     findings["estimated_monthly_leak_usd"] = int(base_traffic * total_penalty * aov)
     findings["estimated_annual_leak_usd"] = findings["estimated_monthly_leak_usd"] * 12
 
+
+
+def _calculate_revenue_risk(findings):
+    t = findings.get("tech_stack", [])
+    b = 500000 if any(x in t for x in ["Segment (CDP)", "mParticle (CDP)", "Algolia (Search)"]) else (100000 if "shopify" in findings.get("platform", "").lower() else 50000)
+    p = {"no_express_checkout":0.015, "cart_no_express_checkout":0.015, "hidden_shipping_costs":0.04, "missing_delivery_urgency":0.02, "slow_ttfb_server_health":0.03, "heavy_client_side_js":0.02, "add_to_cart_below_fold":0.01, "missing_sticky_atc":0.01, "forced_account_creation":0.05, "no_cart_drawer":0.005, "cart_no_shipping_estimator":0.02, "ada_wcag_accessibility_risk":0.02}
+    tp = min(sum(p.get(i.get("code"), 0) for i in findings.get("issues", [])), 0.25)
+    findings["estimated_monthly_leak_usd"] = int(b * tp * 85)
+    findings["estimated_annual_leak_usd"] = findings["estimated_monthly_leak_usd"] * 12
 
 def _safe_query(page, action_func, retries=2):
     for attempt in range(retries):

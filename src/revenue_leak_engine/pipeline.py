@@ -171,6 +171,22 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                         with open(cro_report, 'w', encoding='utf-8') as f: f.write(html)
                 except: pass
 
+            # OMEGA BANNER INJECTION
+            if cro_findings.get("estimated_monthly_leak_usd", 0) > 0:
+                _lk = cro_findings["estimated_monthly_leak_usd"]
+                _an = cro_findings["estimated_annual_leak_usd"]
+                _bh = f'<div style="background:linear-gradient(90deg, #7f1d1d, #991b1b); color:white; padding:20px; text-align:center; font-family:sans-serif; margin-bottom:20px; border-radius:8px;"><h2 style="margin:0; font-size:24px;">ESTIMATED REVENUE LEAK: ${_lk:,} / MONTH</h2><p style="margin:5px 0 0 0; opacity:0.9;">${_an:,} Annualized Loss (Baymard Friction Model)</p></div>'
+                try:
+                    import re as _re
+                    with open(cro_report, 'r', encoding='utf-8') as _f: _html = _f.read()
+                    if 'ESTIMATED REVENUE LEAK' not in _html:
+                        _body_match = _re.search(r'<body[^>]*>', _html)
+                        if _body_match:
+                            _insert_pos = _body_match.end()
+                            _html = _html[:_insert_pos] + _bh + _html[_insert_pos:]
+                            with open(cro_report, 'w', encoding='utf-8') as _f: _f.write(_html)
+                except Exception: pass
+
             print(f"    CRO score {cro_score}/10 -> {cro_report}")
 
             # Generate CRO outreach draft
