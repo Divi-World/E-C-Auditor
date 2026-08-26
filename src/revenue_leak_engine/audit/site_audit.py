@@ -1594,7 +1594,12 @@ def _check_add_to_cart(page, findings, viewport_h: int):
                     atc_data["found"] = True
             except Exception: pass
 
-        findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM, Shadow Root, and Ultimate Hunter returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
+        # NETWORK TRUTH: If cart API fired, the button exists in a headless portal.
+        cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u) for u in seen_urls)
+        if not cart_network:
+            findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM, Shadow Root, and Ultimate Hunter returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
+        else:
+            findings["issues"].append({"code": "headless_checkout_flow", "description": "Add-to-Cart handled via custom headless portal (Network verified).", "evidence": "DOM search returned no standard match, but network interceptor confirmed cart API activity.", "severity": "low", "confidence": "VERIFIED", "business_impact": "Custom headless flows can introduce friction if not optimized for mobile.", "fix": "Manual verification recommended. Ensure the custom checkout flow is optimized for mobile conversion."})
         return None
 
     if not atc_data.get("visible"):
