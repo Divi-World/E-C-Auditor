@@ -21,22 +21,25 @@ env = Environment(
 )
 
 def opportunity_score(findings: dict) -> float:
-    """Calculates CRO Health Score: starts at 10.0 and SUBTRACTS for each unique issue."""
+    """Enterprise Weighted Scoring Matrix (Baymard Impact Model)"""
     if not findings or "issues" not in findings: return 10.0
-    
+    score = 100.0
+    weights = {"high": 12.0, "medium": 3.5, "low": 0.5}
+    conf_mult = {"VERIFIED": 1.0, "high": 0.9, "medium": 0.6, "low": 0.3}
     seen_codes = set()
-    score = 10.0
     for issue in findings.get("issues", []):
         code = issue.get("code", "")
         if code in seen_codes: continue
         seen_codes.add(code)
-        
         sev = issue.get("severity", "low")
-        if sev == "high": score -= 1.2
-        elif sev == "medium": score -= 0.4
-        else: score -= 0.1
-        
-    return max(0.0, round(score, 1))
+        conf = issue.get("confidence", "medium")
+        base_penalty = weights.get(sev, 2.0)
+        multiplier = conf_mult.get(conf, 0.5)
+        if code in ["forced_account_creation", "checkout_hidden_fees_detected", "slow_ttfb_server_health"]:
+            base_penalty = 25.0
+        score -= (base_penalty * multiplier)
+    return max(1.0, round(score / 10.0, 1))  # Floor at 1.0
+
 
 def _process_screenshot(path_str, annotations=None):
     """Resizes, compresses to JPEG, and draws red bounding boxes on evidence."""

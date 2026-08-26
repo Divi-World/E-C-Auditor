@@ -22,6 +22,7 @@ from revenue_leak_engine.config import (
     TIMEOUT_NAVIGATION, TIMEOUT_HTTP_FALLBACK, TIMEOUT_CHECKOUT, TIMEOUT_PROBE
 )
 from revenue_leak_engine.audit.seo_audit import audit_seo_onpage
+from .revenue_math import calculate_revenue_risk
 from revenue_leak_engine.audit.popup_handler import (
     detect_overlay, classify_overlay, dismiss_overlays,
 )
@@ -1244,68 +1245,17 @@ def audit_site(domain: str) -> dict:
         if desc: seen_texts.add(desc)
         deduped_issues.append(issue)
 
-    # NUCLEAR DEDUP: Guarantee zero duplicate codes before sorting
-    seen_codes_nuclear = set()
-    nuclear_issues = []
-    for issue in deduped_issues:
-        c = issue.get("code")
-        if c and c in seen_codes_nuclear: continue
-        if c: seen_codes_nuclear.add(c)
-        nuclear_issues.append(issue)
-        
-    # DETERMINISTIC SORT: Guarantee identical output order for identical states
-    findings["issues"] = sorted(nuclear_issues, key=lambda x: (
-        {"high": 0, "medium": 1, "low": 2}.get(x.get("severity", "low"), 3),
-        x.get("code", "")
-    ))
+        # BULLETPROOF NUCLEAR DEDUP (Eradicates Contradictions)
+    cart_reached = any(i.get("code") in ["cart_no_express_checkout", "cart_no_shipping_estimator", "checkout_hidden_fees_detected", "checkout_missing_trust_badges", "checkout_missing_progress"] for i in findings.get("issues", []))
+    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u) for u in seen_urls)
     
-    # STATUS INTEGRITY: If we completed the full interactive flow without fatal error, it is VERIFIED.
-    if not findings.get("error"):
-        findings["audit_status"] = "VERIFIED"
-        
-    # OMEGA NUCLEAR DEDUP & REVENUE RISK
-    cart_evidence = any(('/cart/add' in u or '/cart.js' in u or '/add-to-cart' in u or '/checkout' in u) for u in seen_urls)
-    ghost_ok = "ghost_click" in findings.get("notes", "")
-    inconclusive = any(x.get("code") == "atc_detection_inconclusive" for x in findings.get("issues", []))
-    if cart_evidence or ghost_ok or inconclusive:
-        findings["issues"] = [x for x in findings.get("issues", []) if x.get("code") != "no_add_to_cart_found"]
-    _calculate_revenue_risk(findings)
+    if cart_reached or cart_network:
+        findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "no_add_to_cart_found"]
+    findings.update(calculate_revenue_risk(findings))
 
     return findings
 
 
-
-def _calculate_revenue_risk(findings):
-    """Phase Omega: CFO-Ready Revenue-at-Risk Calculator (Baymard Friction Penalties)"""
-    tech_stack = findings.get("tech_stack", [])
-    base_traffic = 50000
-    if any(t in tech_stack for t in ["Segment (CDP)", "mParticle (CDP)", "Algolia (Search)"]):
-        base_traffic = 500000
-    elif "shopify" in findings.get("platform", "").lower():
-        base_traffic = 100000
-    aov = 85
-    friction_penalties = {
-        "no_express_checkout": 0.015, "cart_no_express_checkout": 0.015,
-        "hidden_shipping_costs": 0.04, "missing_delivery_urgency": 0.02,
-        "slow_ttfb_server_health": 0.03, "heavy_client_side_js": 0.02,
-        "add_to_cart_below_fold": 0.01, "missing_sticky_atc": 0.01,
-        "forced_account_creation": 0.05, "no_cart_drawer": 0.005,
-        "cart_no_shipping_estimator": 0.02
-    }
-    total_penalty = sum(friction_penalties.get(i.get("code"), 0) for i in findings.get("issues", []))
-    total_penalty = min(total_penalty, 0.25)
-    findings["estimated_monthly_leak_usd"] = int(base_traffic * total_penalty * aov)
-    findings["estimated_annual_leak_usd"] = findings["estimated_monthly_leak_usd"] * 12
-
-
-
-def _calculate_revenue_risk(findings):
-    t = findings.get("tech_stack", [])
-    b = 500000 if any(x in t for x in ["Segment (CDP)", "mParticle (CDP)", "Algolia (Search)"]) else (100000 if "shopify" in findings.get("platform", "").lower() else 50000)
-    p = {"no_express_checkout":0.015, "cart_no_express_checkout":0.015, "hidden_shipping_costs":0.04, "missing_delivery_urgency":0.02, "slow_ttfb_server_health":0.03, "heavy_client_side_js":0.02, "add_to_cart_below_fold":0.01, "missing_sticky_atc":0.01, "forced_account_creation":0.05, "no_cart_drawer":0.005, "cart_no_shipping_estimator":0.02, "ada_wcag_accessibility_risk":0.02}
-    tp = min(sum(p.get(i.get("code"), 0) for i in findings.get("issues", [])), 0.25)
-    findings["estimated_monthly_leak_usd"] = int(b * tp * 85)
-    findings["estimated_annual_leak_usd"] = findings["estimated_monthly_leak_usd"] * 12
 
 def _safe_query(page, action_func, retries=2):
     for attempt in range(retries):
