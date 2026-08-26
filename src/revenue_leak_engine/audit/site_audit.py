@@ -949,6 +949,17 @@ def audit_site(domain: str) -> dict:
             page.wait_for_timeout(1000)
 
             shot_path = SCREENSHOTS_DIR / f"{safe}.png"
+            
+            # ENTERPRISE PROTOCOL: WHITE-SCREEN PREVENTION (React/Hydrogen/Next.js Hydration Wait)
+            try:
+                page.wait_for_function("""() => {
+                    const body = document.body;
+                    const main = document.querySelector('main, [id*="main"], [class*="product"], h1, form, [class*="hero"]');
+                    return body && body.scrollHeight > 200 && main && main.offsetHeight > 50;
+                }""", timeout=8000)
+            except Exception:
+                page.wait_for_timeout(3000) # Hard fallback for heavy WAF/JS sites
+
             # Force lazy-loaded above-the-fold images to render
             try:
                 page.evaluate("window.scrollTo(0, document.body.scrollHeight / 3)")
@@ -984,15 +995,24 @@ def audit_site(domain: str) -> dict:
             if cwv.get("cls", 0) > 0.15:  # HYSTERESIS
                 findings["issues"].append({"code": "poor_cls", "description": f"Cumulative Layout Shift (CLS) is {cwv['cls']} (target <0.1).", "evidence": f"CLS: {cwv['cls']}", "severity": "medium", "confidence": "high", "fix": "Reserve space for images/video embeds and avoid injecting dynamic content above the fold without placeholders."})
             _check_load_speed(findings)
-                        # PHASE M.1: VARIANT AUTO-UNLOCK
+                        # PHASE M.1: ENTERPRISE VARIANT AUTO-UNLOCK (React/Vue Synthetic Event Trigger)
             try:
-                page.evaluate("""() => {
-const sw=document.querySelectorAll('[class*="swatch" i] button, [class*="variant" i] button, [data-option] button, label[class*="variant" i], input[type="radio"][name*="variant"] + label');
-for(const s of sw){if(s.offsetWidth>10){s.click();break;}}
-const se=document.querySelectorAll('select[name*="variant" i], select[name*="size" i], select[name*="color" i]');
-for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new Event('change',{bubbles:true}));break;}}}""")
-                page.wait_for_timeout(800)
-            except: pass
+                # Physical Playwright clicks bypass React portal/shadow DOM event blocking
+                swatches = page.locator('[class*="swatch"] button, [class*="variant"] button, [data-option] button, label[class*="variant"], input[type="radio"][name*="variant"] + label, [class*="size"] button, [class*="color"] button').all()
+                for sw in swatches:
+                    if sw.is_visible():
+                        sw.click(force=True)
+                        page.wait_for_timeout(600)
+                        break
+                
+                # Fallback for dropdowns
+                selects = page.locator('select[name*="variant" i], select[name*="size" i], select[name*="color" i]').all()
+                for sel in selects:
+                    if sel.is_visible():
+                        sel.select_option(index=1)
+                        page.wait_for_timeout(600)
+                        break
+            except Exception: pass
 
             atc_btn = _check_add_to_cart(page, findings, viewport_h)
             findings["checks_completed"]["atc_probe"] = True
@@ -1060,6 +1080,14 @@ for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new 
                 try: dl_before = page.evaluate("() => window.dataLayer ? window.dataLayer.length : 0")
                 except Exception: dl_before = 0
                 url_before = page.url
+                # ENTERPRISE PROTOCOL: NETWORK INTERCEPTION (Catches API success even if DOM drawer fails)
+                cart_api_success = False
+                def _intercept_cart_api(response):
+                    nonlocal cart_api_success
+                    if any(x in response.url.lower() for x in ['/cart/add', '/cart.js', '/checkout', '/add-to-cart']):
+                        if response.status < 400: cart_api_success = True
+                page.on("response", _intercept_cart_api)
+
                 try:
                     if atc_btn == "JS_BTN":
                         page.evaluate("""
@@ -1102,8 +1130,13 @@ for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new 
                         drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]")
                     except Exception: pass
 
+                page.remove_listener("response", _intercept_cart_api)
+                
                 if navigated or not (drawer and drawer.is_visible()):
-                    findings["issues"].append({"code": "no_cart_drawer", "description": "Adding to cart leaves the product page (full-page cart) instead of opening a cart drawer.", "evidence": "URL changed or no visible drawer element after Add-to-Cart click", "severity": "low", "confidence": "medium", "fix": get_drawer_fix(findings.get("platform", "custom"))})
+                    if cart_api_success:
+                        findings["notes"] += "cart_api_success_but_no_drawer. "
+                    else:
+                        findings["issues"].append({"code": "no_cart_drawer", "description": "Adding to cart leaves the product page (full-page cart) instead of opening a cart drawer.", "evidence": "URL changed or no visible drawer element after Add-to-Cart click", "severity": "low", "confidence": "medium", "fix": get_drawer_fix(findings.get("platform", "custom"))})
 
             try:
                 _check_advanced_ux_seo(page, findings)
@@ -1556,12 +1589,40 @@ def _check_add_to_cart(page, findings, viewport_h: int):
         return None
 
     if not atc_data.get("visible"):
+        # ENTERPRISE PROTOCOL: SCROLL-TO-REVEAL (Fixes sticky/lazy-loaded ATC false positives)
+        try:
+            page.evaluate("""() => {
+                const sels = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", "form[action*='cart'] button[type='submit']", "[class*='add-to-cart']"];
+                for (const sel of sels) {
+                    const el = document.querySelector(sel);
+                    if (el) { el.scrollIntoView({behavior: 'instant', block: 'center'}); return true; }
+                }
+            }""")
+            page.wait_for_timeout(800)
+            # Re-evaluate visibility after scroll
+            re_check = page.evaluate("""() => {
+                const sels = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", "form[action*='cart'] button[type='submit']"];
+                for (const sel of sels) {
+                    const el = document.querySelector(sel);
+                    if (el) {
+                        const r = el.getBoundingClientRect();
+                        const cs = window.getComputedStyle(el);
+                        if (cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 10 && r.height > 10) return true;
+                    }
+                }
+                return false;
+            }""")
+            if re_check:
+                findings["notes"] += "atc_revealed_after_scroll. "
+                return "JS_BTN" # Successfully recovered
+        except Exception: pass
+
         btn_text = atc_data.get("text", "")
         if btn_text and len(btn_text) > 3:
             findings["notes"] += f"atc_unmeasurable_shadow_dom: '{btn_text}'. "
             return "JS_BTN"
         else:
-            findings["issues"].append({"code": "add_to_cart_not_visible", "description": "Add to Cart button exists in DOM but appears hidden from the mobile viewport.", "evidence": f"Element found but CSS hides it or dimensions are 0.", "severity": "high", "confidence": "medium", "fix": "Verify the buy box renders visibly on mobile; check for CSS display:none or zero-height containers."})
+            findings["issues"].append({"code": "add_to_cart_not_visible", "description": "Add to Cart button exists in DOM but remains hidden even after scrolling.", "evidence": f"Element found but CSS hides it or dimensions are 0.", "severity": "high", "confidence": "medium", "fix": "Verify the buy box renders visibly on mobile; check for CSS display:none or zero-height containers."})
             return "JS_BTN"
 
     w, h = atc_data.get("width", 0), atc_data.get("height", 0)
