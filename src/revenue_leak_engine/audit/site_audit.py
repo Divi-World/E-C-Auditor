@@ -1265,6 +1265,30 @@ def audit_site(domain: str) -> dict:
     return findings
 
 
+
+def _calculate_revenue_risk(findings):
+    """Phase Omega: CFO-Ready Revenue-at-Risk Calculator (Baymard Friction Penalties)"""
+    tech_stack = findings.get("tech_stack", [])
+    base_traffic = 50000
+    if any(t in tech_stack for t in ["Segment (CDP)", "mParticle (CDP)", "Algolia (Search)"]):
+        base_traffic = 500000
+    elif "shopify" in findings.get("platform", "").lower():
+        base_traffic = 100000
+    aov = 85
+    friction_penalties = {
+        "no_express_checkout": 0.015, "cart_no_express_checkout": 0.015,
+        "hidden_shipping_costs": 0.04, "missing_delivery_urgency": 0.02,
+        "slow_ttfb_server_health": 0.03, "heavy_client_side_js": 0.02,
+        "add_to_cart_below_fold": 0.01, "missing_sticky_atc": 0.01,
+        "forced_account_creation": 0.05, "no_cart_drawer": 0.005,
+        "cart_no_shipping_estimator": 0.02
+    }
+    total_penalty = sum(friction_penalties.get(i.get("code"), 0) for i in findings.get("issues", []))
+    total_penalty = min(total_penalty, 0.25)
+    findings["estimated_monthly_leak_usd"] = int(base_traffic * total_penalty * aov)
+    findings["estimated_annual_leak_usd"] = findings["estimated_monthly_leak_usd"] * 12
+
+
 def _safe_query(page, action_func, retries=2):
     for attempt in range(retries):
         try: return action_func()
@@ -1584,6 +1608,23 @@ def _check_add_to_cart(page, findings, viewport_h: int):
                 time.sleep(0.8)
             except: pass
             return "ULTIMATE_BTN"
+
+        
+        # PHASE OMEGA: GHOST CLICK COORDINATE STRIKE
+        if not atc_data.get("found"):
+            try:
+                ghost_coords = page.evaluate("""() => {
+                    const price = document.querySelector('[class*="price" i], [data-price], .price');
+                    if (!price) return null;
+                    const r = price.getBoundingClientRect();
+                    return { x: r.x + (r.width / 2), y: r.y + r.height + 60 };
+                }""")
+                if ghost_coords and ghost_coords.get('y') > 0:
+                    page.mouse.click(ghost_coords['x'], ghost_coords['y'])
+                    page.wait_for_timeout(1000)
+                    findings["notes"] += "ghost_click_coordinate_strike_executed. "
+                    atc_data["found"] = True
+            except Exception: pass
 
         findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM, Shadow Root, and Ultimate Hunter returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
         return None

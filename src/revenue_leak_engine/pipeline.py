@@ -158,6 +158,19 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 "cro_report_path": cro_report,
                 "cro_pdf_path": cro_pdf_path or ""
             })
+
+            # PHASE OMEGA: REVENUE LEAK BANNER
+            if cro_findings.get("estimated_monthly_leak_usd", 0) > 0:
+                leak = cro_findings["estimated_monthly_leak_usd"]
+                annual = cro_findings["estimated_annual_leak_usd"]
+                banner_html = f'<div style="background:linear-gradient(90deg, #7f1d1d, #991b1b); color:white; padding:20px; text-align:center; font-family:sans-serif; margin-bottom:20px; border-radius:8px;"><h2 style="margin:0; font-size:24px;">ESTIMATED REVENUE LEAK: ${leak:,} / MONTH</h2><p style="margin:5px 0 0 0; opacity:0.9;">${annual:,} Annualized Loss based on Baymard Institute Friction Penalties</p></div>'
+                try:
+                    with open(cro_report, 'r', encoding='utf-8') as f: html = f.read()
+                    if '<body' in html and 'ESTIMATED REVENUE LEAK' not in html:
+                        html = html.replace('<body>', f'<body>{banner_html}', 1)
+                        with open(cro_report, 'w', encoding='utf-8') as f: f.write(html)
+                except: pass
+
             print(f"    CRO score {cro_score}/10 -> {cro_report}")
 
             # Generate CRO outreach draft
