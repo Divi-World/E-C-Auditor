@@ -19,6 +19,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from revenue_leak_engine.config import (
     MOBILE_VIEWPORT, AUDIT_TIMEOUT_MS, SCREENSHOTS_DIR,
+    TIMEOUT_NAVIGATION, TIMEOUT_HTTP_FALLBACK, TIMEOUT_CHECKOUT, TIMEOUT_PROBE
 )
 from revenue_leak_engine.audit.seo_audit import audit_seo_onpage
 from revenue_leak_engine.audit.popup_handler import (
@@ -125,18 +126,27 @@ def _page_text_head(page, chars=400) -> str:
         return ""
 
 
-def _goto_resilient(page, url: str) -> bool:
-    for strategy in ("load", "domcontentloaded"):
+def _goto_resilient(page, url: str, findings: dict = None, phase_name: str = "navigation") -> bool:
+    try:
+        page.goto(url, timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
+        page.wait_for_timeout(4000)
+        return True
+    except PWTimeout:
+        if findings is not None:
+            findings["notes"] += f"{phase_name}_timeout_checking_dom. "
         try:
-            page.goto(url, timeout=AUDIT_TIMEOUT_MS, wait_until=strategy)
-            if strategy == "domcontentloaded":
-                page.wait_for_timeout(3500)
-            return True
-        except PWTimeout:
-            continue
+            state = page.evaluate("() => document.readyState")
+            if state in ["interactive", "complete"]:
+                if findings is not None:
+                    findings["notes"] += f"{phase_name}_dom_hydrated_post_timeout. "
+                return True
         except Exception:
-            return False
-    return False
+            pass
+        return False
+    except Exception as e:
+        if findings is not None:
+            findings["notes"] += f"{phase_name}_fatal_error. "
+        return False
 
 
 def _perf_load_ms(page):
@@ -196,7 +206,7 @@ def _extract_cwv_and_friction(page):
 
 def find_a_product_url(page, domain: str) -> str | None:
     try:
-        page.goto(f"https://{domain}/products.json?limit=10", timeout=10000, wait_until="domcontentloaded")
+        page.goto(f"https://{domain}/products.json?limit=10", timeout=TIMEOUT_HTTP_FALLBACK, wait_until="domcontentloaded")
         data = _json.loads(page.inner_text("body"))
         for prod in data.get("products", []):
             if prod.get("handle"):
@@ -232,7 +242,7 @@ def find_a_product_url(page, domain: str) -> str | None:
 
     try:
         from curl_cffi import requests as cffi_requests
-        r = cffi_requests.get(f"https://{domain}", timeout=15, impersonate="chrome120")
+        r = cffi_requests.get(f"https://{domain}", timeout=TIMEOUT_HTTP_FALLBACK/1000, impersonate="chrome120")
         if r.status_code == 200:
             html_raw = r.text
             matches = re.findall(r'href=["\'](https?://[^"\']*(?:/product/|/products/|/p/|/item/|/dp/|/shop/)[^"\']*)["\']', html_raw, re.I)
@@ -244,7 +254,7 @@ def find_a_product_url(page, domain: str) -> str | None:
         pass
 
     try:
-        page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
+        page.goto(f"https://{domain}", timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
         time.sleep(0.8)
         heuristic_url = page.evaluate("""
             () => {
@@ -269,7 +279,7 @@ def find_a_product_url(page, domain: str) -> str | None:
 
 def _audit_homepage_and_collection(page, domain: str, findings: dict):
     try:
-        page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
+        page.goto(f"https://{domain}", timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
         time.sleep(0.8)
         hp_data = page.evaluate("""
             () => {
@@ -303,7 +313,7 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
         coll_loaded = False
         for p in coll_paths:
             try:
-                resp = page.goto(f"https://{domain}{p}", timeout=8000, wait_until="domcontentloaded")
+                resp = page.goto(f"https://{domain}{p}", timeout=TIMEOUT_CHECKOUT, wait_until="domcontentloaded")
                 if resp and resp.status < 400: coll_loaded = True; break
             except Exception: continue
         if coll_loaded:
@@ -464,7 +474,7 @@ def _check_enterprise_heuristics(page, findings, platform):
 
 def _audit_homepage_and_awareness(page, findings):
     try:
-        page.goto(f"https://{findings.get('domain', '')}", timeout=15000, wait_until="domcontentloaded")
+        page.goto(f"https://{findings.get('domain', '')}", timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
         time.sleep(0.8)
         awareness = page.evaluate("""
             () => {
@@ -590,7 +600,7 @@ def _audit_checkout_telemetry(page, findings, domain):
         loaded = False
         for p in checkout_paths:
             try:
-                resp = page.goto(p, timeout=6000, wait_until="domcontentloaded")
+                resp = page.goto(p, timeout=TIMEOUT_CHECKOUT, wait_until="domcontentloaded")
                 if resp and resp.status < 400: loaded = True; break
             except Exception: continue
         if not loaded: return
@@ -615,7 +625,7 @@ def _audit_checkout_telemetry(page, findings, domain):
 def _sample_product_integrity(page, domain, findings, primary_url):
     """Checks 2 additional products to confirm if critical bugs are site-wide."""
     try:
-        page.goto(f"https://{domain}/collections/all", timeout=8000, wait_until="domcontentloaded")
+        page.goto(f"https://{domain}/collections/all", timeout=TIMEOUT_CHECKOUT, wait_until="domcontentloaded")
         time.sleep(0.8)
         links = page.evaluate("""() => Array.from(document.querySelectorAll('a[href*="/products/"], a[href*="/product/"], a[href*="/p/"]')).map(a => a.href).slice(0, 10)""")
         samples = list(set([l for l in links if l != primary_url and ('/products/' in l or '/product/' in l or '/p/' in l)]))[:2]
@@ -625,7 +635,7 @@ def _sample_product_integrity(page, domain, findings, primary_url):
         site_wide_schema_missing = 0
         for url in samples:
             try:
-                page.goto(url, timeout=6000, wait_until="domcontentloaded")
+                page.goto(url, timeout=TIMEOUT_CHECKOUT, wait_until="domcontentloaded")
                 page.wait_for_timeout(1000)
                 checks = page.evaluate("""() => {
                     const hasAtc = document.querySelector('button[name="add"], .single_add_to_cart_button, [data-add-to-cart]') !== null;
@@ -693,7 +703,7 @@ def audit_site(domain: str) -> dict:
     import uuid as _uuid
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
-        "checks_completed": {"speed": False, "atc_probe": False, "seo": False, "cwv": False, "homepage": False, "collection": False, "advanced_ux": False, "enterprise_heuristics": False, "funnel_cart": False},
+        "checks_completed": {"speed": False, "atc_probe": False, "seo": False, "cwv": False, "homepage": False, "collection": False, "advanced_ux": False, "enterprise_heuristics": False, "funnel_cart": False, "ttfb": False, "tech_stack": False, "accessibility": False, "checkout_behavior": False},
         "issues": [], "annotations": [], "screenshot_path": None, "popup_screenshot_path": None,
         "notes": "", "error": None, "platform": "custom", "tech_stack": [],
         "run_id": str(_uuid.uuid4())[:8], "engine_version": "v60.4",
@@ -722,7 +732,7 @@ def audit_site(domain: str) -> dict:
         # AGGRESSIVE WAF BYPASS: Pre-fetch cookies via curl_cffi and inject into Playwright
         try:
             from curl_cffi import requests as cffi_requests
-            pre_flight = cffi_requests.get(f"https://{domain}", impersonate="chrome120", timeout=10)
+            pre_flight = cffi_requests.get(f"https://{domain}", impersonate="chrome120", timeout=TIMEOUT_HTTP_FALLBACK/1000)
             if pre_flight.cookies:
                 pw_cookies = []
                 for name, value in pre_flight.cookies.items():
@@ -749,7 +759,7 @@ def audit_site(domain: str) -> dict:
         try:
             # HOMEPAGE & BUSINESS MODEL AWARENESS (Explicit Call)
             try:
-                page.goto(f"https://{domain}", timeout=15000, wait_until="domcontentloaded")
+                page.goto(f"https://{domain}", timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
                 page.wait_for_timeout(1000)
                 findings["checks_completed"]["homepage"] = True
                 if "_audit_homepage_and_awareness" in globals():
@@ -777,7 +787,7 @@ def audit_site(domain: str) -> dict:
             # Pre-flight WAF probe
             try:
                 from curl_cffi import requests as cffi_requests
-                probe = cffi_requests.get(product_url, impersonate="chrome120", timeout=10)
+                probe = cffi_requests.get(product_url, impersonate="chrome120", timeout=TIMEOUT_HTTP_FALLBACK/1000)
                 if probe.status_code == 200:
                     probe_lower = probe.text.lower()
                     waf_sigs = ['just a moment', 'verify you are human', 'challenge-platform', 'cf-turnstile', 'hcaptcha', 'g-recaptcha', 'attention required', 'checking your browser', 'ray id']
@@ -786,20 +796,23 @@ def audit_site(domain: str) -> dict:
             except Exception:
                 pass
 
-            if not _goto_resilient(page, product_url):
+            if not _goto_resilient(page, product_url, findings, "pdp_navigation"):
+                findings["notes"] += "pdp_navigation_failed_attempting_http_fallback. "
                 try:
                     from curl_cffi import requests as cffi_requests
-                    r = cffi_requests.get(product_url, timeout=15, impersonate="chrome120")
+                    r = cffi_requests.get(product_url, timeout=TIMEOUT_HTTP_FALLBACK/1000, impersonate="chrome120")
                     if r.status_code == 200 and len(r.text) > 500:
                         findings["load_time_ms"] = 9999
-                        findings["notes"] += "playwright_timeout_used_curl_cffi_fallback. "
-                        page.goto(f"data:text/html;charset=utf-8,{r.text[:50000].replace('#', '%23')}")
+                        findings["notes"] += "pdp_used_curl_cffi_fallback. "
+                        findings["audit_status"] = "PARTIAL_HTTP_FALLBACK"
+                        safe_html = r.text[:100000].replace('#', '%23').replace('\n', ' ')
+                        page.goto(f"data:text/html;charset=utf-8,{safe_html}", wait_until="domcontentloaded", timeout=5000)
                     else:
-                        findings["error"] = "timeout"
+                        findings["error"] = f"INCONCLUSIVE: Navigation and HTTP fallback failed (Status: {r.status_code})"
                         browser.close()
                         return findings
-                except Exception:
-                    findings["error"] = "timeout"
+                except Exception as e:
+                    findings["error"] = f"INCONCLUSIVE: Navigation and HTTP fallback completely failed ({str(e)[:50]})"
                     browser.close()
                     return findings
 
@@ -931,7 +944,7 @@ def audit_site(domain: str) -> dict:
                 skip_interactive = True
                 findings["issues"].append({"code": "unclosable_overlay", "description": "A viewport-blocking overlay could not be automatically dismissed.", "evidence": "Overlay persisted after dismissal attempts and DOM nuke.", "severity": "high", "confidence": "VERIFIED", "business_impact": "Viewport-blocking overlays without accessible dismissals cause immediate user abandonment.", "fix": "Ensure marketing popups have a visible, accessible close button."})
 
-            try: page.wait_for_load_state("networkidle", timeout=8000)
+            try: page.wait_for_load_state("networkidle", timeout=TIMEOUT_PROBE)
             except Exception: pass
             page.wait_for_timeout(1000)
 
@@ -960,6 +973,12 @@ def audit_site(domain: str) -> dict:
             cwv = _extract_cwv_and_friction(page)
             findings["checks_completed"]["cwv"] = True
             findings["cwv"] = cwv
+            try:
+                _check_ttfb(page, findings)
+                findings["checks_completed"]["ttfb"] = True
+            except Exception as _e:
+                findings["notes"] += f"ttfb_check_failed: {_e}. "
+
             if cwv.get("lcp", 0) > 2800:  # HYSTERESIS
                 findings["issues"].append({"code": "poor_lcp", "description": f"Largest Contentful Paint (LCP) is {cwv['lcp']}ms (target <2500ms).", "evidence": f"LCP: {cwv['lcp']}ms", "severity": "high", "confidence": "high", "fix": "Optimize hero image delivery, preload critical fonts, and reduce server response time (TTFB)."})
             if cwv.get("cls", 0) > 0.15:  # HYSTERESIS
@@ -1017,6 +1036,19 @@ for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new 
             ga4 = any("googletagmanager.com/gtag" in u or "/g/collect" in u for u in seen_urls) or "gtag(" in html_has
             if not meta_pixel: findings["issues"].append({"code": "meta_pixel_missing", "description": "Meta (Facebook/Instagram) Pixel not detected on the product page.", "evidence": "no facebook.com/tr request and no fbq in page HTML", "severity": "medium", "confidence": "high", "fix": get_pixel_fix(findings.get("platform", "custom"))})
             if not tiktok_pixel: findings["issues"].append({"code": "tiktok_pixel_missing", "description": "TikTok Pixel not detected.", "evidence": "no analytics.tiktok.com request and no ttq in page HTML", "severity": "low", "confidence": "high", "fix": get_tiktok_fix(findings.get("platform", "custom"))})
+            
+            try:
+                _fingerprint_tech_stack(seen_urls, html_has, findings)
+                findings["checks_completed"]["tech_stack"] = True
+            except Exception as _e:
+                findings["notes"] += f"tech_stack_failed: {_e}. "
+
+            try:
+                _check_accessibility_risk(page, findings)
+                findings["checks_completed"]["accessibility"] = True
+            except Exception as _e:
+                findings["notes"] += f"accessibility_check_failed: {_e}. "
+
             if not ga4: findings["issues"].append({"code": "ga4_missing", "description": "Google Analytics 4 not detected.", "evidence": "no gtag/collect requests and no gtag in page HTML", "severity": "low", "confidence": "high", "fix": "Add GA4 with e-commerce events to measure what ads and CRO changes actually do."})
 
             if not skip_interactive and atc_btn is not None:
@@ -1083,7 +1115,7 @@ for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new 
                 cart_loaded = False
                 for cu in cart_urls:
                     try:
-                        resp = page.goto(cu, timeout=8000, wait_until="commit")
+                        resp = page.goto(cu, timeout=TIMEOUT_CHECKOUT, wait_until="commit")
                         if resp and (resp.status < 400 or resp.status in [301, 302]): cart_loaded = True; break
                     except Exception:
                         if any(x in page.url.lower() for x in ["cart", "checkout", "bag", "basket"]): cart_loaded = True; break
@@ -1115,6 +1147,13 @@ for(const s of se){if(s.options.length>1){s.selectedIndex=1;s.dispatchEvent(new 
                                 }
                             """)
                         except Exception: pass
+                    
+                try:
+                    _check_checkout_behavior(page, domain, findings)
+                    findings["checks_completed"]["checkout_behavior"] = True
+                except Exception as _e:
+                    findings["notes"] += f"checkout_behavior_failed: {_e}. "
+
                     if not cart_express: findings["issues"].append({"code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).", "evidence": "No express wallet buttons detected on /cart or /checkout page.", "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.", "fix": get_express_fix(findings.get("platform", "custom"))})
                     cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
                     if not any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $']):
@@ -1235,7 +1274,7 @@ def _check_checkout_behavior(page, domain, findings):
         checkout_loaded = False
         for co_url in [f"https://{domain}/checkout", f"https://{domain}/cart"]:
             try:
-                resp = page.goto(co_url, timeout=8000, wait_until="domcontentloaded")
+                resp = page.goto(co_url, timeout=TIMEOUT_CHECKOUT, wait_until="domcontentloaded")
                 if resp and resp.status < 400: checkout_loaded = True; break
             except Exception: continue
         
@@ -1264,7 +1303,7 @@ def _check_checkout_behavior(page, domain, findings):
 
             # Checkout Page Friction (Forced Login & Input Types)
             try:
-                page.goto(f"https://{domain}/checkout", timeout=8000, wait_until="domcontentloaded")
+                page.goto(f"https://{domain}/checkout", timeout=TIMEOUT_CHECKOUT, wait_until="domcontentloaded")
                 time.sleep(0.8)
                 checkout_friction = page.evaluate("""
                     () => {
@@ -1362,20 +1401,18 @@ def _check_add_to_cart(page, findings, viewport_h: int):
                 })[0];
             };
             let btn = deepQuery();
-            
+
             // INDUSTRIAL FALLBACK: Price-Proximity Heuristic (Pierces Web Components/Shadow DOM)
             if (!btn) {
                 const priceEls = document.querySelectorAll('[class*="price" i], [data-price], .price');
                 let bestCandidate = null;
                 let maxArea = 0;
-                
+
                 for (const p of priceEls) {
-                    // Look up to 3 levels up the DOM tree to find the buy-box container
                     let container = p.parentElement;
                     for(let i=0; i<3 && container; i++) { container = container.parentElement; }
                     if (!container) continue;
-                    
-                    // Find all buttons/links in that container
+
                     const candidates = container.querySelectorAll('button, a[role="button"], a[class*="btn"], input[type="submit"]');
                     for (const c of candidates) {
                         const r = c.getBoundingClientRect();

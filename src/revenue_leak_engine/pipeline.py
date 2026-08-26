@@ -94,12 +94,32 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         try:
             geo_findings = audit_geo(domain)
         except Exception as e:
-            print(f"    warning: GEO audit crashed - {e}")
-            geo_findings = {"issues": [], "overall_geo_score": 0, "platform_detected": "unknown"}
+            err_str = str(e).lower()
+            if any(x in err_str for x in ["could not resolve", "nameresolutionerror", "gaierror", "dns", "no address associated"]):
+                print(f"    warning: GEO audit DNS failure")
+                geo_findings = {
+                    "issues": [{"code": "dns_resolution_failed", "description": "Domain cannot be resolved (DNS Failure).", "severity": "critical", "confidence": "VERIFIED", "business_impact": "The site is completely inaccessible. Revenue is 100% lost.", "fix": "Check domain registration and DNS provider settings."}],
+                    "overall_geo_score": 0, 
+                    "platform_detected": "unknown",
+                    "audit_status": "INCONCLUSIVE_DNS"
+                }
+            else:
+                print(f"    warning: GEO audit crashed - {e}")
+                geo_findings = {"issues": [], "overall_geo_score": 0, "platform_detected": "unknown"}
 
         # Determine if each audit found issues
         cro_ok = bool(cro_findings.get("issues")) and not cro_findings.get("error")
         geo_ok = bool(geo_findings.get("issues"))
+
+        if geo_findings.get("overall_geo_score", 0) == 0 and not geo_findings.get("issues"):
+            geo_findings["audit_status"] = "INCONCLUSIVE_NETWORK"
+            geo_findings["issues"].append({
+                "code": "network_unreachable",
+                "description": "GEO audit could not reach the domain (DNS/Network Failure).",
+                "severity": "critical", "confidence": "VERIFIED",
+                "business_impact": "The site is completely inaccessible to customers. Revenue is 100% lost.",
+                "fix": "Verify domain registration, DNS records, and hosting server status."
+            })
 
         # Skip if both audits found nothing actionable
         if not cro_ok and not geo_ok:
@@ -119,11 +139,11 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             cro_score = opportunity_score(cro_findings)
             cro_report = generate_report(cro_findings)
             try:
-                html = open(cro_report, "r", encoding="utf-8").read()
-                if html.count("Enterprise Revenue Leak Engine") > 1:
-                    parts = html.split("Enterprise Revenue Leak Engine")
-                    html = parts[0] + "Enterprise Revenue Leak Engine" + "".join(parts[2:])
-                    open(cro_report, "w", encoding="utf-8").write(html)
+                with open(cro_report, 'r', encoding='utf-8') as f: html = f.read()
+                if html.count('Enterprise Revenue Leak Engine') > 1:
+                    parts = html.split('Enterprise Revenue Leak Engine')
+                    html = parts[0] + 'Enterprise Revenue Leak Engine' + ''.join(parts[2:])
+                    with open(cro_report, 'w', encoding='utf-8') as f: f.write(html)
             except: pass
             
             # PHASE H: PDF EXPORT
@@ -193,6 +213,13 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 geo_findings["opp_color"] = "#ef4444"
 
             geo_report = generate_geo_report(geo_findings)
+            try:
+                with open(geo_report, 'r', encoding='utf-8') as f: html = f.read()
+                if html.count('Enterprise Revenue Leak Engine') > 1:
+                    parts = html.split('Enterprise Revenue Leak Engine')
+                    html = parts[0] + 'Enterprise Revenue Leak Engine' + ''.join(parts[2:])
+                    with open(geo_report, 'w', encoding='utf-8') as f: f.write(html)
+            except: pass
             lead_result.update({
                 "geo_score": geo_score,
                 "geo_report_path": geo_report
@@ -220,7 +247,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         cro_stat = lead_result.get("cro_status", "unknown")
         conf = geo_findings.get("score_confidence", "full")
         
-        if geo_issues_count == 0 and geo_score_val >= 9.0:
+        if geo_issues_count == 0 and geo_score_val >= 8.0:
             lead_result["lead_status"] = "HEALTHY"
         elif cro_stat == "error" and conf in ["partial", "low"]:
             lead_result["lead_status"] = "INCONCLUSIVE"

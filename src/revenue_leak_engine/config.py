@@ -63,7 +63,14 @@ NICHE_PRESETS = {
 
 # --- Audit settings -----------------------------------------------------
 MOBILE_VIEWPORT = {"width": 390, "height": 844}  # iPhone 12/13-ish
-AUDIT_TIMEOUT_MS = 60000
+# Phase-aware timeouts (milliseconds)
+TIMEOUT_NAVIGATION = 15000
+TIMEOUT_HTTP_FALLBACK = 10000
+TIMEOUT_CHECKOUT = 8000
+TIMEOUT_PROBE = 5000
+
+# Legacy support
+AUDIT_TIMEOUT_MS = TIMEOUT_NAVIGATION
 
 REVIEW_APP_SIGNATURES = ["judge.me", "loox.io", "yotpo", "okendo", "stamped.io"]
 EXPRESS_CHECKOUT_SIGNATURES = ["shop-pay", "shopify-pay", "apple-pay", "google-pay"]
