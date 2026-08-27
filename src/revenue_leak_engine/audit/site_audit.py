@@ -1016,7 +1016,7 @@ def audit_site(domain: str) -> dict:
                         break
             except Exception: pass
 
-            atc_btn = _check_add_to_cart(page, findings, viewport_h)
+            atc_btn = _check_add_to_cart(page, findings, viewport_h, seen_urls)
             findings["checks_completed"]["atc_probe"] = True
             
             # ENTERPRISE CREDIBILITY SHIELD: If no ATC found, try visual fallback
@@ -1420,7 +1420,7 @@ def _check_load_speed(findings: dict):
     elif ms and ms > 8000 and lcp == 0:
         findings["issues"].append({"code": "slow_load_fallback", "description": f"Total page load time is {ms}ms, indicating severe main-thread blocking.", "evidence": f"{ms}ms measured via navigation timing.", "severity": "medium", "confidence": "medium", "fix": "Audit main-thread blocking scripts and compress above-the-fold imagery."})
 
-def _check_add_to_cart(page, findings, viewport_h: int):
+def _check_add_to_cart(page, findings, viewport_h: int, seen_urls: list = None):
     atc_data = page.evaluate("""
         () => {
             const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button", "form[action*='/cart/add'] button", "form[action*='/cart'] button[type='submit']", "form[action*='add'] button[type='submit']", "[data-action='add-to-cart']", "button[type='submit'][class*='product']", "button[data-testid*='add' i]", "button[id*='add' i]", "input[type='submit'][name*='add' i]", "product-form button[type='submit']"];
@@ -1595,7 +1595,8 @@ def _check_add_to_cart(page, findings, viewport_h: int):
             except Exception: pass
 
         # NETWORK TRUTH: If cart API fired, the button exists in a headless portal.
-        cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u) for u in seen_urls)
+        _seen = seen_urls or []
+        cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u) for u in _seen)
         if not cart_network:
             findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM, Shadow Root, and Ultimate Hunter returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
         else:
