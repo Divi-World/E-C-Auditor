@@ -1247,7 +1247,7 @@ def audit_site(domain: str) -> dict:
 
         # BULLETPROOF NUCLEAR DEDUP (Eradicates Contradictions)
     cart_reached = any(i.get("code") in ["cart_no_express_checkout", "cart_no_shipping_estimator", "checkout_hidden_fees_detected", "checkout_missing_trust_badges", "checkout_missing_progress"] for i in findings.get("issues", []))
-    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u) for u in seen_urls)
+    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u or '/api/cart' in u or 'add_to_cart' in u) for u in seen_urls)
     
     if cart_reached or cart_network:
         findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "no_add_to_cart_found"]
@@ -1259,7 +1259,7 @@ def audit_site(domain: str) -> dict:
     has_cart_truth = any(i.get("code") in cart_codes or "Cart API activity" in i.get("description", "") for i in findings.get("issues", []))
     
     # Network truth: seen_urls is in scope here
-    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u) for u in seen_urls)
+    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u or '/api/cart' in u or 'add_to_cart' in u) for u in seen_urls)
     
     if has_cart_truth or cart_network:
         findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "no_add_to_cart_found"]
@@ -1291,7 +1291,10 @@ def _check_ttfb(page, findings):
             () => {
                 const entry = performance.getEntriesByType('navigation')[0];
                 if (!entry || entry.responseStart === 0) return null;
-                return Math.round(entry.responseStart - entry.requestStart); // STRICT SERVER TTFB
+                // Ignore cached responses (transferSize is 0 but body > 0)
+                if (entry.transferSize === 0 && entry.decodedBodySize > 0) return null;
+                // Navigation Timing Level 2: startTime is 0. responseStart is true TTFB.
+                return Math.round(entry.responseStart);
             }
         """)
         
@@ -1870,22 +1873,17 @@ def _check_accessibility_risk(page, findings):
                 // 3. Empty buttons/links
                 const interactives = document.querySelectorAll('button, a');
                 interactives.forEach(el => {
-    // ENTERPRISE ADA FILTER: Ignore decorative SVGs, hidden elements, and aria-hidden
-    if (el.hasAttribute('aria-hidden') && el.getAttribute('aria-hidden') === 'true') return;
-    if (el.querySelector('svg') && !el.querySelector('img[alt]')) return;
-    const cs = window.getComputedStyle(el);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
-    if (el.offsetWidth === 0 && el.offsetHeight === 0) return;
-    // ENTERPRISE ADA FILTER: Ignore icon fonts (e.g., FontAwesome <i> tags)
-    if (el.querySelector('i') || (el.className && typeof el.className === 'string' && el.className.includes('icon'))) return;
-
+                    // ENTERPRISE ADA FILTER: Ignore truly hidden/decorative elements
                     if (el.hasAttribute('aria-hidden') && el.getAttribute('aria-hidden') === 'true') return;
-                    if (el.querySelector('svg') && !el.querySelector('img[alt]')) return;
                     const cs = window.getComputedStyle(el);
-                    if (cs.display === 'none' || cs.visibility === 'hidden') return;
-                    const text = (el.innerText || '').trim();
-                    const aria = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.getAttribute('title');
+                    if (cs.display === 'none' || cs.visibility === 'hidden' || el.offsetWidth === 0) return;
+
+                    const text = (el.innerText || el.getAttribute('title') || '').trim();
+                    const aria = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby');
                     const img = el.querySelector('img[alt]');
+                    
+                    // Note: We DO NOT skip elements just because they contain an <svg>.
+                    // If an icon-only button lacks an aria-label, it IS a real ADA violation.
                     if (!text && !aria && !img) {
                         violations += 1;
                         if (violations < 4) details.push("Interactive element missing accessible name");
