@@ -1,3 +1,9 @@
+import os
+
+def _get_proxies():
+    p = os.getenv("PROXY_URL")
+    return {"https": p, "http": p} if p else None
+
 """
 Full mobile site audit — v5 (COMPLETE FILE).
 
@@ -243,7 +249,7 @@ def find_a_product_url(page, domain: str) -> str | None:
 
     try:
         from curl_cffi import requests as cffi_requests
-        r = cffi_requests.get(f"https://{domain}", timeout=TIMEOUT_HTTP_FALLBACK/1000, impersonate="chrome120")
+        r = cffi_requests.get(f"https://{domain}", timeout=TIMEOUT_HTTP_FALLBACK/1000, impersonate="chrome120", proxies=_get_proxies())
         if r.status_code == 200:
             html_raw = r.text
             matches = re.findall(r'href=["\'](https?://[^"\']*(?:/product/|/products/|/p/|/item/|/dp/|/shop/)[^"\']*)["\']', html_raw, re.I)
@@ -516,7 +522,7 @@ def _curl_cffi_fallback_audit(url, findings, reason="waf_detected"):
     try:
         from curl_cffi import requests as cffi_requests
         from bs4 import BeautifulSoup
-        r = cffi_requests.get(url, impersonate="chrome120", timeout=15)
+        r = cffi_requests.get(url, impersonate="chrome120", proxies=_get_proxies(), timeout=15)
         if r.status_code != 200: return False
         soup = BeautifulSoup(r.text, 'html.parser')
         title = soup.title.string.strip() if soup.title and soup.title.string else ""
@@ -725,15 +731,15 @@ def audit_site(domain: str) -> dict:
             "--no-sandbox",
             "--disable-setuid-sandbox"
         ])
-        context = browser.new_context(
-            viewport=MOBILE_VIEWPORT, has_touch=True, ignore_https_errors=True,
-            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-        )
+        _ctx_opts = dict(viewport=MOBILE_VIEWPORT, has_touch=True, ignore_https_errors=True,
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+        if _get_proxies(): _ctx_opts["proxy"] = {"server": _get_proxies()["https"]}
+        context = browser.new_context(**_ctx_opts)
         
         # AGGRESSIVE WAF BYPASS: Pre-fetch cookies via curl_cffi and inject into Playwright
         try:
             from curl_cffi import requests as cffi_requests
-            pre_flight = cffi_requests.get(f"https://{domain}", impersonate="chrome120", timeout=TIMEOUT_HTTP_FALLBACK/1000)
+            pre_flight = cffi_requests.get(f"https://{domain}", impersonate="chrome120", proxies=_get_proxies(), timeout=TIMEOUT_HTTP_FALLBACK/1000)
             if pre_flight.cookies:
                 pw_cookies = []
                 for name, value in pre_flight.cookies.items():
@@ -788,7 +794,7 @@ def audit_site(domain: str) -> dict:
             # Pre-flight WAF probe
             try:
                 from curl_cffi import requests as cffi_requests
-                probe = cffi_requests.get(product_url, impersonate="chrome120", timeout=TIMEOUT_HTTP_FALLBACK/1000)
+                probe = cffi_requests.get(product_url, impersonate="chrome120", proxies=_get_proxies(), timeout=TIMEOUT_HTTP_FALLBACK/1000)
                 if probe.status_code == 200:
                     probe_lower = probe.text.lower()
                     waf_sigs = ['just a moment', 'verify you are human', 'challenge-platform', 'cf-turnstile', 'hcaptcha', 'g-recaptcha', 'attention required', 'checking your browser', 'ray id']
@@ -801,7 +807,7 @@ def audit_site(domain: str) -> dict:
                 findings["notes"] += "pdp_navigation_failed_attempting_http_fallback. "
                 try:
                     from curl_cffi import requests as cffi_requests
-                    r = cffi_requests.get(product_url, timeout=TIMEOUT_HTTP_FALLBACK/1000, impersonate="chrome120")
+                    r = cffi_requests.get(product_url, timeout=TIMEOUT_HTTP_FALLBACK/1000, impersonate="chrome120", proxies=_get_proxies())
                     if r.status_code == 200 and len(r.text) > 500:
                         findings["load_time_ms"] = 9999
                         findings["notes"] += "pdp_used_curl_cffi_fallback. "
@@ -1202,10 +1208,14 @@ def audit_site(domain: str) -> dict:
         except PWTimeout:
             findings["error"] = "timeout"
         except Exception as e:
-            findings["error"] = f"audit_failed: {e}"
-            import traceback
-            findings["error_traceback"] = traceback.format_exc()
-            print(f"CRO AUDIT FAILED for {domain}: {e}")
+            err_str = str(e)
+            if "Execution context was destroyed" in err_str or "Target page, context or browser has been closed" in err_str or "Navigation" in err_str:
+                findings["notes"] += f"interactive_audit_interrupted_by_navigation: {err_str[:50]}. "
+            else:
+                findings["error"] = f"audit_failed: {e}"
+                import traceback
+                findings["error_traceback"] = traceback.format_exc()
+                print(f"CRO AUDIT FAILED for {domain}: {e}")
         finally:
             try: browser.close()
             except Exception: pass
@@ -1305,7 +1315,7 @@ def _check_ttfb(page, findings):
             import time
             domain = findings.get("domain", "")
             start = time.time()
-            r = cffi_requests.get(f"https://{domain}", impersonate="chrome120", timeout=10)
+            r = cffi_requests.get(f"https://{domain}", impersonate="chrome120", proxies=_get_proxies(), timeout=10)
             edge_ttfb = int((time.time() - start) * 1000)
             findings["edge_ttfb_ms"] = edge_ttfb
         except Exception as e:
