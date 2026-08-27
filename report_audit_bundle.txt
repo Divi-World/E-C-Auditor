@@ -1,0 +1,473 @@
+==========================================================================================
+REVENUE LEAK ENGINE - GENERATED REPORT FORENSIC AUDIT
+==========================================================================================
+
+------------------------------------------------------------------------------------------
+FILE: allbirds_com.html | TYPE: CRO
+Score: 7.6/10
+Revenue Leak: $3,825/month
+TTFB: 166ms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 1
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 11
+
+ISSUES:
+  1. High Impact 95% confidence
+     Evidence: LCP: 2900ms 
+  2. Medium Impact 
+     Evidence: Touch target analysis failed minimum 32px requirement. 
+  3. Medium Impact 
+     Evidence: not visible on PDP nor after a safe Add-to-Cart click 
+  4. Medium Impact 
+     Evidence: No mentions of returns, refunds, or guarantees detected in the product details or buy box. 
+  5. Low Impact 
+     Evidence: No Visa/Mastercard/PayPal icons or 'Secure Checkout' text found in footer. 
+  6. Low Impact 
+     Evidence: no analytics.tiktok.com request and no ttq in page HTML 
+  7. Low Impact 
+     Evidence: No breadcrumb DOM structure or BreadcrumbList schema detected. 
+  8. Low Impact 
+     Evidence: No 'Frequently Bought Together' or 'Related Products' sections detected. 
+  9. Low Impact 
+     Evidence: Meta description missing or will be truncated by Google. 
+  10. Low Impact 
+     Evidence: Multiple or missing H1 tags confuse search engine crawlers about page topic. 
+  11. Low Impact 
+     Evidence: Over 20% of images are invisible to screen readers and AI image search. 
+
+RECOMMENDATIONS:
+  1. Optimize hero image delivery, preload critical fonts, and reduce server response time (TTFB). 
+  2. Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines. 
+  3. Enable Shop Pay / Apple Pay / Google Pay in Shopify Settings > Payments so express buttons render on PDP and cart. 
+  4. Display a concise 'Easy 30-Day Returns' or 'Money-Back Guarantee' badge directly below the Add to Cart button. 
+  5. Display standard payment method SVGs and a 'Secure SSL Checkout' badge in the global footer. 
+  6. If TikTok traffic is part of the plan, install the TikTok Pixel via the Shopify app. 
+  7. Add a clear Home > Category > Subcategory breadcrumb trail. 
+  8. Implement a 'Frequently Bought Together' carousel. 
+  9. Write a 120-160 char benefit-driven meta description with a clear CTA. Page has 3 H1 tags (target: exactly 1). 
+  10. Ensure exactly one H1 tag per page, matching the primary product/category name. 11 of 37 images lack alt text. 
+  11. Add descriptive, keyword-relevant alt text to all product and lifestyle imagery. 
+
+------------------------------------------------------------------------------------------
+FILE: allbirds_com_geo.html | TYPE: GEO
+Score: MISSING/10
+Revenue Leak: $MISSING/month
+TTFB: MISSINGms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 0
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 0
+
+ISSUES:
+  [NONE PARSED]
+
+RECOMMENDATIONS:
+  [NONE PARSED]
+
+------------------------------------------------------------------------------------------
+FILE: beautyitis_com.html | TYPE: CRO
+Score: 5.5/10
+Revenue Leak: $24,225/month
+TTFB: 157ms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 1
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 18
+
+ISSUES:
+  1. High Impact 95% confidence
+     Evidence: No mention of shipping, delivery, or free shipping thresholds detected near the buy box. 
+  2. Medium Impact 
+     Evidence: No filter/facet DOM detected on the product listing page. 
+  3. Medium Impact 
+     Evidence: button top at y=1440 on a 844px viewport 
+  4. Medium Impact 
+     Evidence: Touch target analysis failed minimum 32px requirement. 
+  5. Medium Impact 
+     Evidence: 72 scripts total, 52 third-party. Heaviest: beautyitis.com (199KB), beautyitis.com (91KB), beautyitis.com (66KB) 
+  6. Medium Impact 
+     Evidence: not visible on PDP nor after a safe Add-to-Cart click 
+  7. Medium Impact 
+     Evidence: no pixel request and no dataLayer growth within 1.5s of a real Add-to-Cart click 
+  8. Medium Impact 
+     Evidence: No size guides, material breakdowns, or ingredient lists detected on the page. 
+  9. Medium Impact 
+     Evidence: No fixed/sticky purchase bar detected when scrolling past the main buy box. 
+  10. Medium Impact 
+     Evidence: No text matching 'Delivery by', 'Arrives by', or 'Free shipping over $X' found. 
+  11. Low Impact 
+     Evidence: No Visa/Mastercard/PayPal icons or 'Secure Checkout' text found in footer. 
+  12. Low Impact 
+     Evidence: No sort dropdown detected on the product listing page. 
+  13. Low Impact 
+     Evidence: no review-app DOM, no aggregateRating schema, no 'N reviews' text 
+  14. Low Impact 
+     Evidence: no trust-language match in page text 
+  15. Low Impact 
+     Evidence: no analytics.tiktok.com request and no ttq in page HTML 
+  16. Low Impact 
+     Evidence: No 'Frequently Bought Together' or 'Related Products' sections detected. 
+  17. Low Impact 
+     Evidence: no ld+json script containing a Product object 
+  18. Low Impact 
+     Evidence: meta[name=description] missing or empty 
+
+RECOMMENDATIONS:
+  1. Add a dynamic shipping estimator or a clear 'Free Shipping over $X' badge directly inside the buy box. 
+  2. Implement faceted navigation for key attributes (Price, Size, Color, Brand). 
+  3. Add a sticky mobile Add to Cart bar or move the buy box above the fold. 
+  4. Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines. 
+  5. Audit installed Shopify apps; remove or defer unused ones. Every app script is a tax on speed and conversion. 
+  6. Enable Shop Pay / Apple Pay / Google Pay in Shopify Settings > Payments so express buttons render on PDP and cart. 
+  7. Wire the add_to_cart / AddToCart event in the pixel setup (Shopify Facebook channel or GTM). 
+  8. Add expandable accordion tabs for 'Sizing/Fit', 'Materials/Ingredients', and 'Care Instructions'. 
+  9. Implement a sticky bottom bar containing the Price and Add to Cart button. 
+  10. Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping'. 
+  11. Display standard payment method SVGs and a 'Secure SSL Checkout' badge in the global footer. 
+  12. Add a sort dropdown (Best Selling, Price Low-High, Newest). 
+  13. Add a review app (Judge.me/Loox/Yotpo) and surface the star rating above the fold. 
+  14. Add shipping/returns/guarantee reassurance near the buy box. 
+  15. If TikTok traffic is part of the plan, install the TikTok Pixel via the Shopify app. 
+  16. Implement a 'Frequently Bought Together' carousel. 
+  17. Add Product schema (price, availability, aggregateRating) for rich results in Google. 🛠️ Code Snippet (Paste in theme.liquid before </head>): <script type="application/ld+json"> { "@context": "https://schema.org", "@type": "Product", "name": "{{ product.title | escape }}", "image": "{{ product.featured_image | img_url: 'master' }}", "offers": { "@type": "Offer", "priceCurrency": "{{ shop.currency 
+  18. Write a benefit-led meta description per product template. 
+
+------------------------------------------------------------------------------------------
+FILE: beautyitis_com_geo.html | TYPE: GEO
+Score: MISSING/10
+Revenue Leak: $MISSING/month
+TTFB: MISSINGms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 0
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 0
+
+ISSUES:
+  [NONE PARSED]
+
+RECOMMENDATIONS:
+  [NONE PARSED]
+
+------------------------------------------------------------------------------------------
+FILE: fecofoods_com_ng.html | TYPE: CRO
+Score: 4.6/10
+Revenue Leak: $4,590/month
+TTFB: 1200ms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 1
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 13
+
+ISSUES:
+  1. High Impact 95% confidence
+     Evidence: Overlay persisted after dismissal attempts and DOM nuke. 
+  2. High Impact 95% confidence
+     Evidence: Edge TTFB: 0ms (healthy). Browser TTFB: 1200ms (blocked). Heavy JavaScript is blocking the main thread. 
+  3. High Impact 95% confidence
+     Evidence: LCP: 3400ms 
+  4. Medium Impact 
+     Evidence: No shipping or return policy mentions found in homepage text or footer. 
+  5. Medium Impact 
+     Evidence: CLS: 0.26 
+  6. Medium Impact 
+     Evidence: no facebook.com/tr request and no fbq in page HTML 
+  7. Medium Impact 
+     Evidence: No mentions of returns, refunds, or guarantees detected in the product details or buy box. 
+  8. Medium Impact 
+     Evidence: No text matching 'Delivery by', 'Arrives by', or 'Free shipping over $X' found. 
+  9. Low Impact 
+     Evidence: no review-app DOM, no aggregateRating schema, no 'N reviews' text 
+  10. Low Impact 
+     Evidence: no trust-language match in page text 
+  11. Low Impact 
+     Evidence: no analytics.tiktok.com request and no ttq in page HTML 
+  12. Low Impact 
+     Evidence: Multiple or missing H1 tags confuse search engine crawlers about page topic. 
+  13. Low Impact 
+     Evidence: Over 20% of images are invisible to screen readers and AI image search. 
+
+RECOMMENDATIONS:
+  1. Ensure marketing popups have a visible, accessible close button. 
+  2. Defer non-critical JavaScript, code-split route-based bundles, and move third-party scripts to web workers. 
+  3. Optimize hero image delivery, preload critical fonts, and reduce server response time (TTFB). 
+  4. Add a global announcement bar or footer badges for 'Free Shipping over $X' and 'Easy Returns'. 
+  5. Reserve space for images/video embeds and avoid injecting dynamic content above the fold without placeholders. 
+  6. Install the official 'Facebook for WooCommerce' plugin or configure via GTM. 
+  7. Display a concise 'Easy 30-Day Returns' or 'Money-Back Guarantee' badge directly below the Add to Cart button. 
+  8. Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping'. 
+  9. Add a review app (Judge.me/Loox/Yotpo) and surface the star rating above the fold. 
+  10. Add shipping/returns/guarantee reassurance near the buy box. 
+  11. Install the official TikTok for WooCommerce plugin or configure via GTM. 
+  12. Ensure exactly one H1 tag per page, matching the primary product/category name. 10 of 29 images lack alt text. 
+  13. Add descriptive, keyword-relevant alt text to all product and lifestyle imagery. 
+
+------------------------------------------------------------------------------------------
+FILE: fecofoods_com_ng_geo.html | TYPE: GEO
+Score: MISSING/10
+Revenue Leak: $MISSING/month
+TTFB: MISSINGms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 0
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 0
+
+ISSUES:
+  [NONE PARSED]
+
+RECOMMENDATIONS:
+  [NONE PARSED]
+
+------------------------------------------------------------------------------------------
+FILE: gymshark_com_geo.html | TYPE: GEO
+Score: MISSING/10
+Revenue Leak: $MISSING/month
+TTFB: MISSINGms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 0
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 0
+
+ISSUES:
+  [NONE PARSED]
+
+RECOMMENDATIONS:
+  [NONE PARSED]
+
+------------------------------------------------------------------------------------------
+FILE: mount-it_com.html | TYPE: CRO
+Score: 2.8/10
+Revenue Leak: $34,425/month
+TTFB: 5136ms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 1
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 14
+
+ISSUES:
+  1. High Impact 95% confidence
+     Evidence: Edge TTFB: 15ms (healthy). Browser TTFB: 5136ms (blocked). Heavy JavaScript is blocking the main thread. 
+  2. High Impact 95% confidence
+     Evidence: LCP: 6700ms 
+  3. High Impact 95% confidence
+     Evidence: No mention of shipping, delivery, or free shipping thresholds detected near the buy box. 
+  4. Medium Impact 
+     Evidence: button top at y=860 on a 844px viewport 
+  5. Medium Impact 
+     Evidence: 88 scripts total, 60 third-party. Heaviest: mount-it.com (199KB), mount-it.com (98KB), mount-it.com (91KB) 
+  6. Medium Impact 
+     Evidence: not visible on PDP nor after a safe Add-to-Cart click 
+  7. Medium Impact 
+     Evidence: no pixel request and no dataLayer growth within 1.5s of a real Add-to-Cart click 
+  8. Medium Impact 
+     Evidence: No mentions of returns, refunds, or guarantees detected in the product details or buy box. 
+  9. Medium Impact 
+     Evidence: No size guides, material breakdowns, or ingredient lists detected on the page. 
+  10. Medium Impact 
+     Evidence: No fixed/sticky purchase bar detected when scrolling past the main buy box. 
+  11. Medium Impact 
+     Evidence: No text matching 'Delivery by', 'Arrives by', or 'Free shipping over $X' found. 
+  12. Low Impact 
+     Evidence: no review-app DOM, no aggregateRating schema, no 'N reviews' text 
+  13. Low Impact 
+     Evidence: URL changed or no visible drawer element after Add-to-Cart click 
+  14. Low Impact 
+     Evidence: Meta description missing or will be truncated by Google. 
+
+RECOMMENDATIONS:
+  1. Defer non-critical JavaScript, code-split route-based bundles, and move third-party scripts to web workers. 
+  2. Optimize hero image delivery, preload critical fonts, and reduce server response time (TTFB). 
+  3. Add a dynamic shipping estimator or a clear 'Free Shipping over $X' badge directly inside the buy box. 
+  4. Add a sticky mobile Add to Cart bar or move the buy box above the fold. 
+  5. Audit installed Shopify apps; remove or defer unused ones. Every app script is a tax on speed and conversion. 
+  6. Enable Shop Pay / Apple Pay / Google Pay in Shopify Settings > Payments so express buttons render on PDP and cart. 
+  7. Wire the add_to_cart / AddToCart event in the pixel setup (Shopify Facebook channel or GTM). 
+  8. Display a concise 'Easy 30-Day Returns' or 'Money-Back Guarantee' badge directly below the Add to Cart button. 
+  9. Add expandable accordion tabs for 'Sizing/Fit', 'Materials/Ingredients', and 'Care Instructions'. 
+  10. Implement a sticky bottom bar containing the Price and Add to Cart button. 
+  11. Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping'. 
+  12. Add a review app (Judge.me/Loox/Yotpo) and surface the star rating above the fold. 
+  13. Use a Shopify 2.0 compatible slide-out cart drawer theme or app. 
+  14. Write a 120-160 char benefit-driven meta description with a clear CTA. 
+
+------------------------------------------------------------------------------------------
+FILE: mount-it_com_geo.html | TYPE: GEO
+Score: MISSING/10
+Revenue Leak: $MISSING/month
+TTFB: MISSINGms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 0
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 0
+
+ISSUES:
+  [NONE PARSED]
+
+RECOMMENDATIONS:
+  [NONE PARSED]
+
+------------------------------------------------------------------------------------------
+FILE: shop_issaonline_com.html | TYPE: CRO
+Score: 6.1/10
+Revenue Leak: $21,675/month
+TTFB: 176ms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 1
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 14
+
+ISSUES:
+  1. High Impact 95% confidence
+     Evidence: No mention of shipping, delivery, or free shipping thresholds detected near the buy box. 
+  2. Medium Impact 
+     Evidence: CLS: 0.19 
+  3. Medium Impact 
+     Evidence: button top at y=1980 on a 844px viewport 
+  4. Medium Impact 
+     Evidence: Touch target analysis failed minimum 32px requirement. 
+  5. Medium Impact 
+     Evidence: 97 scripts total, 84 third-party. Heaviest: issaonline.com (199KB), issaonline.com (91KB), issaonline.com (66KB) 
+  6. Medium Impact 
+     Evidence: not visible on PDP nor after a safe Add-to-Cart click 
+  7. Medium Impact 
+     Evidence: no pixel request and no dataLayer growth within 1.5s of a real Add-to-Cart click 
+  8. Medium Impact 
+     Evidence: No mentions of returns, refunds, or guarantees detected in the product details or buy box. 
+  9. Medium Impact 
+     Evidence: No text matching 'Delivery by', 'Arrives by', or 'Free shipping over $X' found. 
+  10. Low Impact 
+     Evidence: No Visa/Mastercard/PayPal icons or 'Secure Checkout' text found in footer. 
+  11. Low Impact 
+     Evidence: no review-app DOM, no aggregateRating schema, no 'N reviews' text 
+  12. Low Impact 
+     Evidence: URL changed or no visible drawer element after Add-to-Cart click 
+  13. Low Impact 
+     Evidence: No 'Frequently Bought Together' or 'Related Products' sections detected. 
+  14. Low Impact 
+     Evidence: Over 20% of images are invisible to screen readers and AI image search. 
+
+RECOMMENDATIONS:
+  1. Add a dynamic shipping estimator or a clear 'Free Shipping over $X' badge directly inside the buy box. 
+  2. Reserve space for images/video embeds and avoid injecting dynamic content above the fold without placeholders. 
+  3. Add a sticky mobile Add to Cart bar or move the buy box above the fold. 
+  4. Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines. 
+  5. Audit installed Shopify apps; remove or defer unused ones. Every app script is a tax on speed and conversion. 
+  6. Enable Shop Pay / Apple Pay / Google Pay in Shopify Settings > Payments so express buttons render on PDP and cart. 
+  7. Wire the add_to_cart / AddToCart event in the pixel setup (Shopify Facebook channel or GTM). 
+  8. Display a concise 'Easy 30-Day Returns' or 'Money-Back Guarantee' badge directly below the Add to Cart button. 
+  9. Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping'. 
+  10. Display standard payment method SVGs and a 'Secure SSL Checkout' badge in the global footer. 
+  11. Add a review app (Judge.me/Loox/Yotpo) and surface the star rating above the fold. 
+  12. Use a Shopify 2.0 compatible slide-out cart drawer theme or app. 
+  13. Implement a 'Frequently Bought Together' carousel. 
+  14. Add descriptive, keyword-relevant alt text to all product and lifestyle imagery. 
+
+------------------------------------------------------------------------------------------
+FILE: shop_issaonline_com_geo.html | TYPE: GEO
+Score: MISSING/10
+Revenue Leak: $MISSING/month
+TTFB: MISSINGms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 0
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 0
+
+ISSUES:
+  [NONE PARSED]
+
+RECOMMENDATIONS:
+  [NONE PARSED]
+
+------------------------------------------------------------------------------------------
+FILE: thebeautystore_com_geo.html | TYPE: GEO
+Score: MISSING/10
+Revenue Leak: $MISSING/month
+TTFB: MISSINGms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 0
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 0
+
+ISSUES:
+  [NONE PARSED]
+
+RECOMMENDATIONS:
+  [NONE PARSED]
+
+------------------------------------------------------------------------------------------
+FILE: universalyums_com.html | TYPE: CRO
+Score: 5.4/10
+Revenue Leak: $5,355/month
+TTFB: 249ms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 1
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 16
+
+ISSUES:
+  1. High Impact 95% confidence
+     Evidence: No mention of shipping, delivery, or free shipping thresholds detected near the buy box. 
+  2. Medium Impact 
+     Evidence: No mentions of returns, refunds, or guarantees detected in the product details or buy box. 
+  3. Medium Impact 
+     Evidence: No size guides, material breakdowns, or ingredient lists detected on the page. 
+  4. Medium Impact 
+     Evidence: Only 2 images found and no product video detected. 
+  5. Medium Impact 
+     Evidence: No fixed/sticky purchase bar detected when scrolling past the main buy box. 
+  6. Medium Impact 
+     Evidence: No text matching 'Delivery by', 'Arrives by', or 'Free shipping over $X' found. 
+  7. Low Impact 
+     Evidence: No Visa/Mastercard/PayPal icons or 'Secure Checkout' text found in footer. 
+  8. Low Impact 
+     Evidence: DOM search returned no standard match, but network interceptor confirmed cart API activity. 
+  9. Low Impact 
+     Evidence: no review-app DOM, no aggregateRating schema, no 'N reviews' text 
+  10. Low Impact 
+     Evidence: no trust-language match in page text 
+  11. Low Impact 
+     Evidence: No breadcrumb DOM structure or BreadcrumbList schema detected. 
+  12. Low Impact 
+     Evidence: No 'Frequently Bought Together' or 'Related Products' sections detected. 
+  13. Low Impact 
+     Evidence: no ld+json script containing a Product object 
+  14. Low Impact 
+     Evidence: meta[name=description] missing or empty 
+  15. Low Impact 
+     Evidence: og:title or og:image missing 
+  16. High Impact 
+     Evidence: Canonical URL does not match the current clean page URL. 
+
+RECOMMENDATIONS:
+  1. Add a dynamic shipping estimator or a clear 'Free Shipping over $X' badge directly inside the buy box. 
+  2. Display a concise 'Easy 30-Day Returns' or 'Money-Back Guarantee' badge directly below the Add to Cart button. 
+  3. Add expandable accordion tabs for 'Sizing/Fit', 'Materials/Ingredients', and 'Care Instructions'. 
+  4. Upload at least 5-7 high-resolution images and add a 15-second product demonstration video. 
+  5. Implement a sticky bottom bar containing the Price and Add to Cart button. 
+  6. Add a dynamic 'Get it by [Date]' estimator and a progress bar for 'Spend $X more for Free Shipping'. 
+  7. Display standard payment method SVGs and a 'Secure SSL Checkout' badge in the global footer. 
+  8. Manual verification recommended. Ensure the custom checkout flow is optimized for mobile conversion. 
+  9. Add a review app (Judge.me/Loox/Yotpo) and surface the star rating above the fold. 
+  10. Add shipping/returns/guarantee reassurance near the buy box. 
+  11. Add a clear Home > Category > Subcategory breadcrumb trail. 
+  12. Implement a 'Frequently Bought Together' carousel. 
+  13. Add Product schema (price, availability, aggregateRating) for rich results in Google. 🛠️ JSON-LD Template: <script type="application/ld+json"> { "@context": "https://schema.org", "@type": "Product", "name": "[Product Name]", "offers": { "@type": "Offer", "price": "[Price]", "priceCurrency": "[Currency]" } } </script> No meta description on the product page. 
+  14. Write a benefit-led meta description per product template. OpenGraph social preview tags incomplete. 
+  15. Set og:title/og:description/og:image so shared links render rich previews. Canonical tag is missing or not self-referencing. 
+  16. Ensure every PDP has a <link rel='canonical'> tag. 
+
+------------------------------------------------------------------------------------------
+FILE: universalyums_com_geo.html | TYPE: GEO
+Score: MISSING/10
+Revenue Leak: $MISSING/month
+TTFB: MISSINGms
+Footer/Header Count 'Enterprise Revenue Leak Engine': 0
+Contradiction no_ATC + cart_API: PASS
+ADA Count: NONE
+Issue Count Parsed: 0
+
+ISSUES:
+  [NONE PARSED]
+
+RECOMMENDATIONS:
+  [NONE PARSED]
