@@ -1253,6 +1253,18 @@ def audit_site(domain: str) -> dict:
         findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "no_add_to_cart_found"]
     findings.update(calculate_revenue_risk(findings))
 
+    # === ENTERPRISE NUCLEAR DEDUP (CONTRADICTION ERADICATOR) ===
+    # If we saw cart activity in the network or issues, we CANNOT claim the button is missing.
+    cart_codes = ["atc_detection_inconclusive", "headless_checkout_flow", "cart_no_express_checkout", "cart_no_shipping_estimator"]
+    has_cart_truth = any(i.get("code") in cart_codes or "Cart API activity" in i.get("description", "") for i in findings.get("issues", []))
+    
+    # Network truth: seen_urls is in scope here
+    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u) for u in seen_urls)
+    
+    if has_cart_truth or cart_network:
+        findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "no_add_to_cart_found"]
+    # ===========================================================
+
     return findings
 
 
@@ -1279,7 +1291,7 @@ def _check_ttfb(page, findings):
             () => {
                 const entry = performance.getEntriesByType('navigation')[0];
                 if (!entry || entry.responseStart === 0) return null;
-                return Math.round(entry.responseStart - entry.startTime);
+                return Math.round(entry.responseStart - entry.requestStart); // STRICT SERVER TTFB
             }
         """)
         
@@ -1858,6 +1870,13 @@ def _check_accessibility_risk(page, findings):
                 // 3. Empty buttons/links
                 const interactives = document.querySelectorAll('button, a');
                 interactives.forEach(el => {
+    // ENTERPRISE ADA FILTER: Ignore decorative SVGs, hidden elements, and aria-hidden
+    if (el.hasAttribute('aria-hidden') && el.getAttribute('aria-hidden') === 'true') return;
+    if (el.querySelector('svg') && !el.querySelector('img[alt]')) return;
+    const cs = window.getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
+    if (el.offsetWidth === 0 && el.offsetHeight === 0) return;
+
                     if (el.hasAttribute('aria-hidden') && el.getAttribute('aria-hidden') === 'true') return;
                     if (el.querySelector('svg') && !el.querySelector('img[alt]')) return;
                     const cs = window.getComputedStyle(el);
