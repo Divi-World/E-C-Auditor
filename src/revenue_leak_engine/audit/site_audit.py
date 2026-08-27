@@ -1858,8 +1858,12 @@ def _check_accessibility_risk(page, findings):
                 // 3. Empty buttons/links
                 const interactives = document.querySelectorAll('button, a');
                 interactives.forEach(el => {
+                    if (el.hasAttribute('aria-hidden') && el.getAttribute('aria-hidden') === 'true') return;
+                    if (el.querySelector('svg') && !el.querySelector('img[alt]')) return;
+                    const cs = window.getComputedStyle(el);
+                    if (cs.display === 'none' || cs.visibility === 'hidden') return;
                     const text = (el.innerText || '').trim();
-                    const aria = el.getAttribute('aria-label');
+                    const aria = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.getAttribute('title');
                     const img = el.querySelector('img[alt]');
                     if (!text && !aria && !img) {
                         violations += 1;

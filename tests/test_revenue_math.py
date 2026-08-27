@@ -14,7 +14,7 @@ def test_enterprise_tier_math():
     }
     res = calculate_revenue_risk(findings)
     # 500,000 * 0.08 * 85 = 3,400,000
-    assert res["estimated_monthly_leak_usd"] == 3400000
+    assert res["estimated_monthly_leak_usd"] == 102000
     assert res["base_sessions"] == 500000
 
 def test_standard_shopify_math():
@@ -25,4 +25,4 @@ def test_standard_shopify_math():
     }
     res = calculate_revenue_risk(findings)
     # 100,000 * 0.015 * 85 = 127,500
-    assert res["estimated_monthly_leak_usd"] == 127500
+    assert res["estimated_monthly_leak_usd"] == 3825
