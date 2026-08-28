@@ -813,7 +813,7 @@ def audit_site(domain: str) -> dict:
                         findings["notes"] += "pdp_used_curl_cffi_fallback. "
                         findings["audit_status"] = "PARTIAL_HTTP_FALLBACK"
                         safe_html = r.text[:100000].replace('#', '%23').replace('\n', ' ')
-                        page.goto(f"data:text/html;charset=utf-8,{safe_html}", wait_until="domcontentloaded", timeout=5000)
+                        page.set_content(safe_html, wait_until="domcontentloaded", timeout=5000)
                     else:
                         findings["error"] = f"INCONCLUSIVE: Navigation and HTTP fallback failed (Status: {r.status_code})"
                         browser.close()
@@ -1867,6 +1867,11 @@ def _check_accessibility_risk(page, findings):
                 // 2. Form inputs without labels
                 const inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
                 inputs.forEach(inp => {
+                    // ENTERPRISE FILTER: Ignore hidden or off-screen inputs (honeypots, tracking tokens)
+                    const cs = window.getComputedStyle(inp);
+                    if (cs.display === 'none' || cs.visibility === 'hidden' || inp.offsetWidth === 0) return;
+                    if (inp.hasAttribute('aria-hidden') && inp.getAttribute('aria-hidden') === 'true') return;
+
                     // ENTERPRISE FILTER: Ignore hidden or off-screen inputs
                     const cs = window.getComputedStyle(inp);
                     if (cs.display === 'none' || cs.visibility === 'hidden' || inp.offsetWidth === 0) return;
