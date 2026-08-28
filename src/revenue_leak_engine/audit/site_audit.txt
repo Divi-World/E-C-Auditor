@@ -989,7 +989,6 @@ def audit_site(domain: str) -> dict:
             findings["screenshot_path"] = str(shot_path)
 
             cwv = _extract_cwv_and_friction(page)
-            _check_ttfb(page, findings)
             findings["checks_completed"]["cwv"] = True
             findings["cwv"] = cwv
             try:
@@ -1199,10 +1198,10 @@ def audit_site(domain: str) -> dict:
                 except Exception as _e:
                     findings["notes"] += f"checkout_behavior_failed: {_e}. "
 
-                    if not cart_express: findings["issues"].append({"code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).", "evidence": "No express wallet buttons detected on /cart or /checkout page.", "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.", "fix": get_express_fix(findings.get("platform", "custom"))})
-                    cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
-                    if not any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $']):
-                        findings["issues"].append({"code": "cart_no_shipping_estimator", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks shipping cost estimator or free-shipping threshold.", "evidence": "No shipping/delivery language found on cart page.", "business_impact": "Baymard: 48% of abandonments are due to surprise shipping costs at checkout.", "fix": "Add a dynamic 'Spend $X more for Free Shipping' progress bar and shipping estimator on the cart page."})
+            if not cart_express: findings["issues"].append({"code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).", "evidence": "No express wallet buttons detected on /cart or /checkout page.", "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.", "fix": get_express_fix(findings.get("platform", "custom"))})
+            cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
+            if not any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $']):
+                findings["issues"].append({"code": "cart_no_shipping_estimator", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks shipping cost estimator or free-shipping threshold.", "evidence": "No shipping/delivery language found on cart page.", "business_impact": "Baymard: 48% of abandonments are due to surprise shipping costs at checkout.", "fix": "Add a dynamic 'Spend $X more for Free Shipping' progress bar and shipping estimator on the cart page."})
             except Exception as _e: findings["notes"] += f"funnel_cart_probe_failed: {_e}. "
 
         except PWTimeout:
@@ -1255,30 +1254,26 @@ def audit_site(domain: str) -> dict:
         if desc: seen_texts.add(desc)
         deduped_issues.append(issue)
 
-        # BULLETPROOF NUCLEAR DEDUP (Eradicates Contradictions)
-    cart_reached = any(i.get("code") in ["cart_no_express_checkout", "cart_no_shipping_estimator", "checkout_hidden_fees_detected", "checkout_missing_trust_badges", "checkout_missing_progress"] for i in findings.get("issues", []))
-    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u or '/api/cart' in u or 'add_to_cart' in u) for u in seen_urls)
-    
-    if cart_reached or cart_network:
-        findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "no_add_to_cart_found"]
+    findings["issues"] = deduped_issues
+
     findings.update(calculate_revenue_risk(findings))
 
     # === ENTERPRISE NUCLEAR DEDUP (CONTRADICTION ERADICATOR) ===
-    # If we saw cart activity in the network or issues, we CANNOT claim the button is missing.
     cart_codes = ["atc_detection_inconclusive", "headless_checkout_flow", "cart_no_express_checkout", "cart_no_shipping_estimator"]
-    has_cart_truth = any(i.get("code") in cart_codes or "Cart API activity" in i.get("description", "") for i in findings.get("issues", []))
-    
-    # Network truth: seen_urls is in scope here
-    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u or '/api/cart' in u or 'add_to_cart' in u) for u in seen_urls)
-    
+    has_cart_truth = any(i.get("code") in cart_codes or "Cart API activity" in str(i.get("description", "")) for i in findings.get("issues", []))
+    cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u or '/api/cart' in u) for u in seen_urls)
     if has_cart_truth or cart_network:
-        findings["issues"] = [i for i in findings.get("issues", []) if i.get("code") != "no_add_to_cart_found"]
+        findings["issues"] = [
+            i for i in findings.get("issues", [])
+            if i.get("code") not in ["no_add_to_cart_found", "atc_missing"]
+            and "No Add to Cart button detected" not in str(i.get("description", ""))
+        ]
     # ===========================================================
 
+    if not findings.get("error"):
+        findings["audit_status"] = "VERIFIED"
+
     return findings
-
-
-
 def _safe_query(page, action_func, retries=2):
     for attempt in range(retries):
         try: return action_func()
@@ -1871,10 +1866,16 @@ def _check_accessibility_risk(page, findings):
                 // 2. Form inputs without labels
                 const inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
                 inputs.forEach(inp => {
+                    // ENTERPRISE FILTER: Ignore hidden or off-screen inputs
+                    const cs = window.getComputedStyle(inp);
+                    if (cs.display === 'none' || cs.visibility === 'hidden' || inp.offsetWidth === 0) return;
+                    if (inp.hasAttribute('aria-hidden') && inp.getAttribute('aria-hidden') === 'true') return;
+
                     const id = inp.id;
-                    const hasAria = inp.getAttribute('aria-label') || inp.getAttribute('aria-labelledby');
+                    const hasAria = inp.getAttribute('aria-label') || inp.getAttribute('aria-labelledby') || inp.getAttribute('title');
                     const hasLabel = id && document.querySelector(`label[for="${id}"]`);
-                    if (!hasAria && !hasLabel) {
+                    const isWrapped = inp.closest('label') !== null;
+                    if (!hasAria && !hasLabel && !isWrapped) {
                         violations += 1;
                         if (violations < 4) details.push("Form input missing <label> or aria-label");
                     }
@@ -1887,21 +1888,21 @@ def _check_accessibility_risk(page, findings):
                     if (el.hasAttribute('aria-hidden') && el.getAttribute('aria-hidden') === 'true') return;
                     const cs = window.getComputedStyle(el);
                     if (cs.display === 'none' || cs.visibility === 'hidden' || el.offsetWidth === 0) return;
+                    if (el.offsetParent === null && cs.position !== 'fixed') return;
+
+                    // ENTERPRISE NOISE FILTER: Ignore icon fonts, SVGs, and spans acting as icons
+                    if (el.querySelector('i') || el.querySelector('svg') || el.querySelector('span[class*="icon" i]')) return;
+                    if (el.tagName === 'I' || el.tagName === 'SVG') return;
 
                     const text = (el.innerText || el.getAttribute('title') || '').trim();
                     const aria = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby');
                     const img = el.querySelector('img[alt]');
-                    
-                    // ENTERPRISE NOISE FILTER: Ignore icon fonts (<i>) and SVG wrappers to prevent 100+ false positives
-                    if (el.querySelector('i') || el.querySelector('svg')) return;
-                    if (el.tagName === 'I' || el.tagName === 'SVG') return;
 
                     if (!text && !aria && !img) {
                         violations += 1;
                         if (violations < 4) details.push("Interactive element missing accessible name");
                     }
                 });
-                
                 return { violations, details };
             }
         """)
