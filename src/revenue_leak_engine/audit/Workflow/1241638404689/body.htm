@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">
+	<html>
+		<head>
+			<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+			
+				<!-- process skin css -->
+				<link rel="stylesheet" type="text/css" 
+						href='..\regSkin\1248383926634,21.txt.css'
+					/>
+			
+			
+			
+			
+			
+
+			<style><!--
+				.mainImage{
+					float:left;
+				}
+				-->
+			</style>
+			<script type="text/javascript" src="../shared/CCC.js"></script>
+			<script language="javascript">
+				var css_lang = "EN";
+				var productName = "	CorelDRAW Technical Suite";
+				function changeSchedule(newInterval) {
+					document.location.href="pcucmd://SetSchedule?NumDays=" + newInterval;
+				}
+
+				function optionalReg_Onload() {
+					if (getParamVal('regsuppressoffline') == 'true') {
+						document.location.href = 'pcucmd://FrameDataLoaded';
+						document.location.href = 'pcucmd://Continue';
+					} else {
+						var newLaunchCount=parseInt(getParamVal("offerLoadCount"));
+						if (isNaN(newLaunchCount)) {
+							newLaunchCount=0;
+						}
+
+						newLaunchCount=newLaunchCount+1;
+						document.location.href = 'pcucmd://AddTrackingData?id=1241638404689&name=workflow&value=registration';
+						document.location.href = 'pcucmd://AddTrackingData?id=1241638404689&name=actionid&value=123';
+						document.location.href = 'pcucmd://AddTrackingData?id=1241638404689&name=trackingid&value=0';					
+						document.location.href = 'pcucmd://AddTrackingData?id=1241638404689&name=invokedfrom&value=' + getParamVal("invokedfrom");
+						document.location.href = 'pcucmd://AddTrackingData?id=1241638404689&name=regtype&value=' + getParamVal("regtype");
+						
+						document.location.href="pcucmd://FrameDataLoaded";
+						document.location.href="pcucmd://SetCookie?offerloadcount="+newLaunchCount;
+						
+					}
+				}
+
+				function replacePname(){
+					if(productName == "null") productName = "Corel";
+					content.innerHTML=content.innerHTML.replace("[pname]",productName);
+				}
+
+				function processMenu(optionValue){
+					
+					if ( (null == optionValue) || (undefined == optionValue) ){
+						optionValue = "register";
+					}
+					if (optionValue == "register"){
+						document.location.href = 'pcucmd://SetSequence?name=register';
+						return;
+					}
+					
+					if (optionValue == "doNotRemind"){
+						changeSchedule(-1);
+						document.location.href = 'pcucmd://Cancel?confirm=no'
+						return;
+					}
+					
+					if (!isNaN(optionValue)){
+						changeSchedule(optionValue);
+						document.location.href = 'pcucmd://Cancel?confirm=no';
+						return;
+					}
+					
+					document.location.href = 'pcucmd://SetSequence?name=register';
+				}
+				
+				function OnRegisterToday() {
+					document.location.href='pcucmd://Connect';
+					document.location.href='pcucmd://SetSequence?name=register_welcome&condition=true';
+					return false;
+				}
+			</script>
+		</head>
+
+		<body onload="optionalReg_Onload();replacePname()">
+			<div class="container">
+				<div class="main">
+					<div id="content" class="content">
+			    		
+						
+						<div style="z-index:1; position:absolute; overflow:hidden; margin:0px; padding:0px; left:0px; right:0px; width:100%; height:100%">
+    <img src="../shared/images/mainimage_reg.jpg" width="100%" height="100%">
+</div>
+<div style="z-index:2; position:absolute; margin:0px; padding:0px; height:100%; width:100%;">
+    <div id="reg_welcome_text" class="reg_welcome_text" style="float:right; width:45%">
+	<h1>Welcome to your free [pcu_trial_duration]-day trial!</h1>
+	<p>For the next [pcu_trial_duration] days, it’s a new journey. Free learning tools, tutorials and videos will help you explore and master this product. And you’ll get the inside scoop on exclusive offers.</p>
+	<p>Have fun! At any time you can purchase the full version without having to download or install again.</p>
+	<p><b>Note:</b> If you haven’t registered this trial, you’ll be asked to do so next.</p>
+</div>
+<script language="javascript">
+<!--
+    var strTrialDuration = getParamVal("TotalDays");
+     reg_welcome_text.innerHTML=reg_welcome_text.innerHTML.replace(/\[pcu_trial_duration\]/g, strTrialDuration);
+-->
+</script>
+</div>
+					</div>
+				</div>
+			</div>
+
+			<div id="pcu_data" style="display:none;">
+				PageDimension:586,700
+			</div>
+
+			<div id="ButtonBar" style="display: none;">
+				<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+	
+	
+					
+					
+						
+
+						
+					 		<div style="float:right;text-align:right">
+								<button
+								style='padding:2px;overflow:visible;'
+								class='buttonBar'
+								type='button'
+								accessKey='C'
+								id='pcubtncancel'
+								name='pcubtncancel'
+								onclick="document.location='pcucmd://Cancel?confirm=no'">
+									<u>C</u>ancel
+								</button>
+							</div>
+						
+						
+						
+
+
+						
+					
+				</div>
+			</div>
+		</body>
+	</html>

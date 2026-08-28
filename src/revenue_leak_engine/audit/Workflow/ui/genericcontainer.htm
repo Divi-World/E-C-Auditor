@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Frameset//EN">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<title></title>
+		<meta name="vs_targetSchema" content="http://schemas.microsoft.com/intellisense/ie5">
+		<meta http-equiv="MSThemeCompatible" content="yes">
+		<link href="../shared/ccc.css" type="text/css" rel="STYLESHEET">
+		<script type="text/javascript" src="../shared/ccc.js"></script>
+	</head>
+	<body onload="location='pcucmd://ContainerLoaded/'" style="overflow:hidden" >
+		<table id="outerContainer" class="OuterContainer" cellspacing="0" cellpadding="0" border="0">
+			<tr id="topbar" class="topbar">
+				<td id="tbdrag" class="tbdrag" onmousedown="StartMoveWindow();"></td>
+				<td class="tbcls"><a href="#" onclick="CloseDlg();" id="topclose"><img class="topx" src="../shared/Images/xclose.png"></a></td>
+			</tr>
+			<tr valign="top">
+				<td id="banner" colspan="2" class="BannerStyle"><img src="../shared/Images/banner.png" class="BannerImg"></td>
+			</tr>
+			<tr id="message">
+				<!-- this is the area that contains the main content -->
+				<td colspan="2">
+					<iframe align="center" id="Content" name="Content" frameBorder="0" allowTransparency="true" scrolling="no"></iframe>
+				</td>
+			</tr>
+			<tr>
+				<td class="tdbottomhr" id="BottomHr" colspan="2"><hr/></td>
+			</tr>
+			<tr>
+				<!-- Contents in this area comes from the contents page -->
+				<td class="tdbuttonbar" colspan="2" id="ButtonBar"></td>
+			</tr>
+		</table>
+	</body>
+</html>

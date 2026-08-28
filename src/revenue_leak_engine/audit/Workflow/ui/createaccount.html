@@ -1,0 +1,629 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" >
+<head>
+    <title>Create Account</title>
+    <link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,1.txt.css'/>
+    <link rel="stylesheet" type="text/css" href='../shared/ccc.css' />
+    <script src="../shared/ccc.js" language="javascript" type="text/javascript"></script>
+
+    <script type="text/javascript" language="javascript">
+<!--
+        var g_bError = false;
+        var g_strErrorDesc;
+        var g_strErrorcode;
+
+        var g_confirmNewPasswordInput;
+        var g_NewPasswordInput;
+        var g_confirmNewEmailInput;
+        var g_NewEmailInput;
+        var g_countrySelector;
+        var g_CritSWUpdateCheckbox;
+        var g_CorelResearchCheckbox;
+
+        function onpageload() {
+
+            location = 'pcucmd://FrameDataLoaded';
+
+            var country = getParamVal("country");
+            if (country) {
+                var temp = country.toUpperCase();
+
+                if (temp != 'US') {
+                    var selectobject = document.getElementById("countrySelector");
+                    for (var i = 0; i < selectobject.length; i++) {
+                        if (selectobject.options[i].value == temp) {
+                            selectobject.options[i].selected = true;
+                        }
+                    }
+                }
+            }
+
+            showCreateAccount();
+
+        }
+
+        function showCreateAccount() {
+            
+            var bShow = true;
+
+            var lupid = getParamVal("lupid");
+            var profileid = getParamVal("profileid");
+            var serialtype = getParamVal("serialtype");
+            var lastUser = getParamVal("lusr");
+
+            if (serialtype == '15' || serialtype == '0' ||
+                lupid.length > 0 ||
+                profileid.length > 0 ||
+                lastUser.length > 0) {
+
+                bShow = false;
+            }
+
+            var pEl = null;
+            pEl = document.getElementById('idCreateAccount');
+            if (pEl == null) {
+                return;
+            }
+
+            if (!bShow) {
+                pEl.style.display = "none";
+
+                if ("" != lastUser) {
+                    var username_obj = document.getElementById("ExistingEmail");
+                    username_obj.style.background = '#fcfcfc';
+                    username_obj.value = lastUser;
+                }
+
+                pEl = document.getElementById("idSignIn");
+                if (pEl != null) {
+                    pEl.style.marginLeft = 0;
+                }
+            }
+            else {
+                pEl.style.display = "block";
+            }
+
+        }
+
+        function processerror(strError) {
+            g_bError = true;
+
+            var nIndex = strError.indexOf("|");
+            var strErrorDesc = strError;
+            var strErrorcode;
+            if (nIndex >= 0) {
+                strErrorDesc = strErrorDesc.substr(nIndex + 1);
+                strErrorCode = strError.substr(0, nIndex);
+            }
+
+            error_msg.style.display = "block";
+            error_msg.innerText = strErrorDesc;
+        }
+
+        function loginsuccess(str) {
+            
+            var created = extractParam(str, "created");
+            var subid = extractParam(str, "SubscriptionID");
+            var status = extractParam(str, "EmailStatus");
+            var lusr = extractParam(str, "UserID");
+
+            setCookie("lusr", lusr);
+            location = "pcucmd://setcookie?lusr=" + lusr;
+
+            if ('true' == created) {
+                if ('4' == status) {
+                    sendEmailValidation();
+                }
+
+                switch(subid)
+                {
+                case "1700090":
+                case "1700087":
+                case "1700093":
+                    location = subid + ".html?created=<created>&SubscriptionID=<SubscriptionID>";
+                    break;
+                default:
+                    location = "pcucmd://continue";
+                }
+            }
+            else {
+                location = "pcucmd://continue";
+            }
+
+        }
+
+        function Authenticate(usr, psw) {
+            
+            g_bError = false;
+            var str = "pcucmd://authenticate?username='" + usr + "'&password='" + psw + "'&showpsid=false" + "&closewindow=false" + "&onerror=processerror";
+            location = str;
+
+            if (!g_bError) {
+                location = "pcucmd://replacetoken?callback='loginsuccess'&string='?created=<created>&SubscriptionID=<SubscriptionID>&EmailStatus=<EmailStatus>&UserID=<UserID>'";
+            }
+        }
+
+        function logon() {
+				Authenticate(document.getElementById("ExistingEmail").value, document.getElementById("ExistingPassword").value);
+        }
+
+        function CreateAccount() {
+            var crit = document.getElementById("CritSWUpdateCheckbox");
+            var custR = document.getElementById("CorelResearchCheckbox");
+            var vFlag = 0;
+
+            if (crit.checked) {
+                vFlag = vFlag | 3;
+            }
+
+            if (custR.checked) {
+                vFlag = vFlag | 16;
+            }
+
+            var Nickname = "";
+            var Language = getParamVal("lang");
+            g_bError = false;
+            var str = "pcucmd://createAccount?username='" + g_NewEmailInput.value + "'&password='" + g_NewPasswordInput.value + "'&nickname='" + Nickname + "'&langcode='" + Language + "'&countrycode='" + document.getElementById("countrySelector").value + "'&flags='" + vFlag + "'&onerror=processerror";
+            location = str;
+				
+            if (!g_bError) {
+                Authenticate(g_NewEmailInput.value, g_NewPasswordInput.value);
+            }
+        }
+
+
+        function clearErrorMsg() {
+            error_msg.style.display = "none";
+            error_msg.innerText = "";
+            g_bError = false;
+        }
+
+        function CheckPassword(input) {
+            var password = /^[A-Za-z0-9!@&$%#~]{6,32}$/;
+            if (password.test(input)) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+
+        function preValidate() {
+
+            var pEl = document.getElementById("username");
+            if (pEl) {
+                pEl.value = pEl.value.toString().toLowerCase();
+            }
+            var pEl = document.getElementById("usernameConf");
+            if (pEl) {
+                pEl.value = pEl.value.toString().toLowerCase();
+            }
+
+        }
+
+        function Validate() {
+            clearErrorMsg();
+            preValidate();
+
+            g_NewPasswordInput = document.getElementById("password");
+            g_confirmNewPasswordInput = document.getElementById("passwordConf");
+            g_NewEmailInput = document.getElementById("username");
+            g_confirmNewEmailInput = document.getElementById("usernameConf");
+            var success = true;
+            var errors = "";
+
+            if (g_NewEmailInput.value != g_confirmNewEmailInput.value) {
+                success = false;
+                errors += "Your email address does not match the confirmation address\n";
+            }
+
+            if (!CheckPassword(g_NewPasswordInput.value)) {
+                success = false;
+                errors += "Please enter a password between 6 to 32 characters\n";
+            }
+
+            if (!CheckPassword(g_confirmNewPasswordInput.value)) {
+                success = false;
+                errors += "Please enter a confirmation password between 6 to 32 characters\n";
+            }
+
+            if (g_NewPasswordInput.value != g_confirmNewPasswordInput.value) {
+                success = false;
+                errors += "Your password does not match the confirmation password\n";
+            }
+
+            if (success == true) {
+                CreateAccount();
+            }
+            else {
+                processerror(errors);
+            }
+
+        }
+		  
+		  function forgotPassword()
+		  {
+				//location = "pcucmd://fullbrowse?url='http://apps.corel.com/redirect?_redirect=command&function=forgotpass&app=all&lang=<LangCode>'";
+				location = "pcucmd://browse?url='http://account.corel.com/accounts/user/?&sso-workflow=fpwd'";
+		  }
+		  
+		  function OnPrivacy()
+		  {
+				location = "pcucmd://fullbrowse?url='<CorelComServer>/privacy'";	  
+			}
+				
+		  
+-->
+</script>
+
+<style type="text/css">
+		body {
+			padding: 13px;
+		}
+        div {
+            
+            padding: 0px 0px 7px 0px;
+            overflow: hidden;
+        }
+        td {
+            padding: 10px 12px 10px 12px;
+            vertical-align: top;
+        }
+        ul { padding-left: 20px; }
+		h1 {
+			font-weight: normal;
+			font-size: 35px;
+			margin: 0px;
+			padding: 0px;
+		}
+        .dynEl { display: none; }       
+        .indicator { color: #1F497D; }
+        .myTables { width: 870px; }
+        .tdBtns { width: 260px; padding-left: 0px; vertical-align: middle; text-align: center; }
+        .Err { background-color: #FF6835; border: 1px solid black; }
+    
+        #idCreateAccount
+        {
+            width: 405px;   /*myTables 870px;*/
+            float: left;
+           
+            /*border: 1px solid green;*/
+        }
+        #idSignIn
+        {
+            margin-left: 435px;
+            width: 430px;
+          /*border: 1px solid red;*/
+        }
+</style>
+
+</head>
+<body onload="onpageload();" >
+
+<div id="pcu_data" style="display:none">PageDimension: 900,620</div>
+<button style="display:none;" id='pcubtncancel' name='pcubtncancel'  onclick="location='pcucmd://Cancel?confirm=no'"></button>
+
+<table id="top" class="myTables" border="0" cellpadding="0" cellspacing="0"><tr>
+    <td style="width: 755px;">
+		<h1>Technical Suite Memberships</h1><br/>
+	</td>
+	<td><img src="../shared/images/cdgs_suite_balloon.png" /></td>
+</tr></table> <!-- idTitle -->
+
+<div class="myTables">
+
+    <div style="height: 40px;">
+        <div id="error_msg" style="display: none; width: 100%; vertical-align: middle;"></div>
+    </div>
+
+    <div id="idCreateAccount" style="display: none;">
+        <div style=" border-right: 1px dotted grey;">
+        
+		<div id="SignInText" style="margin: 10px">
+			Create a Corel.com account
+		</div>
+		<form style="margin: 10px" action="Javascript:Validate();">
+            <div>
+			    <label for="username" class="inputlabel"><u>E</u>mail address</label>
+				<input id="username" type="email" size="45" class="inputfield" accesskey="E" onblur="fieldout(this)" onfocus="fieldin(this)" />
+			</div>
+			<div>
+				<label for="usernameConf" class="inputlabel">C<u>o</u>nfirm email address</label>
+				<input id="usernameConf" type="email" size="45" class="inputfield" accesskey="O" onblur="fieldout(this)" onfocus="fieldin(this)" onpaste="return false;"/>
+			</div>
+			<div>
+				<label for="password" class="inputlabel"><u>P</u>assword</label>
+				<input id="password" type="password" size="45" class="inputfield" accesskey="P" onblur="fieldout(this)" onfocus="fieldin(this)" onpaste="return false;"/>
+			</div>
+			
+			<div style="margin-bottom: 12px;">
+				<label for="passwordConf" class="inputlabel">Confirm Pas<u>s</u>word</label>
+				<input id="passwordConf" type="password" size="45" class="inputfield" accesskey="S" onblur="fieldout(this)" onfocus="fieldin(this)" onpaste="return false;"/>
+			</div>			
+		
+			<div align="left">				
+					<span style="display:inline;"><span class="star">*</span>&nbsp;Country </span><br/>
+					<select id="countrySelector" name="countrySelector">
+							<option value=""></option>
+							<option value="AF">Afghanistan</option>
+							<option value="AL">Albania</option>
+							<option value="DZ">Algeria</option>
+							<option value="AD">Andorra</option>
+							<option value="AO">Angola</option>
+							<option value="AI">Anguilla</option>
+							<option value="AQ">Antarctica</option>
+							<option value="AG">Antigua and Barbuda</option>
+							<option value="AR">Argentina</option>
+							<option value="AM">Armenia</option>
+							<option value="AW">Aruba</option>
+							<option value="AU">Australia</option>
+							<option value="AT">Austria</option>
+							<option value="AZ">Azerbaijan</option>
+							<option value="BS">Bahamas</option>
+							<option value="BH">Bahrain</option>
+							<option value="BD">Bangladesh</option>
+							<option value="BB">Barbados</option>
+							<option value="BY">Belarus</option>
+							<option value="BE">Belgium</option>
+							<option value="BZ">Belize</option>
+							<option value="BJ">Benin</option>
+							<option value="BM">Bermuda</option>
+							<option value="BT">Bhutan</option>
+							<option value="BO">Bolivia</option>
+							<option value="BA">Bosnia and Herzegovina</option>
+							<option value="BW">Botswana</option>
+							<option value="BV">Bouvet Island</option>
+							<option value="BR">Brazil</option>
+							<option value="IO">British Indian Ocean Territory</option>
+							<option value="VG">British Virgin Islands</option>
+							<option value="BN">Brunei Darussalam</option>
+							<option value="BG">Bulgaria</option>
+							<option value="BF">Burkina Faso</option>
+							<option value="BI">Burundi</option>
+							<option value="KH">Cambodia</option>
+							<option value="CM">Cameroon</option>
+							<option value="CA">Canada</option>
+							<option value="CV">Cape Verde</option>
+							<option value="KY">Cayman Islands</option>
+							<option value="CF">Central African Republic</option>
+							<option value="TD">Chad</option>
+							<option value="CL">Chile</option>
+							<option value="CN">China</option>
+							<option value="CX">Christmas Island</option>
+							<option value="CC">Cocos (Keeling) Islands</option>
+							<option value="CO">Colombia</option>
+							<option value="KM">Comoros</option>
+							<option value="CG">Congo</option>
+							<option value="CK">Cook Islands</option>
+							<option value="CR">Costa Rica</option>
+							<option value="CI">Cote D'Ivoire (Ivory Coast)</option>
+							<option value="HR">Croatia (Hrvatska)</option>
+							<option value="CU">Cuba</option>
+							<option value="CY">Cyprus</option>
+							<option value="CS">Czechoslovakia (former)</option>
+							<option value="CZ">Czech Republic</option>
+							<option value="DK">Denmark</option>
+							<option value="DJ">Djibouti</option>
+							<option value="DM">Dominica</option>
+							<option value="DO">Dominican Republic</option>
+							<option value="TP">East Timor</option>
+							<option value="EC">Ecuador</option>
+							<option value="EG">Egypt</option>
+							<option value="SV">El Salvador</option>
+							<option value="GQ">Equatorial Guinea</option>
+							<option value="EE">Estonia</option>
+							<option value="ET">Ethiopia</option>
+							<option value="MK">F.Y.R.O.M. (Macedonia)</option>
+							<option value="FK">Falkland Islands (Malvinas)</option>
+							<option value="FO">Faroe Islands</option>
+							<option value="FJ">Fiji</option>
+							<option value="FI">Finland</option>
+							<option value="FR">France</option>
+							<option value="GF">French Guiana</option>
+							<option value="PF">French Polynesia</option>
+							<option value="TF">French Southern Territories</option>
+							<option value="GA">Gabon</option>
+							<option value="GM">Gambia</option>
+							<option value="GE">Georgia</option>
+							<option value="DE">Germany</option>
+							<option value="GH">Ghana</option>
+							<option value="GI">Gibraltar</option>
+							<option value="GR">Greece</option>
+							<option value="GL">Greenland</option>
+							<option value="GD">Grenada</option>
+							<option value="GP">Guadeloupe</option>
+							<option value="GT">Guatemala</option>
+							<option value="GN">Guinea</option>
+							<option value="GW">GuineaBissau</option>
+							<option value="GY">Guyana</option>
+							<option value="HT">Haiti</option>
+							<option value="HM">Heard and McDonald Islands</option>
+							<option value="HN">Honduras</option>
+							<option value="HK">Hong Kong</option>
+							<option value="HU">Hungary</option>
+							<option value="IS">Iceland</option>
+							<option value="IN">India</option>
+							<option value="ID">Indonesia</option>
+							<option value="IQ">Iraq</option>
+							<option value="IE">Ireland</option>
+							<option value="IM">Isle of Man</option>
+							<option value="IL">Israel</option>
+							<option value="IT">Italy</option>
+							<option value="JM">Jamaica</option>
+							<option value="JP">Japan</option>
+							<option value="JE">Jersey</option>
+							<option value="JO">Jordan</option>
+							<option value="KZ">Kazakhstan</option>
+							<option value="KE">Kenya</option>
+							<option value="KI">Kiribati</option>
+							<option value="KR">Korea (South)</option>
+							<option value="KW">Kuwait</option>
+							<option value="KG">Kyrgyzstan</option>
+							<option value="LA">Laos</option>
+							<option value="LV">Latvia</option>
+							<option value="LB">Lebanon</option>
+							<option value="LS">Lesotho</option>
+							<option value="LR">Liberia</option>
+							<option value="LI">Liechtenstein</option>
+							<option value="LT">Lithuania</option>
+							<option value="LU">Luxembourg</option>
+							<option value="MO">Macau</option>
+							<option value="MG">Madagascar</option>
+							<option value="MW">Malawi</option>
+							<option value="MY">Malaysia</option>
+							<option value="MV">Maldives</option>
+							<option value="ML">Mali</option>
+							<option value="MT">Malta</option>
+							<option value="MH">Marshall Islands</option>
+							<option value="MQ">Martinique</option>
+							<option value="MR">Mauritania</option>
+							<option value="MU">Mauritius</option>
+							<option value="MX">Mexico</option>
+							<option value="FM">Micronesia</option>
+							<option value="MD">Moldova</option>
+							<option value="MC">Monaco</option>
+							<option value="MN">Mongolia</option>
+							<option value="MS">Montserrat</option>
+							<option value="MA">Morocco</option>
+							<option value="MZ">Mozambique</option>
+							<option value="MM">Myanmar</option>
+							<option value="NA">Namibia</option>
+							<option value="NR">Nauru</option>
+							<option value="NP">Nepal</option>
+							<option value="NL">Netherlands</option>
+							<option value="AN">Netherlands Antilles</option>
+							<option value="NT">Neutral Zone</option>
+							<option value="NC">New Caledonia</option>
+							<option value="NZ">New Zealand</option>
+							<option value="NI">Nicaragua</option>
+							<option value="NE">Niger</option>
+							<option value="NG">Nigeria</option>
+							<option value="NU">Niue</option>
+							<option value="NF">Norfolk Island</option>
+							<option value="MP">Northern Mariana Islands</option>
+							<option value="NO">Norway</option>
+							<option value="OM">Oman</option>
+							<option value="PK">Pakistan</option>
+							<option value="PW">Palau</option>
+							<option value="PA">Panama</option>
+							<option value="PG">Papua New Guinea</option>
+							<option value="PY">Paraguay</option>
+							<option value="PE">Peru</option>
+							<option value="PH">Philippines</option>
+							<option value="PN">Pitcairn</option>
+							<option value="PL">Poland</option>
+							<option value="PT">Portugal</option>
+							<option value="PR">Puerto Rico</option>
+							<option value="QA">Qatar</option>
+							<option value="RE">Reunion</option>
+							<option value="RO">Romania</option>
+							<option value="RU">Russian Federation</option>
+							<option value="RW">Rwanda</option>
+							<option value="KN">Saint Kitts and Nevis</option>
+							<option value="LC">Saint Lucia</option>
+							<option value="VC">Saint Vincent & the Grenadines</option>
+							<option value="WS">Samoa</option>
+							<option value="SM">San Marino</option>
+							<option value="ST">Sao Tome and Principe</option>
+							<option value="SA">Saudi Arabia</option>
+							<option value="SN">Senegal</option>
+							<option value="SC">Seychelles</option>
+							<option value="SL">Sierra Leone</option>
+							<option value="SG">Singapore</option>
+							<option value="SK">Slovak Republic</option>
+							<option value="SI">Slovenia</option>
+							<option value="SB">Solomon Islands</option>
+							<option value="SO">Somalia</option>
+							<option value="ZA">South Africa</option>
+							<option value="ES">Spain</option>
+							<option value="LK">Sri Lanka</option>
+							<option value="SH">St. Helena</option>
+							<option value="PM">St. Pierre and Miquelon</option>
+							<option value="SR">Suriname</option>
+							<option value="SJ">Svalbard & Jan Mayen Islands</option>
+							<option value="SZ">Swaziland</option>
+							<option value="SE">Sweden</option>
+							<option value="CH">Switzerland</option>
+							<option value="TW">Taiwan</option>
+							<option value="TJ">Tajikistan</option>
+							<option value="TZ">Tanzania</option>
+							<option value="TH">Thailand</option>
+							<option value="TG">Togo</option>
+							<option value="TK">Tokelau</option>
+							<option value="TO">Tonga</option>
+							<option value="TT">Trinidad and Tobago</option>
+							<option value="TN">Tunisia</option>
+							<option value="TR">Turkey</option>
+							<option value="TM">Turkmenistan</option>
+							<option value="TC">Turks and Caicos Islands</option>
+							<option value="TV">Tuvalu</option>
+							<option value="UG">Uganda</option>
+							<option value="UA">Ukraine</option>
+							<option value="AE">United Arab Emirates </option>
+							<option value="GB">United Kingdom</option>
+							<option selected="selected" value="US">United States</option>
+							<option value="UY">Uruguay</option>
+							<option value="UM">US Minor Outlying Islands</option>
+							<option value="UZ">Uzbekistan</option>
+							<option value="VU">Vanuatu</option>
+							<option value="VA">Vatican City State (Holy See)</option>
+							<option value="VE">Venezuela</option>
+							<option value="VN">Viet Nam</option>
+							<option value="WF">Wallis and Futuna Islands</option>
+							<option value="EH">Western Sahara</option>
+							<option value="YE">Yemen</option>
+							<option value="ZR">Zaire</option>
+							<option value="ZM">Zambia</option>
+							<option value="ZW">Zimbabwe</option>
+						</select>					
+			</div>
+			<div id="updates">
+				<input id="CritSWUpdateCheckbox" type="checkbox" value="1" checked/>
+				<label for="CritSWUpdateCheckbox" class="small">Get critical software updates and exclusive offers.</label>
+			</div>
+			<div id="research">
+				<input id="CorelResearchCheckbox" type="checkbox" value="1" checked/>
+				<label for="CorelResearchCheckbox" class="small">Have your say, participate in Corel research.</label>
+			</div>
+			
+			<div class="button_container">
+				<button class="initiator" style="float: left;" type="submit" accesskey="C"><u>C</u>reate Account</button>
+			</div>
+		</form>		
+
+        </div>
+
+        <div style=" font-size: 11px; padding: 0px 10px 10px 10px;">
+        <strong>Privacy Policy</strong><br />
+        All information is confidential and will not be shared with any 3rd party. Refer to our full <a href="#" onclick="OnPrivacy();">privacy policy</a> for more details.
+        </div>
+
+	</div> <!-- idCreateAccount -->
+
+    <div id="idSignIn">
+	<div id="SignInText2" style="margin: 10px">
+		Already have an account?
+	</div>
+		<form style="margin: 10px" action="Javascript:logon(false);">
+			<div>
+				<label for="ExistingEmail" class="inputlabel">Email <u>a</u>ddress</label>
+				<input id="ExistingEmail" type="email" size="50" class="inputfield" accesskey="A" onblur="fieldout(this)" onfocus="fieldin(this)" />
+			</div>
+			
+			<div>
+				<label for="ExistingPassword" class="inputlabel">Pass<u>w</u>ord</label>
+				<input id="ExistingPassword" type="password" size="50" class="inputfield" accesskey="W" onblur="fieldout(this)" onfocus="fieldin(this)" onpaste="return false;"/>
+			</div>
+			
+			<a href="javascript:forgotPassword()" >I forgot my password</a>			
+			<div class="button_container">
+				<button class="initiator" style="float: left; margin-top: 3px;" type="submit" accesskey="g">Si<u>g</u>n In</button>
+			</div>
+		</form>
+	
+	</div> <!-- idSignIn -->
+
+</div>
+
+</body>
+</html>

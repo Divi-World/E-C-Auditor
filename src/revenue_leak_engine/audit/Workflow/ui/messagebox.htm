@@ -1,0 +1,150 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+	<title></title>
+	<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+    <style>
+		body,table,tr,td,input {
+			font-family: Segoe UI, Tahoma, sans-serif;
+			font-size:13px;
+			color: black;
+			margin:0;
+			padding:0;
+		}
+		input {
+			vertical-align: middle;
+		}
+		.iconcell {
+			width: 6.923em; /* 90px */
+			text-align: right;
+		}
+		.iconarea {
+			font-size: 3.846em; /* 50px */
+			font-weight: bold;
+		}
+		.message_content {
+			padding-left: 2.308em; /* 30px */
+			padding-right: 1.538em; /* 20px */
+			font-weight: normal;
+		}
+		.bottomarea {
+			text-align: center;
+			height: 4.615em; /* 60px */
+			padding-right: 1.538em; /* 20px */
+		}
+		.initiator {
+			cursor: pointer;
+			width: 6.154em; /* 80px */
+			padding: 0.308em 1.154em; /* 4px 15px */
+		}
+		#optbuttons {
+			float: right;
+		}
+		div#optbuttons input {
+			width:5.769em; /* 75px */
+		}
+      </style>
+    <script src="../shared/ccc.js"></script>
+    <script language="javascript">
+    function onLoad()
+    {
+      // for now, this message box only support MB_OK,  MB_YESNO, MB_ICONEXCLAMATION , MB_ICONQUESTION and default button for them
+      var nDefaultButton = getParamVal("defaultbutton");
+      var nButtonType = getParamVal("buttontype");
+      if (nButtonType== "0")
+      {
+        var buttonYes = document.getElementById("pcubtnyes");
+        if (buttonYes != null)
+        {
+          buttonYes.style.display = 'none';
+        }
+        var buttonNo = document.getElementById("pcubtnno");
+        if (buttonNo != null)
+        {
+          buttonNo.style.display = 'none';
+        }
+        var buttonOK = document.getElementById("pcubtnok");
+        if (buttonOK != null)
+        {
+          buttonOK.focus();
+        }
+      }
+      else if( nButtonType== "4")
+      {
+        var buttonOK = document.getElementById("pcubtnok");
+        if (buttonOK != null)
+        {
+          buttonOK.style.display = "none";
+        }
+        if (nDefaultButton == "0")
+        {
+          var buttonYes = document.getElementById("pcubtnyes");
+          if (buttonYes != null)
+          {
+            buttonYes.focus();
+          }
+        }
+        else if (nDefaultButton == "1")
+        {
+          var buttonNo = document.getElementById("pcubtnno");
+          if (buttonNo != null)
+          {
+            buttonNo.focus();
+          }
+        }
+      }
+    
+      var niconType = getParamVal("icontype");
+      var iconExclamtion = document.getElementById("iconarea");
+	  var iconColor = "red";
+      if (iconExclamtion != null)
+      {
+        if (niconType == '3') {
+          iconExclamtion.style.display = "";
+          iconExclamtion.innerHTML = "&#10071;";
+        }
+        else if (niconType == '2') {
+          iconExclamtion.style.display = "";
+          iconExclamtion.innerHTML = "&#10067;";
+        }
+        else if (niconType == '4') {
+			iconExclamtion.style.display = "";
+			iconColor = "green";
+			iconExclamtion.innerHTML = "<p>&#10004;</p>";
+        }
+        else {
+          iconExclamtion.style.display = "";
+        }
+		iconExclamtion.style.color = iconColor;
+      }
+      location = 'pcucmd://ContainerLoaded/';
+    }
+  </script>
+	<meta name="vs_targetSchema" content="http://schemas.microsoft.com/intellisense/ie5"/>
+	<meta http-equiv="MSThemeCompatible" content="yes"/>
+</head>
+<body onload="onLoad()" scroll="no">
+  <table align="center" id="Table1" cellspacing="0" cellpadding="0" border="0" width="100%" height="100%">
+    <tr>
+		<td class="iconcell">
+			<div id="iconarea" class="iconarea">&#10071;</div>
+		</td>
+		<td>
+			<div id="message_content" class="message_content"></div>
+		</td>
+    </tr>
+	<tr>
+      <td class="bottomarea" colspan="2">
+        <div id="optbuttons">
+          <button class="initiator" type='button' accesskey='Y' id='pcubtnyes' name='pcubtnyes' onclick="location = 'pcucmd://CanContinue/'" tabindex="1"><u>Y</u>es</button>
+          <button class="initiator" style="margin-left: 1.538em" type='button' accesskey='N' id='pcubtnno' name='pcubtnno' onclick="location='pcucmd://Cancel/?confirm=no'" tabindex="2"><u>N</u>o</button>
+          <button class="initiator" style="margin-left: 1.538em" type='button' accesskey='O' id='pcubtnok' name='pcubtnok' onclick="location='pcucmd://Continue/'" tabindex="2"><u>O</u>k</button>
+        </div>
+      </td>
+    </tr>
+  </table>
+  <div id="pcu_data" style="display:none;">
+    PageDimension:500,180
+  </div>
+</body>
+</html>

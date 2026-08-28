@@ -1,0 +1,530 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html
+PUBLIC "-//W3C//DTD XHTML 1.0 Frameset//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<title></title>
+		<meta content="Microsoft Visual Studio .NET 7.1" name="GENERATOR" />
+		<meta content="http://schemas.microsoft.com/intellisense/ie5" name="vs_targetSchema" />
+		<style type="text/css">
+			.msgcont1
+			{
+				filter:progid:DXImageTransform.Microsoft.Iris(irisstyle=DIAMOND,motion=out);
+				border-style:none;
+				border-color:#2a567f;
+				position:absolute;
+			}
+			.msgcont2
+			{
+				filter:progid:DXImageTransform.Microsoft.Fade(duration=2);
+				border-style:none;
+				border-color:#2a567f;
+				position:absolute;
+			}
+			.msgcont3
+			{
+				filter:progid:DXImageTransform.Microsoft.Pixelate(MaxSquare=10,Duration=1, Enabled=true);
+				border-style:none;
+				border-color:#2a567f;
+				position:absolute;
+			}
+			.msg
+			{
+				visibility: hidden;
+			}
+			.TestingAid
+			{
+				DISPLAY:none;
+				POSITION: absolute;
+				LEFT: 0px; TOP: 0px; width:190px;
+			}
+			.MsgInfo
+			{
+				z-index:1;
+				position:absolute;
+				background-color:Yellow;
+				display:none;
+				width: 190px;
+				height:200px;
+				border-style:none;
+				font-family: Verdana; font-size: 10pt;
+			}
+			.MessageBody
+			{
+				WIDTH: 190px;
+				HEIGHT: 200px;
+				border-style:none;
+			}
+			BODY
+			{
+				margin: 0px;
+				overflow:hidden;
+			}
+		</style>
+		<script language="javascript" type="text/javascript">
+
+        function rptCallback(str) {
+            var frame = document.getElementById('messageBody');
+            try {
+                frame.contentWindow.rptCallback(str);
+            }
+            catch(e) {}
+        }
+
+	<!--
+			//
+			// Retrieves a given parameter from the URL string
+			// Note: This function has been copied from ccc.js.
+			// TBD: Refactor the shared scripts
+			//
+	function getParamVal(paramName)
+	{
+		var sQueryVar = location.search.toLowerCase();
+		return extractParam(sQueryVar, paramName);
+	}
+
+			//
+			// Extracts the given parameter from the given URL string
+			// Note: This function has been copied from ccc.js.
+			// TBD: Refactor the shared scripts
+			//
+	function extractParam(sQueryVar, paramName)
+	{
+		if (sQueryVar == null || paramName == null)
+			return "";
+
+		var nIndex = sQueryVar.indexOf("?");
+		if (nIndex >= 0)
+			sQueryVar = sQueryVar.substr(nIndex + 1);
+
+	    paramName = paramName.toLowerCase();
+
+	    sQueryVar = sQueryVar.replace(/%26/g, "&");
+
+	    var asParams = sQueryVar.split("&");
+	    var i;
+
+	    for (i in asParams)
+	    {
+			var pair = asParams[i].split("=");
+		    if (pair.length == 2)
+		    {
+				if (pair[0].toLowerCase() == paramName)
+			    {
+					return pair[1];
+			    }
+		    }
+	    }
+
+		return "";
+	}
+
+      //
+			// Global variables
+			//
+	var oCurrentMessageXMLNode = null;
+	var transitionDuration = 2;
+	var timerID = 0;
+	var fShowingFixedMsg = false;
+	var displayedMsgStack = new Array();
+	var indexInDisplayedMsgStack = 0;
+	var fTestingMode = false;
+	var bRotationEnabled = false;
+
+			//
+			// onLoad - called when the document is fully loaded
+			//
+      function onLoad()
+      {
+				window.onerror = handleError;
+
+				// If testing is enabled, show testing aids
+				//var testing = getParamVal("testing");
+				//if (testing)
+				fTestingMode = false;
+
+				// Previewing a message with a given ID?
+				var msgID = getParamVal("msgid");
+				if ( msgID )
+				{
+					// Show just the given message.
+					// This prevents message rotation
+					fShowingFixedMsg = true;
+					showAMessage(msgID);
+				}
+				else
+				{
+					// Get the next message from the message sequence
+					oCurrentMessageXMLNode = window.external.GetNextMessage();
+
+					// Push the msg ID onto the display stack
+					// This is needed for walking back and forth the displayed
+					// message sequence
+					pushMsgOnDisplayStack(oCurrentMessageXMLNode);
+
+					// Show the message with transitions and auto-advance to the next one
+					showMessage(oCurrentMessageXMLNode, true, true);
+				}
+			}
+
+			//
+			// Function to handle all error
+			//
+			function handleError(sMsg, sUrl, sLine)
+			{
+				// If we are not in testing mode, supress error dialogs
+				if ( !fTestingMode )
+					return true;
+
+				// Display a detaled error message
+				var sErrMsg = "Error occured!<br/>";
+				sErrMsg += "Error: " + sMsg + "<br/>";
+				sErrMsg += "at: " + sUrl + "<br/>";
+				sErrMsg += "Line: " + sLine + "<br/>";
+			  sErrMsg += "<br/>";
+			  sErrMsg += "<br /><a href='#' onclick='onCloseInfo()'>Close</a>"
+
+				msgInfo.innerHTML = sErrMsg;
+				msgInfo.style.display = "inline";
+
+				return true;
+			}
+
+
+	    //
+	    // pushMsgOnDisplayStack - Push the msg ID onto the display stack
+	    // This is needed for walking back and forth the displayed
+	    // message sequence
+	    //
+      function pushMsgOnDisplayStack(oMessageXMLNode)
+      {
+				var msgID = oCurrentMessageXMLNode.getAttribute("id");
+				displayedMsgStack.push(msgID);
+			}
+
+
+      //
+      // showAMessage - Shows a single message without transitions or rotation
+      //
+      function showAMessage(msgID)
+      {
+				oCurrentMessageXMLNode = window.external.GetMessage(msgID);
+				showMessage(oCurrentMessageXMLNode, true, true);
+      }
+
+	  // gets called by app
+	  // returns the Message ID to the app
+	  function GetCurrentMsgID()
+	  {
+	  	if (oCurrentMessageXMLNode != null)
+	  	{
+			var msgID = oCurrentMessageXMLNode.getAttribute("id");
+		 	return msgID;
+		}
+		return null;
+	  }
+
+	  function GetCurrentMsgDetailURL()
+	  {
+		var url = "";
+		var FullURLPath = "";
+		if (oCurrentMessageXMLNode != null)
+		{
+			var msgID = oCurrentMessageXMLNode.getAttribute("id");
+			var msgDetailURLNode =
+				oCurrentMessageXMLNode.selectSingleNode("contents/content[@type='detail']/@localpath");
+			if ( msgDetailURLNode != null )
+			{
+				url = msgDetailURLNode.value;
+				FullURLPath = window.external.QualifyRelativePath(url);
+			}
+		}
+		return FullURLPath;
+	  }
+
+	  function ActionCompleted()
+	  {
+			// if there is a need to do an action upon the completion of a PCU action, it comes here
+	  }
+
+	  function GetCurrentMsg()
+	  {
+		 return oCurrentMessageXMLNode;
+	  }
+
+      //
+      // showAMessage - Shows the given message
+      //
+      function showMessage(oMsgXMLNode, showTransition, autoAdvance)
+      {
+				// Get the message body URL
+				var contentURL = oMsgXMLNode.selectSingleNode("contents/content[@type='body']/@localpath");
+
+				// Transition out the current message
+				if ( showTransition )
+					messageBodyDiv.filters[0].Apply();
+
+				// Show the new message
+				var FullURLPath = window.external.QualifyRelativePath(contentURL.text);
+
+				document.all.messageBody.src = FullURLPath;
+
+				// .. and transition in the new message
+				if ( showTransition )
+					messageBodyDiv.filters[0].Play();
+
+				//
+				// Set auto-advance timer
+				//
+				if ( autoAdvance )
+				{
+					startMsgRotation();
+
+					// if the call to show the message comes from message archive, do the callback
+					window.external.OnMsgDisplayed(oMsgXMLNode);
+				}
+      }
+
+			//
+			// nextMsg - Advances to the next message
+			//					 Called from either the message rotation or the testing aid
+			//
+	function nextMsg(showTransition)
+	{
+		if (bRotationEnabled)
+		{
+			// The next message may come from the display stack if we
+			// are not at the top of the stack (due to the tester re-traced back through the
+			// displayed messages)
+			if ( indexInDisplayedMsgStack == 0 )
+			{
+				// We are at the top of the stack - get the next message from the sequence
+				// and push it into the stack
+				oCurrentMessageXMLNode = window.external.GetNextMessage();
+				pushMsgOnDisplayStack(oCurrentMessageXMLNode);
+			}
+			else
+			{
+				// Get the next message from the stack
+				indexInDisplayedMsgStack++;
+				var nextMsgID = displayedMsgStack[displayedMsgStack.length + indexInDisplayedMsgStack - 1];
+				oCurrentMessageXMLNode = window.external.GetMessage(nextMsgID);
+			}
+
+			//... and show the message
+			showMessage(oCurrentMessageXMLNode, showTransition, true);
+		}
+		else
+		{
+			startMsgRotation();
+		}
+	}
+
+	//
+	// prevMsg - re-winds to the previous message
+	//					 Called only from the testing aid
+	//
+	function prevMsg(showTransition)
+	{
+		if ( indexInDisplayedMsgStack <= -(displayedMsgStack.length-1) )
+		{
+			// We are at the bottom of the stack.
+			showMessage(oCurrentMessageXMLNode, showTransition, true);
+			return;
+		}
+
+		// Get the next message from the stack and display it
+		indexInDisplayedMsgStack--;
+		var msgIndex = displayedMsgStack.length + indexInDisplayedMsgStack - 1;
+
+		var prvMsgID = displayedMsgStack[msgIndex];
+		oCurrentMessageXMLNode = window.external.GetMessage(prvMsgID);
+		showMessage(oCurrentMessageXMLNode, showTransition, true);
+	}
+
+	//
+	// onTestPrev - Called when the tester clicks on back button
+	//							to view the previous message
+	//
+	function onTestPrev()
+	{
+		// Stop the auto-rotation timer
+		stopMsgRotation();
+
+		// and rewind to the previous message without transition
+		prevMsg(false);
+		return true;
+	}
+
+
+			//
+			// onTestNext - Called when the tester clicks on next button
+			//							to view the next message
+			//
+			function onTestNext()
+			{
+				// Stop the auto-rotation timer
+				stopMsgRotation();
+
+			  // and advance to the next message without transition
+				nextMsg(false);
+				return true;
+			}
+
+			//
+			// onMouseOverBody - Called when the mouse hovers over tht message body
+			//
+			function onMouseOverBody()
+			{
+				// Don't bother if testing mode is not enabled
+				// ie., no "testing=1" in the URL param
+				if ( !fTestingMode )
+					return;
+
+				// Show the testing aid
+				var testingAidElem = document.getElementById("testingAid");
+				if ( testingAidElem != null )
+					testingAidElem.style.display = "inline";
+			}
+
+			//
+			// onMouseOutOfBody - Called when mouse is out of message body
+			//
+			function onMouseOutOfBody()
+			{
+				if ( !fTestingMode )
+					return;
+
+				// Hide testing aid
+				testingAid.style.display = "none";
+			}
+
+
+			//
+			// onInfo - Called when the tester clicks on '?' button
+			//
+			function onInfo()
+			{
+				// Clear the rotation timer
+			  stopMsgRotation();
+
+			  var msg = oCurrentMessageXMLNode;
+
+			  var sMsg = "<b>Message Information</b><br/>";
+			  sMsg +=    "ID:       " + msg.getAttribute("id")       + "<br/>";
+			  sMsg +=    "Title:    " + msg.getAttribute("title")    + "<br/>";
+			  sMsg +=    "Priority: " + msg.getAttribute("priority") + "<br/>";
+			  sMsg +=    "Type:     " + msg.getAttribute("type")	 + "<br/>";
+			  sMsg +=    "Duration: " + msg.getAttribute("duration") + " sec<br/>";
+			  sMsg +=    "Contexts: ";
+
+			  var contextNodeList;
+			  contextNodeList = msg.selectNodes("contexts/context/@id");
+			  if ( contextNodeList.length == 0 )
+			  {
+					sMsg += "-";
+			  }
+			  else
+			  {
+					for ( var i = 0; i < contextNodeList.length; i++ )
+					{
+						var contextNode;
+						contextNode = contextNodeList.item(i);
+						var context;
+						context = contextNode.nodeValue;
+						if ( i > 0 )
+							sMsg += ", ";
+						sMsg += context;
+					}
+			  }
+			  sMsg += "<br/>";
+			  sMsg += "<br /><a href='#' onclick='onCloseInfo()'>Close</a>"
+
+			  msgInfo.innerHTML = sMsg;
+			  msgInfo.style.display = "inline";
+			}
+
+			//
+			// onCloseInfo - Called to close the msg info window
+			//
+			function onCloseInfo()
+			{
+				msgInfo.style.display = "none";
+				showMessage(oCurrentMessageXMLNode, true, true);
+				return true;
+			}
+
+			function onbeforeprint()
+			{
+				if ( !fTestingMode )
+					return;
+
+				var testingAidElem = document.getElementById("testingAid");
+				testingAidElem.style.display = "none";
+			}
+
+			function onafterprint()
+			{
+				if ( !fTestingMode )
+					return;
+
+				var testingAidElem = document.getElementById("testingAid");
+
+				testingAidElem.style.display = "inline";
+			}
+
+			// Called to suspend/resume message rotation
+			function setMsgRotation(fRotate)
+			{
+				bRotationEnabled = false;
+			}
+
+			function startMsgRotation()
+			{
+				if (oCurrentMessageXMLNode != null)
+				{
+					var msgDuration = parseInt(oCurrentMessageXMLNode.getAttribute("duration"), 10);
+					msgDuration = msgDuration + transitionDuration;
+					timerID = window.setTimeout("nextMsg(true)", msgDuration * 1000);
+				}
+			}
+
+			function stopMsgRotation()
+			{
+				window.clearTimeout(timerID);
+				timerID = 0;
+			}
+
+		-->
+		</script>
+	</head>
+	<body onmouseover="onMouseOverBody()" onmouseout="onMouseOutOfBody()" onload="onLoad()"
+		onbeforeprint="onbeforeprint()" onafterprint="onafterprint()" style="margin: 0px;overflow:hidden;">
+		<div class="msgcont2" id="messageBodyDiv">
+			<iframe id="messageBody" class="MessageBody" src="" frameborder="0"></iframe>
+		</div>
+		<div id="msgInfo" class="MsgInfo">
+		</div>
+		<div id="testingAid" class="TestingAid">
+			<table width="100%" border="0" ID="Table1">
+				<tr>
+					<td style="text-align:left; width:10px;">
+						<a onclick="onTestPrev()" href="#">&lt;</a>
+					</td>
+					<td style="text-align:left; width:10px;">
+						<a onclick="onInfo()" href="#">?</a>
+					</td>
+					<td></td>
+					<td align="center"></td>
+					<td style="text-align:left; width:10px;">
+						<a onclick="window.print()" href="#"><font face="Wingdings 2">6</font></a>
+					</td>
+					<td style="text-align:right; width:10px;">
+						<a onclick="onTestNext()" href="#">&gt;</a>
+					</td>
+				</tr>
+			</table>
+		</div>
+	</body>
+</html>

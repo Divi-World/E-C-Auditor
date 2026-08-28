@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" >
+<head>
+    <title>Starting your Premium Membership Trial</title>
+    <link rel="stylesheet" type="text/css" href='../shared/ccc.css' />
+    <script src="../shared/ccc.js" language="javascript" type="text/javascript"></script>
+    <script language="javascript" type="text/javascript">
+    function OnTryItBtn() {
+		document.getElementById('status_msg').innerText = "Validating ... please wait....";
+		sendPremTrialStart();
+	}
+	function callBack(strReturn) {
+		document.getElementById('status_msg').style.display = "none";
+		if (strReturn == 0) {
+			document.getElementById('main_msg').innerHTML = "<p><strong>Premium Membership Trial has begun</strong></p><p>You now have 15 days to try Premium features and services. For your convenience, Premium features are highlighted.</p>";
+			document.getElementById('main_button').innerHTML = '<button class="initiator" accesskey="C" onclick="location=\'pcucmd://continue\'"><u>C</u>ontinue</button>';
+			var g_strParams = getParamString();
+			var profileid = extractParam(g_strParams,"profileid");
+			location = "pcucmd://authenticate?profileid=" + profileid;
+		}
+		else {
+			document.getElementById('main_msg').innerHTML = '<p style="color: red; font-weight: bold">Error: Premium Trial could not be started</p>';
+			document.getElementById('main_button').innerHTML = '';
+		}
+	}
+    </script>
+
+    <style type="text/css">
+		body {
+			padding: 15px;
+		}
+        div {
+            padding: 10px 12px 10px 12px;
+            overflow: hidden;
+        }
+        td {
+            padding: 10px 12px 10px 12px;
+            vertical-align: top;
+        }
+        ul { padding-left: 20px; }
+		h1 {
+			font-weight: normal;
+			font-size: 35px;
+			margin: 0px;
+			padding: 0px;
+		}
+        .dynEl { display: none; }       
+        .indicator { color: #1F497D; }
+        .Err { background-color: #FF6835; border: 1px solid black; }
+		div#status_msg {color: #61A706; font-weight: bold;}
+    </style>
+
+</head>
+
+<body>
+<div id="pcu_data" style="display:none">PageDimension: 900,620</div>
+<button style="display:none;" id='pcubtncancel' name='pcubtncancel'  onclick="location='pcucmd://Cancel?confirm=no'"></button>
+
+<table id="top" class="myTables" border="0" cellpadding="0" cellspacing="0">
+    <tr>
+    <td style="width: 755px;">
+		<h1>Technical Suite Memberships</h1><br/>
+	</td>
+	<td><img src="../shared/images/cdgs_suite_balloon.png" /></td>
+</tr></table> <!-- idTitle -->
+
+<table style="margin-top: 20px" border="0" cellpadding="0" cellspacing="0">
+    <tr>
+        <td><img alt="" src="../shared/images/badgepro.png"/></td>
+        <td>
+			<div id="main_msg">You are about to enable your Premium Membership Trial.<br /><br />A Premium Membership Trial allows you to access new Premium features and services as well as watermarked Premium content such as exclusive clipart, photos, and pattern fills.</div>
+			<div id="status_msg"></div>
+        </td>
+	</tr>
+	<tr>
+        <td id="main_button" colspan="2" style="vertical-align: middle; text-align: right;"><button class="initiator" accesskey="C" onclick="OnTryItBtn();"><u>C</u>ontinue</button></td>
+    </tr>
+</table>
+</body>
+
+</html>

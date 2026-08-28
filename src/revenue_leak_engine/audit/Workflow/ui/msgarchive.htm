@@ -1,0 +1,118 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+	<head>
+		<meta name="vs_targetSchema" content="http://schemas.microsoft.com/intellisense/ie5" />
+		<meta http-equiv="MSThemeCompatible" content="yes" />
+
+		<title>Messages</title>
+
+		<style type="text/css" media="all">
+			/* general */
+			*
+			{
+				margin:0px;
+				padding:0px;
+			}
+			.skip
+			{
+				display:none;
+			}
+
+			/* the rest */
+			body
+			{
+				background-color: #F0F0F0;
+				font-family: Arial, Helvetica;
+				font-size:x-small;
+				padding: 5px;
+			}
+			#listctrl, #snippit
+			{
+				border:solid 1px #B4B4B4;
+				background-color:white;
+				overflow-y:auto;
+				overflow-x:hidden;
+			}
+			#listctrl
+			{
+				float:left;
+				width:190px;
+				height:190px;
+			}
+			#snippit
+			{
+				float:right;
+			}
+			#listctrl h4
+			{
+				width:100%;
+				font-size:small;
+				font-weight:bold;
+				border-bottom:solid 1px #B4B4B4;
+				padding: 2px;
+				filter: progid:DXImageTransform.Microsoft.Gradient(gradientType=0,startColorStr=#CFCFCF,endColorStr=#EBEBEB);
+			}
+			#snipframe
+			{
+				border:none;
+				width:190px;
+				height:190px;
+			}
+			.listunsel, .listsel
+			{
+				padding:2px 0px 2px 5px;
+				font-weight:normal;
+				background-color:#FFFFFF;
+				color:#000000;
+				cursor:default;
+			}
+			.listsel
+			{
+				background-color:#0046F0;
+				color:#FFFFFF;
+			}
+			.error
+			{
+				text-align:center;
+				padding-top:50px;
+				color:#73AFFA;
+				font-size:medium;
+			}
+			.seperator
+			{
+				width:100%;
+				text-align: right;
+				margin-top: 5px;
+				padding-top: 8px;
+			}
+			#buttonclose
+			{
+				font-family: Arial, Helvetica;
+				font-size:11px;
+				padding: 5px;
+			}
+		</style>
+		<!-- external script for communicating with messaging system -->
+		<script type="text/javascript" src="../shared/messaging.js">
+		</script>
+	</head>
+	<body scroll="no" onselectstart="return false;" ondragstart="return false;" ondragenter="return false;" ondragover="return false;" ondrop="return true;" onload="OnMsgArchiveLoad();">
+		<div id="content">
+			<!-- this block makes up the listbox control -->
+			<div id="listctrl" tabindex="1">
+				<p id="dolly" class="skip"></p>
+				<p id="nomessage" class="skip">There are no messages</p>
+				<h4>&nbsp;Messages</h4>
+				<div id="msglist"></div>
+			</div>
+			<!-- this is the snippit window -->
+			<div id="snippit">
+				<iframe id="snipframe" src="about:blank" frameborder="no" scrolling="no" tabindex="2"></iframe>
+			</div>
+		</div>
+		<div style="clear: both"></div>
+		<div class="seperator">
+			<input id="buttonclose" type="submit" value="Close" tabindex="3" onclick="javascript:window.external.CloseWindow('msgArchive');">
+		</div>
+	</body>
+</html>

@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Frameset//EN">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+	<title></title>
+	<meta http-equiv="X-UA-Compatible" content="IE=11">
+	<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+	<meta content="http://schemas.microsoft.com/intellisense/ie5" name="vs_targetSchema" />
+	<meta http-equiv="MSThemeCompatible" content="yes">
+    <link rel="stylesheet" type="text/css" href="../shared/ccc.css" />
+    <script src="../shared/ccc.js"></script>
+    <script language="javascript">
+	var lidsid = '';
+	function rpt(str) {
+		lidsid = str;
+	}
+	function userOffline() {
+		document.getElementById('offline_msg').style.display = '';
+	}
+	function onLoad()
+	{
+		var eulafrm = document.getElementById('eulaframe');
+
+		//check sourceid to determing if were showing EULA or BULA from online source
+		location = "pcucmd://replacetoken?callback='rpt'&string='<License>-<SourceID>'";
+		
+		//the following licenseid-sourceid combos need to show BULA
+		var bulaarr = {"540111163-410012":"cdgs2022bizwin","540111163-310011":"cdgs2022bizmac","540111164-310002":"cdts2022biz","540111179-410012":"cdgs2024bizwin","540111179-310011":"cdgs2024bizmac","540111180-310002":"cdts2024biz","540111181-310002":"cdts2024-3DCADbiz","540111159-807001":"vs2022ultbiz","540111161-807001":"vs2022probiz","540111174-807001":"vs2023ultbiz","540111175-807001":"vs2023probiz"};
+		if (bulaarr[lidsid])
+		{
+			document.getElementById('ulafull').innerText = 'Corel Business User License Agreement';
+			var ulashortcoll = document.getElementsByClassName('ulashort');
+			for (i = 0; i < ulashortcoll.length; i++) {
+				ulashortcoll[i].innerText = 'BULA';
+			}
+			eulafrm.src = 'https://www.corel.com/include/bula/en.html?ipm=true';
+		}
+		else {
+			eulafrm.src = 'https://www.corel.com/include/eula/en.html?ipm=true';
+		}
+
+		//if internet connection is not available, show offline message
+		var i = new Image();
+		i.onerror = userOffline;
+		i.src = 'https://www.corel.com/static/corel/images/pZozBL-Bw.gif?d=' + escape(Date());
+		
+		//if window.parent.postMessage is NOT supported, enable AGREE button without needing to scroll to bottom
+		if (!window.parent.postMessage) {
+			var agreebtn = document.getElementById('pcubtnaccept');
+			agreebtn.style.opacity = '1';
+			agreebtn.disabled = false;
+		}
+	}
+
+	//see if EULA/BULA has scrolled to bottom so that we enable the AGREE button in the IPM dialog
+	if (window.parent.postMessage)
+	{
+		var eventMethod,messageEvent;
+		if (window.addEventListener) {
+		   eventMethod = "addEventListener";
+		   messageEvent = "message";
+		}
+		else {
+		   eventMethod = "attachEvent";
+		   messageEvent = eventMethod == "attachEvent" ? "onmessage" : "message";
+		}
+		var eventer = window[eventMethod];
+		eventer(messageEvent, function (e) {
+			if (e.data != null) {
+				var agreebtn = document.getElementById('pcubtnaccept');
+				agreebtn.style.opacity = '1';
+				agreebtn.disabled = false;
+			}
+		}, false);
+	}
+    </script>
+	<style>
+		.eulacontainer {
+			position: relative;
+			width: 93%;
+			height: 507px;
+			margin: 0 10px 10px 10px;
+			padding: 10px;
+		}
+		.eulaframe {
+			width: 100%;
+			height: 300px;
+			border: 1px solid grey;
+		}
+		.BannerImg {
+			margin-top: 10px;
+		}
+		.eulabuttoncontainer {
+			position: absolute;
+			bottom: 0;
+			left: 0.769em; /* 10px */
+			width: 42em; /* 546px */
+			text-align: right;
+		}
+		.eulalinks {
+			margin: 1.538em 0; /* 20px */
+		}
+		#offline_msg {
+			color: red;
+		}
+		#readcheckbox {
+			margin-left: -0.231em; /* -3px */
+		}
+		#optbuttons {
+			margin-top: 0.769em; /* 10px */
+		}
+	</style>
+    </head>
+	<body onload="onLoad()" scroll="no">
+		<div class="BannerStyle"><img src="../shared/Images/banner.png" class="BannerImg"></div>
+		<div class="eulacontainer">
+			<p>To continue installing this software, you must agree to the terms of the <span id="ulafull">Corel End User License Agreement</span> (<span class="ulashort">EULA</span>). You must scroll down to the end of the <span class="ulashort">EULA</span> before you can agree to these terms.</p>
+			<div class="eulalinks">
+				<iframe id="eulaframe" class="eulaframe" align="center" src="" frameBorder="0" allowTransparency="true"></iframe>
+			</div>
+			<p>We value your privacy. Click <a href="#" onclick="location='pcucmd://fullbrowse?url=\'http://www.corel.com/privacy/\'';return false;">here</a> to see our privacy policy. By agreeing to the terms of the <span class="ulashort">EULA</span> you acknowledge that you have read, understood and accepted our privacy policy.</p>
+			<div id="offline_msg" style="display: none">*An Internet connection is required. Please connect to the Internet and try again.</div>
+			<div class="eulabuttoncontainer">
+				<hr/>
+				<div id="optbuttons">
+				  <button class="initiator" style="margin-right: 10px" type='button' accesskey='D' id='pcubtndecline' name='pcubtndecline' onclick="location='pcucmd://Cancel/'" tabindex="1"><u>D</u>isagree</button>
+				  <button disabled style="opacity: 0.5" class="initiator" type='button' accesskey='A' id='pcubtnaccept' name='pcubtnaccept' onclick="location='pcucmd://Continue/'" tabindex="1"><u>A</u>gree</button>
+				</div>
+			</div>
+		</div>
+		<div id="pcu_data" style="display:none;">
+			PageDimension:586,655
+		</div>
+	</body>
+</html>

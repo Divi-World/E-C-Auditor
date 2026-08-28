@@ -1,0 +1,144 @@
+/* Generic asset type CSS */
+body,table,tr,td,input,select {
+	margin:0;
+	padding: 0;
+	font-family: 'Segoe UI' , Tahoma;
+	font-size: 13px;  /*10pt is 13px */
+	color: black;
+}
+input,select {
+	color: #000000;
+}
+input {
+	vertical-align: middle;
+}
+body {
+	overflow:auto;
+	background:white;
+}
+td {
+	padding:0;
+}
+image {
+	border: 0px;
+}
+p  {
+	font-family: 'Segoe UI' , Tahoma;
+	font-size: 13px;  /*10pt is 13px */
+	color: black;
+	font-weight: normal;	
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+ul {
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+li {
+	font-family: 'Segoe UI' , Tahoma;
+	font-size: 12px;  /*10pt is 13px */
+	color: black;
+	padding-top: 3px;
+	padding-bottom: 3px;
+	font-weight: normal;
+}
+button {
+	cursor: auto;
+	padding: 4px;
+	font-family: 'Segoe UI' , Tahoma;
+	font-size: 13px;
+	color: #333333;
+	border: solid 1px #333333; 
+	background: #FFFFFF;
+}
+h1 {	
+	font-family: 'Segoe UI' , Tahoma;
+	font-size: 13px;	
+	font-weight: normal;
+	color: #000000;
+	margin: 2px 2px 2px 0px;	
+}
+h2  {
+	font-family: 'Segoe UI' , Tahoma;
+	font-size: 13px;	
+	font-weight: bold;	
+	color: #000000;
+	font-style: italic;
+	margin: 2px 2px 2px 0px;	
+}
+h3 {	
+	font-family: 'Segoe UI' , Tahoma;
+	font-size: 11px;	
+	font-weight: bold;	
+	color: #000000;
+	margin: 2px 2px 2px 0px;	
+}
+h4 {	
+	font-family: 'Segoe UI' , Tahoma;
+	font-size: 16px;	
+	font-weight: bold;	
+	color: #000000;
+	font-style: italic;	
+	margin: 2px 2px 2px 0px;	
+}
+.small {
+	font-weight: normal;
+	font-size: 11px;
+}
+
+.subscworkflow_container {
+	height: 485px;
+	margin: 25px 20px 10px 20px;
+	border-bottom: 1px solid grey;
+	overflow: hidden;
+}
+
+/* big green button */
+.initiator
+{
+	cursor: pointer;
+	color: #FFFFFF;
+	border: solid 1px #B3B3B3; 
+	background: #003673;
+	padding-left: 15px;
+	padding-right: 15px;
+}
+/* end big green button */
+
+/* labels inside form fields */
+.inputlabel {
+	position: absolute;
+	padding: 7px;
+	color: #999;
+	z-index: -1;
+}
+.inputfield {
+	position: relative;
+	background-color: transparent;
+	background-image: url('../shared/Images/spacer.gif');
+	border: 1px solid black;
+	padding: 7px;
+}
+/* end labels inside form fields */
+
+#error_msg, .error_msg {
+	margin: 6px 0px;
+	padding: 5px;
+	background-color: red;
+	color: white;
+	font-size: 12px;
+}
+
+.blacklink {
+	font-weight: bold;
+	color: black;
+	text-decoration: underline;
+}
+
+.button_container {
+	width: 100%;
+	text-align: right;
+}
+.tophr {
+	margin-bottom: 20px;
+}

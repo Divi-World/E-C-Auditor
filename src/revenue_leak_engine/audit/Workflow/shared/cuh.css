@@ -1,0 +1,76 @@
+/* CUH css */
+body {
+	margin: 0;
+	padding: 0;
+	overflow:hidden;
+	background-color: white;
+	font-family: Segoe UI, sans-serif;
+}
+.MessageBody {
+	border: 0;
+	padding: 0;
+	margin: 0;
+}
+.msgcont2 {
+	filter:progid:DXImageTransform.Microsoft.Fade(duration=2);
+	width: 100%;
+	height: 100%;
+	border: 0;
+	padding: 0;
+	margin: 0;
+}
+.msg {
+	visibility: hidden;
+}
+
+/* top bar */
+#msgtopbar {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 8%;
+	filter: alpha(opacity=0);
+}
+#msgcls {
+	position: absolute;
+	top: 0;
+	right: 0;
+}
+#msgcls a {
+	color: black;
+	text-decoration: none;
+	font-size: 13px;
+}
+#msgcls img {
+	width: 17px;
+	border: 0;
+	margin: 4px;
+	filter: alpha(opacity=75);
+	opacity: 0.75;
+}
+.btmmsgcls {
+	position: absolute;
+	left: 0.4em;
+	bottom: 0.3em;
+	font-size: 0.7em;
+	z-index: 999999999;
+}
+.btmmsgcls a, #btmmsgcls1 {
+	color: #6d6d6d;
+	text-decoration: none;
+}
+#dntshowagain {
+	color: #7D7D7D;
+	text-decoration: none;
+}
+.btmcont {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	font-size: 0.7em;
+	height: 20px;
+	width: 100%;
+	padding-left: 0.4em;
+	padding-top: 0.3em;
+}

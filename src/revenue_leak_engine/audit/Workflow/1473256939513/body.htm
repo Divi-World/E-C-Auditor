@@ -1,0 +1,56 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<script type="text/javascript" src="../shared/CCC.js"></script>
+<script language="javascript">
+function onpageload()
+{
+	document.location.replace('pcucmd://FrameDataLoaded');
+	var newURL = 'pcucmd://fullbrowse?URL="http://iws.corel.com/ipmws/redirect/index.jsp' + getParamString();
+	var triggerval = getParamVal("trigger");
+	if (triggerval > 0){
+		newURL += '&utm_term=Trial&utm_medium=IPM&utm_source=540227267-999925&utm_content=Headernavbuynow';
+	}
+	var fullbrowser = getParamVal("fullbrowser");
+	if (fullbrowser == '') {
+		newURL += '&fullbrowser=true';
+	}
+	document.location.replace(newURL);
+	if (triggerval  == -1) {
+		location='pcucmd://setlastsequence';
+	}
+	else {
+		location='pcucmd://cancel?confirm=no';
+	}
+	document.location.replace('pcucmd://FrameDataLoaded');
+}
+</script>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<div id="pcu_data_override" style="display:none;">
+	PageDimension:1,1
+</div>
+						
+					</body>
+				</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<script type="text/javascript" src="../shared/ccc.js"></script>
+<script type="text/javascript" language="javascript">
+function onpageload() {
+	//check to see if we need to replace Cancel button with Continue button and modify text (when NLR regtype is optional)
+	location.href = "pcucmd://validate?param=/productmanifest/licenseinfolist/licenseinfo[(@licenseid='540227504' or @licenseid='540227267' or @licenseid='540111182' or @licenseid='540111146' or @licenseid='540111144') and (@regtype='0' or @regtype='3')]";
+	location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showoptnlr";
+	location = 'pcucmd://FrameDataLoaded';
+}
+
+//content/button changes based on NLR type
+function showoptnlr()
+{
+	//show different content
+	document.getElementById('nlrmand_brick').style.display = 'none';
+	document.getElementById('nlropt_brick').style.display = '';
+	
+	//replace Cancel button with Continue button
+	var newbtnhtml = document.getElementById('contbtnhtml').innerHTML;
+	if (newbtnhtml != null && newbtnhtml != '')
+	{
+		//button bar container div
+		var btnbarcont = parent.document.getElementById('ButtonBar').children[0];
+		if (btnbarcont != null && btnbarcont != '') {
+			//replace existing button html (will only return Cancel button cell as only its possible in this scenario)
+			var btncell = btnbarcont.children[1].getElementsByTagName('TD')[0];
+			btncell.innerHTML = newbtnhtml;
+		}
+	}
+}
+</script>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+								
+							
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='C' id='pcubtncancel' name='pcubtncancel'  onclick="document.location='pcucmd://cancel?confirm=yes'"><u>C</u>ancel</button></td>
+
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<div class="workflow_container_autuni2023">
+	<h4>Internet connection required</h4>
+	<hr>
+	<div id="nlrmand_brick">
+		<p>You are required to sign into your account to validate your product license.</p>
+		<p>You need to be connected to the internet to complete this action.</p>
+	</div>
+	<div id="nlropt_brick" style="display: none">
+		<p>Please connect to the Internet and complete the sign-in process. You must sign into your account to validate your product license.</p>
+		<p>While you can continue without signing in, your license will not be fully validated until you've signed in.</p>
+	</div>
+</div>
+<div id="contbtnhtml" style="display: none;"><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='N' id='pcubtncont' name='pcubtncont' onclick="document.location='pcucmd://Continue';">Co<u>n</u>tinue</button></div>
+						
+					</body>
+				</html>

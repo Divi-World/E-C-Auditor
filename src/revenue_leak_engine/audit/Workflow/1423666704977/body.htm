@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<script src="../shared/ccc.js"></script>
+<script language="javascript">
+<!--
+function onpageload()
+{
+	//make sure serial number and activation code fields are empty on load
+	el = document.getElementById("txtKey");
+	el1 = document.getElementById("txtActivationCode");
+	if (el) {
+		el.value='';
+	}
+	if (el1) {
+		el1.value='';
+	}
+	location='pcucmd://FrameDataLoaded';
+	location='pcucmd://CanContinue?enable=false';
+	var strSerial = getParamVal("serial");
+	setCookie("serial", strSerial);
+}
+
+function OnSerialChanging()
+{
+    var pKey = document.getElementById("txtKey");
+
+    if (null == pKey)
+        return;
+
+    var strKey = removeAllSpaces(pKey.value);
+	var bSerial = ValidateSerial(strKey);
+
+	btnActivateOnline.disabled = !bSerial;
+	btnActivateOffline.disabled = !bSerial;	
+    if ('S' == strKey.charAt(4).toUpperCase())
+    {
+		btnActivateOffline.disabled = true;	
+		btnPhone.disabled = true;
+	}
+	else
+	{
+		btnPhone.disabled = !bSerial;
+		if (bSerial)
+		{
+			var oAct = document.getElementById("txtActivationCode");
+			if (null != oAct)
+			{
+				btnActivateOffline.disabled = !ValidateActCode(oAct.value);
+			}
+		}
+	}
+	return;
+} //function OnSerialChanging()
+
+function OnActivationCodeChanging()
+{
+	//offline requires activation code
+	var oAct = document.getElementById("txtActivationCode");
+	if (null != oAct)
+	{
+		btnActivateOffline.disabled = !ValidateActCode(oAct.value);
+	}
+} //function OnActivationCodeChanging()
+
+function closewin(vinput) {
+    if (vinput == 0) {
+        document.location.href = "pcucmd://continue";
+    }
+}
+
+function OnActivateOnline()
+{
+    StoreParams();
+    if ('S' == txtKey.value.charAt(4).toUpperCase())
+    {
+        location = "pcucmd://SetKey?admin=yes&key=" + removeAllSpaces(txtKey.value);
+        location = "pcucmd://browse?sequence=subscription&licenseid=540227267&condition=true";
+        location = "pcucmd://continue?condition=true";
+    }
+    else
+    {
+        location = "pcucmd://Connect";
+        location = "pcucmd://Activate?admin=yes&condition=yes";
+        location = "pcucmd://Next?condition=true";
+    }
+} //function OnActivateOnline()
+
+function StoreParams()
+{
+	location = "pcucmd://StoreParam/?key=" + removeAllSpaces(txtKey.value);
+	location = "pcucmd://StoreParam/?activationcode=" + removeAllSpaces(txtActivationCode.value);
+} //function StoreParams()
+
+function OnPgUnlock()
+{
+	StoreParams();
+	OnUnlock();
+} //function OnUnlock()
+
+function OnPhone()
+{
+	location="pcucmd://SetKey?admin=yes&key=" + removeAllSpaces(txtKey.value);
+	location="pcucmd://Extend?condition=true";
+	location="pcucmd://SetSequence?name=activation_offline&condition=true";
+} //function OnPhone()
+
+function OnBack()
+{
+	var strSerial = getCookie("serial");
+	if ((strSerial != null) && (strSerial != ""))
+	{
+		location="pcucmd://SetKey?admin=yes&key="+strSerial;
+		deleteCookie("serial");
+	}
+	location="pcucmd://previous";
+}
+
+function callCancel() {
+    var strSerial = getCookie("serial");
+    if ((strSerial != null) && (strSerial != "")) {
+        location = "pcucmd://SetKey?admin=yes&key=" + strSerial;
+        deleteCookie("serial");
+    }
+    location = "pcucmd://cancel?confirm=no";
+}
+
+-->
+</script>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+								
+							
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='C' id='pcubtncancel' name='pcubtncancel'  onclick="document.location='pcucmd://CallScriptFunc?funcname=callCancel'"><u>C</u>ancel</button></td>
+
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='B' id='pcubtnback' name='pcubtnback'  onclick="document.location='pcucmd://CallScriptFunc?funcname=OnBack'"><u>B</u>ack</button></td>
+
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<div class="subscworkflow_container">
+	<h1>Already have a serial number</h1>
+	<hr class="tophr">
+	<p>Enter your serial number to enable online and offline activation options.</p>
+	<div style="margin-bottom: 80px;">
+		<label for="txtKey" class="inputlabel"><u>S</u>erial Number</label>
+		<input style="TEXT-TRANSFORM: uppercase;" id="txtKey" name="txtKey" type="text" size="72" class="inputfield" accesskey="S" onpropertychange="OnSerialChanging();" onblur="fieldout(this)" onfocus="fieldin(this)" />
+		<div class="button_container" style="margin-top: 10px">
+			<button class="initiator" accesskey="N" id="btnActivateOnline" onclick="OnActivateOnline();" disabled="disabled" style="margin-right: 15px">Activate O<u>n</u>line</button>
+			<button class="initiator" accesskey="F" id="btnPhone" onclick="OnPhone();" disabled="disabled">Activate O<u>f</u>fline</button>
+		</div>
+	</div>
+	<h1>Already have an activation code</h1>
+	<hr class="tophr">
+	<p>Enter your activation code to unlock the product</p>
+	<div>
+		<label for="txtActivationCode" class="inputlabel"><u>A</u>ctivation Code</label>
+		<input style="TEXT-TRANSFORM: uppercase;" id="txtActivationCode" name="txtActivationCode" type="text" size="72" class="inputfield" accesskey="A" onpropertychange="OnActivationCodeChanging();" onblur="fieldout(this)" onfocus="fieldin(this)" />
+		<div class="button_container" style="margin-top: 10px">
+			<button class="initiator" accesskey="U" id="btnActivateOffline" onclick="OnPgUnlock();" disabled="disabled"><u>U</u>nlock</button>
+		</div>
+	</div>
+</div>
+						
+					</body>
+				</html>

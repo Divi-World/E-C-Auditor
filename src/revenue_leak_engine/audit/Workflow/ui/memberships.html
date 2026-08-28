@@ -1,0 +1,52 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" >
+<head>
+    <title>Upgrade Program</title>
+    <script src="../shared/ccc.js" language="javascript" type="text/javascript"></script>
+    <script language="javascript" type="text/javascript">
+		var serialtype 		= getParamVal("serialtype");
+		var subscriptionid	= getParamVal("subscriptionid");
+		var page_dimension 	= 'PageDimension: 900,540';
+		var hit_cart		= false;
+		
+		//eRetail or eUpgrade and authenticated
+		if ( (serialtype == 1 || serialtype == 3) && (subscriptionid == "600002") ) {
+			hit_cart = true;
+			
+			var h = 545;
+			try { h = Math.min(1000, window.screen.height - 150); } catch(e){}
+			page_dimension = 'PageDimension: 974,' + h;
+			
+		}
+
+		function navigate_pg() {
+			if (hit_cart) {
+				location.href = "pcucmd://connect?showerror='yes'";
+				location.href = "pcucmd://CallScriptFunc?condition=false&funcname=fallback";
+				location.href = "pcucmd://CallScriptFunc?condition=true&funcname=loadcart";
+			}
+			else {
+				fallback();
+			}
+		}
+
+        function loadcart() { location.href = getCorelComServer() + "/corel/ipm/redirect/index.jsp" + getParamStringCustom() + "&wf=p&recommendation=CDGS_UpgradeProgram"; }
+        function fallback() { location.href = 'membershipspg.html' + getParamStringCustom(); }
+		
+		function getParamStringCustom() {
+			var parm 	= getParamString();
+			var lupid 	= getParamVal("lupid");
+			if (lupid != null) {
+				parm += "&sso-workflow=checkout";
+				parm += "&x-profileid=" + lupid + "&sso-profileid=" + lupid;
+			}
+			return parm;
+		}
+		
+    </script>
+</head>
+<body onload="navigate_pg();" scroll="no">
+	<div id="pcu_data" style="display:none"><script>document.write(page_dimension);</script></div>
+</body>
+</html>
+

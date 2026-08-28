@@ -1,0 +1,167 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" >
+<head>
+    <title>Upgrade Program</title>
+    <link rel="stylesheet" type="text/css" href='../shared/ccc.css' />
+    <script src="../shared/ccc.js" language="javascript" type="text/javascript"></script>
+    <script language="javascript" type="text/javascript">
+        var UNVERIFIEDID = "600007";
+        var UNKNOWN = "";
+        var PREM = "900103";
+        var PREMCH = "700001";
+        var SUBSC30 = "900105";
+        var SUBSC365 = "900104";
+
+        var g_strParams = "";
+        function rpt(str) {
+            g_strParams = str;
+        }
+		
+        function SetupPg()
+		{
+            location = "pcucmd://replacetoken?callback='rpt'&string='?serialtype=<PST>&pculicenseid=<License>&pcusourceid=<SourceID>&lang=<LangCode>&serial=<PSN>&hfpid=<PCID>&profileid=<profileid>&subscriptionid=<subscriptionid>&machineid=<MachineID>&version=2&regtrackingid=<ibrtrackingid>&productversion=<majorandminorversion>&NumDays=<NumDays>&SubscriptionCurrentVersion=<SubscriptionCurrentVersion>&SubscriptionLastUsedVersion=<SubscriptionLastUsedVersion>&seatcount=<subscriptionseatcount>&x-profileid=<ProfileID>&<SVRCKS>'";
+            if ("" == g_strParams) {
+                g_strParams = getParamString(); //replacetoken doesn't exist in old clients
+            }
+			
+			//get subscription id
+			var id = extractParam(g_strParams, "subscriptionid");
+
+			//show Unverified info
+			if (id == UNVERIFIEDID) {
+				document.getElementById('idUnverified').style.display = "block";
+			}
+			
+			//if Corporate, Academic, Education, OEM or Unverified
+			var serialtype = extractParam(g_strParams,"serialtype");
+			var buttondiv;
+			if (serialtype == "0" || serialtype == "2" || serialtype == "4" || serialtype == "5" || id == UNVERIFIEDID || id == UNKNOWN || id == "<subscriptionid>") {
+				buttondiv = document.getElementById('idPurchase');
+				var button = buttondiv.firstChild;
+				button.style.backgroundColor = "#7F7F7F";
+				button.disabled = true;
+				buttondiv.style.display = "block";
+			}
+			else {
+				if (id == SUBSC30 || id == SUBSC365) {
+					//included
+					buttondiv = document.getElementById('idIncluded');
+					buttondiv.style.display = "block";
+				}
+				else if (id == PREM || id == PREMCH) {
+					//renew
+					buttondiv = document.getElementById('idRenew');
+					buttondiv.style.display = "block";
+					DisplayDaysLeft();
+				}
+				else {
+					//new
+					buttondiv = document.getElementById('idPurchase');
+					buttondiv.style.display = "block";
+				}
+			}
+        }
+
+		function closeDialog() {
+			location.href = "pcucmd://Cancel?confirm=no";
+		}
+		
+        var g_strUrl = "";
+        function ConnectSuccess() {
+            if (g_strUrl != "") {
+                var str = g_strUrl;
+                g_strUrl = "";
+                location.href = "pcucmd://browse?url='" + str + "'&width=1200&height=800&setresult=closeDialog&suppressnext=yes";
+            }
+        }
+        function ConnectFail() {
+            g_strUrl = "";
+            idInternetErr.style.display = "block";
+        }
+
+        function goOnline(url) {
+            if (g_strUrl == "") {
+                idInternetErr.style.display = "none";
+                g_strUrl = url;
+				location.href = "pcucmd://connect?showerror='no'";
+				location.href = "pcucmd://CallScriptFunc?condition=false&funcname=ConnectFail";
+				location.href = "pcucmd://CallScriptFunc?condition=true&funcname=ConnectSuccess";
+            }
+        }
+
+        function OnProBtn() {
+            var strURL = getCorelComServer() + "/corel/ipm/redirect/index.jsp" + g_strParams + "&wf=p";
+            goOnline(strURL);
+        }
+
+        function OnProRenewBtn() {
+            var strURL = getCorelComServer() + "/corel/ipm/redirect/index.jsp" + g_strParams + "&wf=r";
+            goOnline(strURL);
+        }
+
+        function DisplayDaysLeft() {
+			var days = extractParam(g_strParams, "NumDays");
+			if (days !== "")
+			{
+                if (days > 0) {
+					var idDaysLeft = document.getElementById('idDaysLeft');
+					var str = idDaysLeft.innerHTML.toString();
+                    idDaysLeft.innerHTML = str.replace("#", days.toString());
+					idDaysLeft.style.display = "block";
+					document.getElementById('idAlreadyMember').style.display = "block";
+                }
+                else {
+                    document.getElementById('idMemberExpired').style.display = "block";
+                }
+            }
+        }
+
+    </script>
+
+</head>
+<body class="membdesc" onload="SetupPg();" scroll="no">
+
+<div id="pcu_data" style="display:none">PageDimension: 900,540</div>
+<button style="display:none;" id='pcubtncancel' name='pcubtncancel'  onclick="location='pcucmd://Cancel?confirm=no'"></button>
+
+<div id="idUnverified" class="Err dynEl">
+    <strong>Attention:</strong> We were unable to validate your product status. As a result, you will not have access to the Upgrade Program, which include product updates and access to online content. For assistance, please contact <a onclick="supportlink();" href="#">Corel Support</a>.
+</div> <!-- idUnverified -->
+
+<div id="idInternetErr" class="Err dynEl">
+    <strong>Attention:</strong> An Internet connection is required. Please connect to the Internet and try again.
+</div> <!-- idInternetErr -->
+
+<div class="toparea">
+	<h1 class="membdesc_hdr">Upgrade Program</h1>
+	<p>Get the latest product upgrades instantly!</p>
+</div>
+<hr>
+<table id="idUpgradeP" class="midarea" border="0" cellpadding="0" cellspacing="0">
+    <tr valign="top">
+        <td><img alt="" src="../shared/images/upgrade_badge.jpg" id="idBadge"/></td>
+        <td class="tdDesc">
+            <h1 class="membdesc_subhdr">Stay up-to date!</h1>
+			<p>The Upgrade Program ensures you are always using the most up-to-date version of CorelDRAW Graphics Suite. Get instant notification of every major release and access to all new features.</p>
+			<p>If you have a subscription, the Upgrade Program is included with your product. You can also purchase a subscription to the Upgrade Program separately, if you wish to add it to a full license product.</p>
+			<p><strong>Note:</strong> You are not eligible for the Upgrade Program if your serial number is for an Academic, OEM, or Not-For-Resale License.</p>
+        </td>
+        <td class="tdBtns">
+            <div id="idMemberExpired" class="dynEl">The Upgrade Program has expired</div>
+			<div id="idAlreadyMember" class="dynEl">Already have Upgrade Program</div>
+			<div id="idDaysLeft" class="dynEl">(# days left)</div>
+			<div id="idRenew" class="dynEl">
+				<button class="initiator" onclick="OnProRenewBtn();">Renew</button>
+			</div>
+			<div id="idIncluded" class="dynEl">
+				<div class="included">Included</div>
+			</div>
+            <div id="idPurchase" class="dynEl">
+				<button class="initiator" accesskey="p" onclick="OnProBtn();"><u>P</u>urchase</button>
+            </div>
+        </td>
+    </tr>
+</table><!-- id="idUpgradeP" -->
+
+</body>
+</html>

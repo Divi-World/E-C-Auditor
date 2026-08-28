@@ -1,0 +1,63 @@
+<!DOCTYPE html
+PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<?xml version="1.0" encoding="utf-8" ?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>Install Options Dialog</title>
+	<link href="../shared/ccc.css" type="text/css" rel="Stylesheet" />
+	<script type="text/javascript" id="clientEventHandlersJS" language="javascript">
+	<!--
+
+	function installnow_onclick()
+	{
+		window.external.SetDaysReminder( -1 );
+		window.external.SetInstallType( "now" );
+	}
+	function installlater_onclick()
+	{
+		window.external.SetDaysReminder( -1 );
+		var presentation = window.external.GetInstallOption();
+		window.external.SetInstallType( presentation);
+	}
+
+	function setreminder_onclick()
+	{
+		window.external.SetDaysReminder( 7 );
+		var presentation = window.external.GetInstallOption();
+		window.external.SetInstallType( presentation );
+	}
+
+	function onLoad()
+	{
+		var presentation = window.external.GetInstallOption();
+		var option = document.getElementById( presentation );
+		if ( option != null )
+			option.style.display = "";
+	}
+	//-->
+	</script>
+	<meta name="vs_targetSchema" content="http://schemas.microsoft.com/intellisense/ie5" />
+	<meta http-equiv="MSThemeCompatible" content="yes" />
+</head>
+<body oncontextmenu="return false;" onselectstart="return false;" onload="onLoad()">
+<img src="../shared/images/banner.jpg">
+<div class="dimasset_container" style="text-align: center">
+	<p>Your download is ready for installation.<br /><br /></p>
+	<div style="margin-top: 50px; margin-bottom: 50px">
+		<button class="initiator" accesskey="I" onclick="return installnow_onclick();"><u>I</u>nstall now</button>
+	</div>
+	<p class="graytext">The application may need to be closed for installation.</p>
+	<table cellpadding="0" cellspacing="0" width="100%"><tr>
+		<td width="50%" style="text-align: left; padding-left: 20px">
+      	    <div id="reminder"><a onclick="return setreminder_onclick()" href="#">Remind me in 7 days</a></div>
+		</td>
+		<td width="50%" style="text-align: right; padding-right: 20px">
+      	    <div id="installlater"><a onclick="return installlater_onclick()" href="#">Remind me next time</a></div>
+      	</td>
+	</tr></table>
+	<div id="pcu_data" style="display:none;">
+		PageDimension:586,400
+	</div>
+</body>
+</html>

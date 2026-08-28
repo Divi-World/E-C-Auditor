@@ -1,0 +1,98 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+<html>
+<head>
+    <title>CorelDRAW Technical Suite</title>
+	<meta http-equiv="MSThemeCompatible" content="yes">
+	<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+	<link href="../shared/ccc.css" type="text/css" rel="STYLESHEET" />
+	<script src="../shared/ccc.js" language="javascript" type="text/javascript"></script>
+	<script language="javascript" type="text/javascript">
+		var prodver = '21.0';
+        function pvcb(str) {
+            if (str != '' && str != null) {
+				prodver = Number(str);
+				prodver = prodver.toFixed(1);
+			}
+        }
+		location = "pcucmd://replacetoken?callback='pvcb'&string='<MajorVersion>'";
+
+		function onpageload() {
+			location = 'pcucmd://FrameDataLoaded';
+			//all icons are hidden on default
+			//check if Designer is installed
+			location.href = "pcucmd://validate?param=/registry/regkey[@name='hklm/software/wow6432node/corel/corel designer/" + prodver + "/installed']/regval[@name='designer'][@value='1']";
+			location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showicon&param=designer";
+			//check if Draw is installed
+			location.href = "pcucmd://validate?param=/registry/regkey[@name='hklm/software/wow6432node/corel/corel designer/" + prodver + "/installed']/regval[@name='draw'][@value='1']";
+			location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showicon&param=draw";
+			//check if Photo Paint is installed
+			location.href = "pcucmd://validate?param=/registry/regkey[@name='hklm/software/wow6432node/corel/corel designer/" + prodver + "/installed']/regval[@name='pp'][@value='1']";
+			location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showicon&param=pp";
+			//check if Font Manager is installed
+			location.href = "pcucmd://validate?param=/registry/regkey[@name='hklm/software/wow6432node/corel/corel designer/" + prodver + "/installed']/regval[@name='fontmanager'][@value='1']";
+			location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showicon&param=fontmanager";
+			//check if XVL Studio is installed
+			location.href = "pcucmd://validate?param=/registry/regkey[@name='hklm/software/wow6432node/lattice technology/xvl studio corel edition 2020']";
+			location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showlist&param=xvlstudio";
+			//check if XVL Player is installed
+			location.href = "pcucmd://validate?param=/registry/regkey[@name='hklm/software/wow6432node/lattice technology/xvl player3']";
+			location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showlist&param=xvlplayer";
+		}
+		function showicon(name) {
+			document.getElementById('apps_yeslaunch').style.display = 'block';
+			var itemname = 'item_' + name;
+			document.getElementById(itemname).style.display = 'block';
+		}
+		function showlist(name) {
+			document.getElementById('apps_nolaunch').style.display = 'block';
+			var itemname = 'item_' + name;
+			document.getElementById(itemname).style.display = 'block';
+		}
+		function selectapp(name) {
+			location = 'pcucmd://opendoc?product=' + name;
+			location = 'pcucmd://continue';
+		}
+	</script>
+</head>
+<body onload="onpageload();" tabindex="-1" scroll="no">
+<div id="pcu_data" style="display:none;">
+	PageDimension:586,700
+</div>
+<div class="BannerStyle"><img src="../shared/Images/banner.png" class="applaunch_BannerImg"></div>
+<div class="applaunch_container">
+    <h1>Thank you for installing CorelDRAW Technical Suite!</h1>
+	<hr>
+	<p class="applaunch_headp">You have successfully installed the following products. Select a Program to launch or click Finish to exit the setup.</p>
+	<table id="apps_yeslaunch" style="display: none" class="appselect" cellpadding="0" cellspacing="0" border="0">
+		<tr id="item_designer" style="display: none">
+			<td><a href="#" onclick="selectapp('designer');"><img class="appselect_icon" src="../shared/images/applaunch_designer.png"></a></td>
+			<td class="appselect_tdr">Corel DESIGNER&nbsp;&nbsp;|&nbsp;&nbsp;<span class="applaunch_grey">technical illustration</span></td>
+		</tr>
+		<tr id="item_draw" style="display: none">
+			<td class="appselect_spacing"><a href="#" onclick="selectapp('draw');"><img class="appselect_icon" src="../shared/images/applaunch_draw.png"></a></td>
+			<td class="appselect_tdr appselect_spacing">CorelDRAW&nbsp;&nbsp;|&nbsp;&nbsp;<span class="applaunch_grey">vector illustration and page layout</span></td>
+		</tr>
+		<tr id="item_pp" style="display: none">
+			<td class="appselect_spacing"><a href="#" onclick="selectapp('pp');"><img class="appselect_icon" src="../shared/images/applaunch_pp.png"></a></td>
+			<td class="appselect_tdr appselect_spacing">Corel PHOTO-PAINT&nbsp;&nbsp;|&nbsp;&nbsp;<span class="applaunch_grey">bitmap illustration and photo-editing</span></td>
+		</tr>
+		<tr id="item_fontmanager" style="display: none">
+			<td class="appselect_spacing"><a href="#" onclick="selectapp('fontmanager');"><img class="appselect_icon" src="../shared/images/applaunch_fontmanager.png"></a></td>
+			<td class="appselect_tdr appselect_spacing">Corel Font Manager&nbsp;&nbsp;|&nbsp;&nbsp;<span class="applaunch_grey">font manager</span></td>
+		</tr>
+	</table>
+	<div id="apps_nolaunch" style="display: none">
+		<p>Also installed:</p>
+		<p id="item_xvlstudio" style="display: none" class="appselect_list applaunch_grey">XVL Studio 3D Corel Edition&nbsp;&nbsp;|&nbsp;&nbsp;3D authoring</p>
+		<p id="item_xvlplayer" style="display: none" class="appselect_list applaunch_grey">XVL Player&nbsp;&nbsp;|&nbsp;&nbsp;3D viewing</p>
+	</div>
+	<div class="applaunch_wfbuttons">
+		<table>
+			<tr>
+				<td><button class="initiator" type='button' accessKey='f' id='pcubtncontinue' name='pcubtncontinue'  onclick="location='pcucmd://continue'"><u>F</u>inish</button></td>
+			</tr>
+		</table>
+	</div>
+</div>
+</body>
+</html>

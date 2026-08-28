@@ -1,0 +1,89 @@
+<!DOCTYPE html
+PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<?xml version="1.0" encoding="utf-8" ?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>No Enough Space Dialog</title>
+	<link href="../shared/ccc.css" type="text/css" rel="STYLESHEET" />
+	<script type="text/javascript" id="clientEventHandlersJS" language="javascript">
+	<!--
+	var timerID = 0;
+	function OnCancel()
+	{
+	   window.clearTimeout(timerID);
+	   timerID = 0;
+	   window.external.DIMDialogCancel();
+	  
+	}
+    function OnRetry()
+    {
+        var bIsSpaceEnough = window.external.IsSpaceEnough();
+        if ( bIsSpaceEnough == true)
+        {
+    	    clearTimeout(timerID);
+	        timerID = 0;
+            window.external.DIMDialogOK();
+        }
+        else
+        {
+            OnTimer();
+        }
+    }
+
+	function onLoad()
+	{
+	    OnTimer();
+        timerID = window.setTimeout("OnTimer()", 1000);
+	}
+    function OnTimer()
+    {
+        window.clearTimeout(timerID);
+        // no enough space
+        var elementNoEnoughSpace = document.getElementById("noenoughspacetext");
+        var strNoEnoughSpace = window.external.GetNoEnoughSpaceMsg(elementNoEnoughSpace.innerHTML);
+       
+        var elementNoEnoughSpaceParagraph = document.getElementById("noenoughspace");
+        elementNoEnoughSpaceParagraph.innerHTML =strNoEnoughSpace;
+       
+        // required space
+        var elementRequiredSpace = document.getElementById("requiredspacetext");
+        var strRequiredSpace = window.external.GetRequiredSizeMsg(elementRequiredSpace.innerHTML);
+       
+        var elementRequiredSpaceParagraph = document.getElementById("requiredspace");
+        elementRequiredSpaceParagraph.innerHTML =strRequiredSpace;
+      
+         //available space
+        var elementAvailableSpace = document.getElementById("availablespacetext");
+        var strAvailableSpace = window.external.GetAvailableSizeMsg(elementAvailableSpace.innerHTML);
+       
+        var elementAvailableParagraph = document.getElementById("availablespace");
+        elementAvailableParagraph.innerHTML =strAvailableSpace;
+        timerID = window.setTimeout("OnTimer()", 1000);
+      
+    }
+	//-->
+	</script>
+	<meta name="vs_targetSchema" content="http://schemas.microsoft.com/intellisense/ie5"/>
+	<meta http-equiv="MSThemeCompatible" content="yes"/>
+</head>
+<body onload="onLoad()">
+<img src="../shared/images/banner.jpg">
+<div class="dimasset_container">
+	<div id="noenoughspacetext" style="display:none;">There is not enough space on your <strong>%s</strong> drive to download the update. </div>                
+	<div id="availablespacetext" style="display:none;">Space Available: <strong>%.4f MB</strong></div>
+	<div id="requiredspacetext" style="display:none;">Space Required: <strong>%.4f MB</strong></div>
+	<p id="noenoughspace"></p>
+	<p>Please try again when you have enough space.</p>
+	<br />
+	<p id="availablespace"></p>
+	<p id="requiredspace"></p>
+	<div class="dimbutton_container">
+		<button class="initiator" accesskey="C" onclick="OnCancel();" style="margin-right: 20px"><u>C</u>ancel</button>
+		<button class="initiator" accesskey="R" onclick="OnRetry();"><u>R</u>etry</button>
+	</div>
+	<div id="pcu_data" style="display:none;">
+		PageDimension:586,400
+	</div>
+</body>
+</html>

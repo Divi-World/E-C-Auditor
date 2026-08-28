@@ -1,0 +1,296 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<script src="../shared/ccc.js" language="javascript" type="text/javascript"></script>
+<script language="javascript" type="text/javascript">
+var email = '';
+var langcode = 'en';
+var wfquery = '';
+var hashedemail = '';
+function rpt(str) {
+	email = str;
+}
+function onpageload()
+{
+	location = 'pcucmd://FrameDataLoaded';
+	var classification = getParamVal("classification");
+	var lid = getParamVal("licenseid");
+	var subscriptionid = getParamVal("subscriptionid");
+	var alreadyexist = getParamVal("alreadyexist");
+	
+	//check to see if we need to add Already Purchased button (ONLY for online/offline trials)
+	location.href = "pcucmd://validate?param=/productmanifest/licenseinfolist/licenseinfo[(@licenseid='540111179' or @licenseid='540111180' or @licenseid='540111181' or @licenseid='540111183') and @sourceid!='410030' and (@serialtype='8' or @serialtype='10')]";
+	location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showbtn&param=alreadypurbtnhtml";
+
+	//fill in user email and SN
+	location = "pcucmd://replacetoken?callback='rpt'&string='<UserID>'";
+	if (!email) {
+		location.href = "pcucmd://Continue";
+	}
+	//if email is available,encrypt it and do some GA pinging
+	else
+	{
+		email = email.toLowerCase();
+		if (typeof(sha256Generator) !== 'undefined') {
+			hashedemail = sha256Generator.hash(email);
+		}
+
+		//get the language from path (EN default)
+		var path = window.location.href;
+		var langpos = path.indexOf("/MessageCache");
+		if (langpos != -1) {
+			langpos = langpos-2;
+			langcode = path.substring(langpos,langpos+2);
+			langcode = langcode.toLowerCase();
+			
+			//get path from /Messages onwards (encoded)
+			var wfpos = path.indexOf("/Messages");
+			wfquery = encodeURIComponent(path.substring(wfpos));
+		}
+		if (langcode == 'es') {
+			langcode = 'la';
+		}
+		else if (langcode == 'cs') {
+			langcode = 'cn';
+		}
+		else if (langcode == 'ct') {
+			langcode = 'tw';
+		}
+		else if (langcode == 'tr' || langcode == 'sv') {
+			langcode = 'en';
+		}
+	}
+
+	//populate dynamic content elements
+	var sn = getParamVal("serial");
+	sn = sn.toUpperCase();
+	document.getElementById('user_email').innerHTML = email;
+	document.getElementById('user_sn').innerHTML = sn;
+	document.getElementById('user_email1').innerHTML = email;
+
+	//if previously signed in with single SN
+	if (alreadyexist == 'true') {
+		//proper heading
+		document.getElementById('hd3').style.display = 'block';
+
+		//hide or show content
+		document.getElementById('freeupgrade').style.display = 'block';
+	}
+	else if (classification == '2' || alreadyexist == 'multi') {
+		location.href = "pcucmd://Continue";
+	}
+	//unverified or pirate
+	else if (classification == '1') {
+		//proper heading
+		document.getElementById('hd2').style.display = 'block';
+		
+		//hide or show content
+		document.getElementById('unverified').style.display = 'block';
+	}
+	//trial
+	else if (classification == '0') {
+		//proper heading
+		document.getElementById('hd1').style.display = 'block';
+
+		//hide or show content
+		document.getElementById('signedin_trial').style.display = 'block';
+		document.getElementById('user_email').style.display = 'block';
+	}
+	//standard
+	else {
+		document.getElementById('hd1').style.display = 'block';
+
+		//hide or show content
+		document.getElementById('user_email').style.display = 'block';
+		document.getElementById('signedin_prod').style.display = 'block';
+	}
+
+	//only for CDGS: run visibility on main license to see if we are showing biztrial elements (biz sourceids)
+	location.href = "pcucmd://validate?param=/productmanifest/licenseinfolist/licenseinfo[@licenseid='540111179' and (@sourceid='410012' or @sourceid='310011') and @classification!='0']";
+	location.href = "pcucmd://CallScriptFunc?condition=true&funcname=showelements&param=biz";
+	location.href = "pcucmd://bringwindowtotop";
+}
+
+function showelements(eltype)
+{
+	//make sure element is there (new business trial icon section)
+	if (!document.getElementById('bizsection')) {
+		return false;
+	}
+	document.getElementById('bizsection').style.display = 'block';
+	document.getElementById('hd1').style.display = 'none';
+	document.getElementById('hd2').style.display = 'none';
+	document.getElementById('hd3').style.display = 'none';
+	document.getElementById('hd4').style.display = 'block';
+}
+
+//add workflow button(s) dynamically (Already Purchased)
+function showbtn(btntype)
+{
+	//get HTML of new button to be added
+	var newbtnhtml = document.getElementById(btntype).innerHTML;
+	if (newbtnhtml != null && newbtnhtml != '')
+	{
+		//button bar container
+		if (isWin == true) {
+			var btnbarcont = parent.document.getElementById('ButtonBar').children[0];
+		}
+		else {
+			var btnbarcont = document.getElementById('ButtonBar').children[0];
+		}
+		if (btnbarcont != null && btnbarcont != '')
+		{
+			//add new button cell and html
+			var newbtnrow = btnbarcont.children[0].children[0].children[0].children[0];
+			if (newbtnrow != null && newbtnrow != '') {
+				var newbtncell = newbtnrow.insertCell(0);
+				newbtncell.innerHTML = newbtnhtml;
+			}
+		}
+	}
+}
+
+function nextstep () {
+	//ping GA for view tracking
+	document.getElementById('omnit').src = addGoogleAnalyticsParamsToUrl('https://ipm.corel.com/products/tracking/index.html?page_path=' + wfquery + '&site_key=coreldraw.com&ga-user-id=' + hashedemail,'signin_confirmation','1689006876939');
+	//go to fullbrowser reg thank you page and continue launching app
+	location.href = "pcucmd://fullbrowse?url='https://www.coreldraw.com/" + langcode + "/product/coreldraw/registration-thank-you.html?ga-user-id=" + hashedemail + "&hwid=<hwid>'&showatfront='false'";
+	location = 'pcucmd://continue';
+}
+
+function subsupportlink() {
+	location.href = "pcucmd://fullbrowse?url='https://www.coreldraw.com/authenticationsupport'";
+	return false;
+}
+</script>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+								
+							
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='submit' accessKey='o' id='pcubtncontinue' name='pcubtncontinue'  onclick="document.location='pcucmd://CallScriptFunc?funcname=nextstep'">C<u>o</u>ntinue</button></td>
+
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<script>
+var contbtn = document.getElementById('pcubtncontinue');
+if (contbtn != null && contbtn != '')
+{
+	contbtn.innerHTML = '<u>F</u>inish';
+	contbtn.accessKey = 'f';
+}
+</script>
+<div class="workflow_container_autuni2023">
+    <h1 id="hd1" style="display: none">You are signed in, and your product is authenticated</h1>
+    <h1 id="hd2" style="display: none">There was a problem verifying your product</h1>
+    <h1 id="hd3" style="display: none">Your trial has been converted to a licensed product!</h1>
+    <h1 id="hd4" style="display: none">Success! You are now signed in</h1>
+	<hr>
+	<div id="freeupgrade" style="display: none">
+		<p>Your account is already associated with a serial number for the latest version of this product.</p>
+		<p>Your trial has now been converted to a licensed product using the following account:</p>
+		<p><span id="user_email1"></span><br/>Serial Number: <span id="user_sn"></span></p>
+	</div>
+	<div id="unverified" style="display: none">
+		<p>We were unable to verify your product status. As a result, you will not be able to access future product updates and take full advantage of online content. For assistance, please contact Corel Support at <a onclick="subsupportlink();" href="#">https://www.coreldraw.com/authenticationsupport</a>.</p>
+	</div>
+	<p id="signedin_prod" style="display: none">Your product has been authenticated using the following account:</p>
+	<p id="signedin_trial" style="display: none">Your trial has been authenticated using the following account:</p>
+	<p id="user_email" style="display: none"></p>
+	<div id="bizsection" style="display: none">
+		<div class="bizheading">Built for creativity. Engineered for business.</div>
+		<table class="biztable" border="0">
+		<tr valign="top">
+			<td>
+				<img src="../shared/images/versatile_icon.png">
+				<p class="biztableheading">Versatile</p>
+				<p class="biztablep">Create with confidence on Windows, Mac or the web.</p>
+			</td>
+			<td>
+				<img src="../shared/images/customizable_icon.png">
+				<p class="biztableheading">Customizable</p>
+				<p class="biztablep">Choose a preferred application language with a single click.</p>
+			</td>
+			<td>
+				<img src="../shared/images/affordable_icon.png">
+				<p class="biztableheading">Affordable</p>
+				<p class="biztablep">Flexible licensing options and volume discounts support your budget.</p>
+			</td>
+			<td>
+				<img src="../shared/images/secure_icon.png">
+				<p class="biztableheading">Secure</p>
+				<p class="biztablep">CorelSure Maintenance protects your investment.</p>
+			</td>
+		</tr>
+		</table>
+	</div>
+</div>
+<div id="alreadypurbtnhtml" style="display: none;"><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='A' id='pcubtnpurchasedquestion' name='pcubtnpurchasedquestion' onclick="document.location='pcucmd://SetSequence?admin=yes&name=enter_key';"><u>A</u>lready Purchased?</button></div>
+<iframe id='omnit' style="display:none;" frameborder='0' allowtransparency='true'></iframe>
+						
+					</body>
+				</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html
+PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<?xml version="1.0" encoding="utf-8" ?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>%d%% of Download Completed</title>
+	<link href="../shared/ccc.css" type="text/css" rel="Stylesheet" />
+	<script type="text/javascript" id="clientEventHandlersJS" language="javascript">
+	<!--	
+  	var timerID = 0;
+	function onLoad()
+	{
+        var strDownloadItem= window.external.GetDownloadItem();
+       
+        var elementDownloadItem = document.getElementById("downloaditem");
+        elementDownloadItem.innerHTML =strDownloadItem;
+
+	    OnTimer();
+        timerID = window.setTimeout("OnTimer()", 500);
+	}
+	
+	function OnCancel()
+	{
+	   window.clearTimeout(timerID);
+	   timerID = 0;
+	   window.external.DIMDialogCancel();
+	}
+	function OnOK()
+	{
+	   window.clearTimeout(timerID);
+	   timerID = 0;
+	   window.external.DIMDialogOK();
+	}
+	
+    function DisplayProgressBar(nProgress)
+    {
+		// adjust the size of the progress bar
+		var elmTopSlider = document.getElementById("divOverSlider");
+		var elmBotSlider = document.getElementById("divUnderSlider");	
+	    if ( (null != elmTopSlider) && (null != elmBotSlider))
+	    {
+	    	var nTotalWidth = parseInt(elmBotSlider.offsetWidth);
+			if((nTotalWidth != 0) && (nProgress != 0)) {
+				var nPartWidth = (nTotalWidth * nProgress )/ 100.0;
+				elmTopSlider.style.width = String(nPartWidth);
+			}
+	    }
+    } 
+    function OnTimer()
+    {
+        window.clearTimeout(timerID);
+        // change progress
+        var nProgress =   window.external.GetDownloadProgress();     
+        DisplayProgressBar(nProgress);
+        window.external.UpdateDialogTitle();
+        timerID = window.setTimeout("OnTimer()", 500);
+    }
+	//-->
+	</script>
+	<meta name="vs_targetSchema" content="http://schemas.microsoft.com/intellisense/ie5" />
+	<meta http-equiv="MSThemeCompatible" content="yes" />
+</head>
+<body oncontextmenu="return false;" onselectstart="return false;" onload="onLoad()">
+<img src="../shared/images/banner.jpg">
+<div class="dimasset_container">
+	<p>
+		Downloading <span id="downloaditem"></span>...<br />
+	</p>
+	<div id="tdProgress">
+			<!-- this is the 600x22 area for the progress bar-->
+			<div id="divUnderSlider">
+				<div id="divOverSlider">
+					<div id="divPBStart"></div>
+					<div id="divPBEnd"></div>
+				</div>
+			</div>
+	</div>
+	<div class="dimbutton_container">
+		<button class="initiator" accesskey="C" onclick="OnCancel();"><u>C</u>ancel</button>
+	</div>
+	<div id="pcu_data" style="display:none;">
+		PageDimension:586,400
+	</div>
+</div>
+</body>
+</html>

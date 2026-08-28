@@ -1,0 +1,240 @@
+/* cdts2019 generic workflow CSS */
+body,table,tr,td,input,select {
+	font-family: Segoe UI, Tahoma, sans-serif;
+	font-size:13px;
+	color: black;
+	margin:0;
+	padding:0;
+}
+input {
+	vertical-align: middle;
+}
+body {
+	overflow:auto;
+	background:white;
+}
+image, img {
+	border: 0;
+	padding: 0;
+	margin: 0;
+}
+a {
+	color: #009CFF;
+}
+p, li  {
+	font-size: 1em; /* 13px */
+	font-weight: normal;
+}
+p, ul, h1, h2 {
+	margin-top: 0.769em; /* 10px */
+	margin-bottom: 0.769em; /* 10px */
+}
+li {
+	font-size: 0.923em;  /* 12px */
+	padding-top: 0.231em;  /* 3px */
+	padding-bottom: 0.231em;  /* 3px */
+}
+button {
+	cursor: pointer;
+	color: #FFFFFF;
+	border: 0;
+	background: #009CDE;
+	padding: 0.231em 1.154em; /* 3px 15px */
+}
+h1 {
+	margin: 0.154em 0.154em 0.154em 0; /* 2px 2px 2px 0 */
+	font-size: 1.154em; /* 15px */
+	font-weight: normal;
+}
+h2  {
+	font-weight: bold;
+	font-style: italic;
+	margin: 0.154em 0.154em 0.154em 0; /* 2px 2px 2px 0 */	
+}
+h3 {	
+	font-size: 0.923em; /* 12px */
+	font-weight: bold;
+	margin: 0.154em 0.154em 0.154em 0; /* 2px 2px 2px 0 */	
+}
+.small {
+	font-weight: normal;
+	font-size: 0.846em; /* 11px */
+}
+.workflow_container, .subscworkflow_container {
+	position: relative;
+	height: 38em; /* 494px */
+	margin: 0 1.308em 0 1.308em; /* 0px 17px 0px 17px */
+	overflow: hidden;
+}
+.margin_top_sm {
+	margin-top: 0.769em; /* 10px */
+}
+.margin_top_med {
+	margin-top: 1.538em; /* 20px */
+}
+.margin_bottom_lg {
+	margin-bottom: 3.077em; /* 40px */
+}
+.signinform {
+	margin-top: 1.154em; /* 15px */
+}
+#div_password, #div_email, #div_confirmpassword, #div_country, #updates, #div_sn {
+	margin-bottom: 0.615em; /* 8px */
+}
+#div_forgotpassword {
+	margin-top: -0.385emx; /* -5px */
+}
+#privacy {
+	font-size: 0.846em; /* 11px */
+	margin-top: 0.769em; /* 10px */
+}
+.selsntable {
+	margin-top: 1.154em; /* 15px */
+	margin-bottom: 1.154em; /* 15px */
+}
+.selsignintable {
+	margin-top: 3.462em; /* 45px */
+	margin-bottom: 1.154em; /* 15px */
+}
+#selsn, #selsignin {
+	margin-left: 0.231em; /* 3px */
+}
+#prevverdiv {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	padding: 0.385em; /* 5px */
+}
+#unverified {
+	margin-top: 2.308em; /* 30px */
+}
+
+/* labels inside form fields */
+.inputlabel {
+	position: absolute;
+	padding: 0.538em; /* 7px */
+	color: #777777;
+	z-index: -1;
+}
+.inputfield {
+	width: 97%;
+	position: relative;
+	background-color: transparent;
+	background-image: url('../shared/Images/spacer.gif');
+	border: 0.077em solid #444444; /* 1px */
+	padding: 0.462em; /* 6px */
+}
+#txtInstCode1,#txtInstCode2,#txtInstCode3,#txtInstCode4,#txtInstCode5 {
+	width: 62px;
+	border: 0.077em solid #444444; /* 1px */
+	padding: 0.462em; /* 6px */
+}
+/* end labels inside form fields */
+
+#countrySelector {
+	width: 99.5%;
+}
+#user_email, #user_email1 {
+	font-weight: bold;
+}
+#error_msg, .error_msg {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	width: 100%;
+	padding: 0.385em; /* 5px */
+	background-color: red;
+	color: white;
+	font-size: 0.923em; /* 12px */
+}
+#offline_msg {
+	margin-top: 8px;
+	padding: 0.385em; /* 5px */
+	color: red;
+}
+.dnddiv {
+	padding: 0.769em 0; /* 10px 0px */
+}
+.button_container {
+	width: 100%;
+	text-align: right;
+}
+#haveacct,#corp_haveacct {margin-right: 5px;}
+#btnActivateOnline {
+	margin-right: 0.5%;
+}
+
+/* Fall 2023 Authentication Unification initiative */
+
+.workflow_container_autuni2023 {
+	margin-top: 20px;
+	padding: 20px 50px;
+}
+h4 {
+	margin: 0 0 10px 0;
+	font-size: 16px;
+	font-weight: 500;
+}
+.subheading {
+	font-weight: bold;
+	margin-bottom: 0;
+	padding: 0;
+}
+.btnjul2021 {
+	font-size: 14px;
+	border: 2px solid #61A706;
+	cursor: pointer;
+	color: #fff;
+	background: #61A706;
+	padding: .5em 1.5em;
+	min-width: 130px;
+	margin-bottom: 3px;
+}
+.btn-social {
+    margin: 0 20px 20px 0;
+    padding: 6px 10px 8px;
+    text-decoration: none;
+    text-align: center;
+    display: inline-block;
+	cursor: pointer;
+    width: 130px;
+    font-size: 18px;
+    color: #333;
+    float: left;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding-top: 8px;
+}
+.ico-social {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+	margin-right: 20px;
+}
+.terms {
+	font-size: 12px;
+	margin-top: 10px;
+	clear: left;
+}
+#error_msg_autuni2023 {
+	background-color: red;
+	width: 98%;
+	color: white;
+	font-size: 0.923em; /* 12px */
+	padding: 5px;
+	margin-top: 10px;
+}
+.inputlabel {
+	position: absolute;
+	padding: 0.538em; /* 7px */
+	color: #777777;
+	z-index: -1;
+}
+.inputfield {
+	width: 97%;
+	position: relative;
+	background-color: transparent;
+	background-image: url('../shared/Images/spacer.gif');
+	border: 0.077em solid #444444; /* 1px */
+	padding: 0.462em; /* 6px */
+}

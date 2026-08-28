@@ -1,0 +1,75 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" >
+<head>
+    <title>CorelDRAW Technical Suite</title>
+    <link rel="stylesheet" type="text/css" href='../shared/ccc.css' />
+    <script src="../shared/ccc.js" language="javascript" type="text/javascript"></script>
+    <script language="javascript" type="text/javascript">
+	var subscid = '';
+	var g_strParams = '';
+	function rpt(str) {
+		g_strParams = str;
+	}
+		
+		function SetupPg()
+		{
+			location = "pcucmd://replacetoken?callback='rpt'&string='?subscriptionid=<subscriptionid>&productversion=<majorandminorversion>&SubscriptionCurrentVersion=<SubscriptionCurrentVersion>&serialtype=<PST>&pculicenseid=<License>&pcusourceid=<SourceID>&lang=<LangCode>&serial=<PSN>&hfpid=<PCID>&profileid=<profileid>&machineid=<MachineID>&version=2&regtrackingid=<ibrtrackingid>&NumDays=<NumDays>&SubscriptionLastUsedVersion=<SubscriptionLastUsedVersion>&<SVRCKS>'";
+
+			//replacetoken doesn't exist in old clients
+			if ("" == g_strParams) {
+				g_strParams = getParamString();
+			}
+
+			subscid = extractParam(g_strParams,"subscriptionid");
+			var wfbutton = document.getElementById('wfbutton');
+			//if Premium trial expired else no Premium users
+			if (subscid == '1700093') {
+				wfbutton.innerHTML = '<button class="initiator" accesskey="b" onclick="OnProBtn()"><u>B</u>uy</button>';
+				var exptext = document.getElementById('exptext');
+				exptext.style.display = 'block';
+			}
+			else {
+				wfbutton.innerHTML = '<button class="initiator" accesskey="t" onclick="OnTryItBtn()">Free to <u>T</u>ry</button>';
+			}
+		}
+
+        function OnLearnMore() {
+            location = "memberships.html";
+        }
+
+        function OnOK() {
+            location = "pcucmd://Continue";
+        }
+
+        function OnProBtn() {
+            var strURL = getCorelComServer() + "/corel/ipm/redirect/index.jsp" + g_strParams + "&wf=p";
+            location = "pcucmd://browse='" + strURL + "'&width=900&height=620";
+        }
+
+        function OnTryItBtn() {
+            var strURL = "premtrial.html" + g_strParams;
+            location = strURL;
+        }
+    </script>
+
+    <style type="text/css">
+        div {
+            padding: 10px 12px 10px 12px;
+        }
+    </style>
+
+</head>
+<body onload="SetupPg()" style="overflow: hidden;">
+
+<div id="pcu_data" style="display:none">PageDimension: 435,210</div><button style="display:none;" id='pcubtncancel' name='pcubtncancel'  onclick="location='pcucmd://cancel?confirm=no'"></button>
+<div>
+    <div style="float: left; width: 40px;"><img alt="" src="../shared/images/badgepro.png" /></div>
+    <div style="margin-left: 80px;">
+        <p>You need Premium Membership to use this feature.</p>
+		<p>Learn more about <a href="#" onclick="OnLearnMore(); return false;" class="blacklink">Premium features and services</a>.</p>
+		<p id="exptext" style="display: none; color: red; margin-bottom: 0px">Your 15 day trial for this Update has expired</p>
+    </div>
+    <div id="wfbutton" style="text-align: right"><button class="initiator" accesskey="o" onclick="OnOK();"><u>O</u>k</button></div>
+</div>
+</body>
+</html>

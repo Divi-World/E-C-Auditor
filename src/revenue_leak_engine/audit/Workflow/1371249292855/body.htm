@@ -1,0 +1,140 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<link href="../shared/ccc.css" type="text/css" rel="STYLESHEET" />
+<script language="javascript" type="text/javascript">
+
+function onpageload() {
+    location = 'pcucmd://FrameDataLoaded';
+    
+} //function onBodyLoad()
+
+
+function Accept(str) {
+    location = "pcucmd://tosaccepted";
+    location = "pcucmd://Continue";
+
+}
+
+
+function OnNo() { ShowConfirmPrompt(false); }
+function OnYes() 
+{ 
+   location = "pcucmd://tosrejected";
+   location = "pcucmd://Cancel?confirm=no";
+}
+
+function ShowConfirmPrompt(bShow) {
+
+    var state = bShow?"visible":"hidden";
+
+    var bReturn = false;
+    var pMsg = pMsg = document.getElementById("idMyErrorMsg");
+    var pBkg = pBkg = document.getElementById("idMyErrorMsgEffect");
+
+    if (pMsg) {
+
+        bReturn = true;
+        pMsg.style.visibility = state;
+
+        if (pBkg) {
+            pBkg.style.visibility = state;
+        }
+    }
+
+    return bReturn;
+
+} //function ShowConfirmPrompt
+
+
+</script>
+
+<style type="text/css">
+.myframe {
+	width: 99%;
+	height: 485px;
+	border: double 3px dimgray;
+	overflow: auto;
+	background-color: transparent;
+}
+
+#idMyErrorMsgEffect {
+    visibility: hidden;
+    width: 100%;
+    height: 100%;
+    left: 0px;
+    top: 0px;
+    position: absolute; 
+    z-index: 10; 
+    background-color: #cbcbcb; 
+    filter: progid:DXImageTransform.Microsoft.Alpha(style=2,opacity=50,finishOpacity=7);
+}
+#idMyErrorMsg {
+    visibility: hidden;
+    position: absolute;
+    top: 150px;
+    z-index: 100;
+    width: 490px;
+    left: 35px;
+    border: 3px solid #245fb9;
+    background-color: White;
+    filter: progid:DXImageTransform.Microsoft.dropShadow(Color=c0c0c0,offX=3,offY=3,positive=true);
+}
+
+</style>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<div class="subscworkflow_container" style="overflow: hidden;">
+<div id="ButtonBar" style="display: none; height: 1px; ">
+    <table width="100%">
+        <tr>
+            <td style="text-align: left;"><button type='button' id='pcubtncancel' name='pcubtncancel' accesskey="c" onclick="location='pcucmd://CallScriptFunc?funcname=ShowConfirmPrompt&param=true'"><u>C</u>ancel</button></td>
+            <td style="text-align: right;"><button type='button' id='pcubtnaccept' name='pcubtnaccept' accesskey="a" onclick="location='pcucmd://replacetoken?callback=Accept&string=<SVRCKS>'" class="initiator"><u>A</u>ccept</button></td>
+        </tr>
+    </table>
+</div>
+<div id="idMyErrorMsgEffect"></div>
+<div id="idMyErrorMsg">
+		<div style="background-color: #245fb9; color: White; font-weight: bold; border: none; padding: 4px 7px 7px 7px; margin: 0px;">Terms of service</div>
+		<div style="border: none; padding: 14px 14px 7px 14px; background-color: White; margin: 0px; ">
+			<div style=" float: left; height: 45px; width: 50px; border: none;">
+                <img alt="" src="..\shared\images\Warning.png" style="border: none;" />
+            </div>
+			<div style=" border: none; margin-left: 64px; font-size: 12px; ">
+				You must accept the Terms of Service in order to use your membership or subscription privileges. <br /><br /> Are you sure you want to close the dialog without accepting the Terms of Service?
+			</div>
+		</div>
+		<div style="background-color: #e7e7e8; text-align: right; border: none; margin: 0px; padding: 7px 12px 7px 0px; " >
+			<input type="button" id="idYes" onclick="OnYes();" style=" width: 70px; padding: 2px 0px 2px 0px;" value="Yes" />
+			<input type="submit" id="idNo" onclick="OnNo();" style=" width: 70px; padding: 2px 0px 2px 0px;"  value="No" />
+		</div>
+	</div>
+    <iframe id="tos" class="myframe" style=" height: 405px;" src="http://apps.corel.com/tos/tosen.htm?startIt=0"></iframe>
+    <div style="height: 50px; margin-top: 5px;">
+        <div id="error_msg" style="display: none; padding: 8px;">You must scroll down and read the entire document before you accept it.</div>
+    </div>
+</div>
+						
+					</body>
+				</html>

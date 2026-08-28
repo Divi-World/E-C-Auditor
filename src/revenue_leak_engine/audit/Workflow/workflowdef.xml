@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workflowdefs version="1">
+
+  <!--
+  This XML document describes the structure of the workflow definition, which is used to 
+  define the workflows (Trial, Registration, Purchase, etc.), the pages that make up the workflows 
+  and their attributes.
+  -->
+
+  <!-- 
+  ***********************************************
+  Trial Workflow 
+  ***********************************************
+  -->
+  <workflowdef name="trial">
+    <workflowsteps>
+      <workflowstep name="trial_page" count="true" url="">
+        <!-- up?a.htm and up?b.htm -->
+
+        <params>
+          <![CDATA[
+          ShowCounter=yes&NumDays=<NumDays>&Status=<Status>&ST=<ST>&licenseid=<License>&SourceID=<SourceID>&lang=<LangCode>&RTO=<RTO>&TotalDays=<TotalDays>&isregistered=<isregistered>&regtype=<regtype>&hfpid=<PCID>&ExtensionPeriod=<ExtensionPeriod>&runtime=<RuntimeEvent>&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+
+        </params>
+      </workflowstep>
+    </workflowsteps>
+
+  </workflowdef>
+
+  <workflowdef name="purchase">
+    <workflowsteps>
+      <workflowstep name="purchase_page" count="true" url="">
+        <params>
+          <![CDATA[
+          TRIGGER=<Trigger>&NumDays=<NumDays>&Status=<Status>&ST=<ST>&licenseid=<License>&SourceID=<SourceID>&lang=<LangCode>&RTO=<RTO>&TotalDays=<TotalDays>&isregistered=<isregistered>&regtype=<regtype>&hfpid=<PCID>&runtime=<RuntimeEvent>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+  <!-- 
+  ***********************************************
+  Enter Key Workflow 
+  ***********************************************
+  -->
+  <workflowdef name="enter_key">
+    <workflowsteps>
+
+      <workflowstep name="enter_key_page">
+        <!-- ea.htm -->
+
+        <params>
+          <![CDATA[
+		serial=<SNF>&lang=<LangCode>&showredeem=1&CorelComServer=<CorelComServer>&subscriptionid=<subscriptionid>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+  <!-- 
+  ***********************************************
+  Enter serialnumber and credentials Workflow 
+  ***********************************************
+  -->
+  <workflowdef name="enter_sn_and_credentials">
+    <workflowsteps>
+      <workflowstep name="enter_sn_enter_credentials_page">
+        <params>
+          <![CDATA[
+		serial=<SNF>&lang=<LangCode>&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+  <!-- 
+  ***********************************************
+  Retrieve Key Workflow 
+  ***********************************************
+  -->
+  <workflowdef name="retrieve_key_v2">
+    <workflowsteps>
+      <workflowstep name="ipm_signin_page" url="">
+        <params>
+          <![CDATA[
+		          workflow=retrievekey&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+      <workflowstep name="retrieve_key_select_serial_page" url="">
+        <params>
+          <![CDATA[
+		          workflow=retrievekey&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+      <workflowstep name="activation_info_page" url="">
+        <!-- a1.htm & a2.htm -->
+        <params>
+          <![CDATA[
+          activationcode=<ActivationCode>&ST=<ST>&serial=<SNF>&producttitle=<ProductTitle>
+          ]]>
+
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+  
+  <!-- 
+  ***************************************************
+  Subscription welcome Workflow - New workflow
+  ***************************************************
+  -->
+  <workflowdef name="subscription_welcome_v3">
+    <workflowsteps>
+      <workflowstep name="subscription_welcome_page" url="">
+        <params>
+          <![CDATA[            serialtype=<PST>&pculicenseid=<License>&pcusourceid=<SourceID>&lang=<LangCode>&serial=<PSN>&hfpid=<PCID>&profileid=<profileid>&subscriptionid=<subscriptionid>&machineid=<MachineID>&version=2&regtrackingid=<ibrtrackingid>&productversion=<majorversion>&runtime=<RuntimeEvent>&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+      <workflowstep name="confirmation_page" url="">
+        <params>
+          <![CDATA[
+			licenseid=<License>&lang=<LangCode>&serialtype=<PST>&serial=<PSN>&profileid=<profileid>&alreadyexist=<subscriptionalreadyexist>&subscriptionid=<subscriptionid>&classification=<SubscriptionClassification>&hfpid=<PCID>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+  <!-- 
+  ***************************************************
+  Subscription term of service - New workflow
+  ***************************************************
+  -->
+  <workflowdef name="terms_of_service">
+    <workflowsteps>
+      <workflowstep name="termsofservice_page" url="">
+        <params>
+          <![CDATA[
+          invokedfrom=<RegTrigger>&trialTypeCode=<ST>&licenseId=<License>&sourceId=<SourceID>&lang=<LangCode>&serial=<SNF>&hfpid=<PCID>&status=<Status>&numDays=<NumDays>&TotalDays=<TotalDays>&regtype=<regtype>&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+      <workflowstep name="termsofservice_signin_page" url="">
+        <params>
+          <![CDATA[
+          profileid=<profileid>&companyname=<companyname>&daysRemaining=<TOSDaysRemaining>&subscriptionseatcount=<subscriptionseatcount>&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+  <!-- 
+  ***************************************************
+  Subscription sign out
+  ***************************************************
+  -->
+  <workflowdef name="subscription_signout">
+    <workflowsteps>
+      <workflowstep name="subscription_signout_page" url="">
+        <params>
+          <![CDATA[
+            serialtype=<PST>&pcusourceid=<SourceID>&serial=<PSN>&subscriptionid=<subscriptionid>&runtime=<RuntimeEvent>&profileid=<profileid>&companyname=<companyname>&subscriptionseatcount=<subscriptionseatcount>&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+  <!-- 
+  ***********************************************
+  Subscription Sign-in Workflow online page only, no offline workflow needed
+  ***********************************************
+  -->
+  <workflowdef name="subscription_signin">
+    <workflowsteps>
+      <workflowstep name="ipm_signin_page" url="">
+        <params>
+          <![CDATA[
+            workflow=subscription&companyname=<companyname>&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+  <!-- 
+  ***********************************************
+  Forgot Password Workflow 
+  ***********************************************
+  -->
+  <workflowdef name="forgot_password">
+
+    <workflowsteps>
+      <workflowstep name="forgot_password_page" url="">
+
+        <params>
+          <![CDATA[
+          page=reg&invokedfrom=<RegTrigger>&trialTypeCode=<ST>&licenseId=<License>&sourceId=<SourceID>&lang=<LangCode>&serial=<SNF>&hfpid=<PCID>&status=<Status>&numDays=<NumDays>&regtype=<regtype>&hfpid2=<HDID>&confversion=2&regoverride=<RegOver>&CorelComServer=<CorelComServer>&<SVRCKS>
+          ]]>
+        </params>
+      </workflowstep>
+    </workflowsteps>
+  </workflowdef>
+
+
+</workflowdefs>

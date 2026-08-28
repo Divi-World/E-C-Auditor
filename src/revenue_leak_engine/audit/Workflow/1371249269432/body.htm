@@ -1,0 +1,195 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<script src="../shared/ccc.js"></script>
+<script language="javascript">
+<!--
+	function onpageload()
+	{
+		//make sure activation code field is empty on load
+		el = document.getElementById("txtActivationCode");
+		if (el) {
+			el.value='';
+		}
+		location='pcucmd://FrameDataLoaded';
+		var sCode = getParamVal("installationcode");
+		if (sCode != null && sCode.length == 24)
+		{
+			var ss = sCode.split("-");
+			if (ss.length == 5)
+			{
+				for (i = 0; i < 5; i++)
+				{
+					var oField = document.getElementById("txtInstCode" + (i + 1));
+					if (oField != null)
+						oField.value = ss[i].toUpperCase();
+				}
+			}
+		}
+		sCode = getParamVal("serial");
+		if ((sCode != null) && (sCode.length > 0))
+		{
+			var oKey = document.getElementById("txtKey");
+			if (null != oKey)
+			{
+				oKey.readOnly = true;
+				oKey.value = sCode.toUpperCase();
+				oKey.style.background = '#fcfcfc';
+			}
+		}
+		sCode = getParamVal("SourceID");
+		var sNumDays = getParamVal("NumDays");
+		if (sCode != null)
+		{
+			var oField = document.getElementById("txtID");
+			if (oField != null)
+			{
+				if (sNumDays != null)
+					sCode = sCode + " " + sNumDays;
+
+				oField.value = sCode;
+			}
+		}
+	}
+
+	function OnTxtFieldChanging()
+	{
+		var oAct = document.getElementById("txtActivationCode");
+
+		var strAct = "";
+
+		if (oAct != null)
+		{
+			strAct = removeAllSpaces(oAct.value);
+			location = "pcucmd://StoreParam?activationcode=" + strAct;
+		}
+
+		if (ValidateActCode(strAct))
+		{
+			location="pcucmd://CanContinue?enable=true";
+		}
+		else
+		{
+			location="pcucmd://CanContinue?enable=false";
+		}
+	}
+	
+	function OnBack()
+	{
+		var strSerial = getCookie("serial");
+		if ((strSerial != null) && (strSerial != ""))
+		{
+			location="pcucmd://SetKey?admin=yes&key="+strSerial;
+			deleteCookie("serial");
+		}
+		location="pcucmd://previous";
+	}
+	function callCancel() {
+	    var strSerial = getCookie("serial");
+	    if ((strSerial != null) && (strSerial != "")) {
+	        location = "pcucmd://SetKey?admin=yes&key=" + strSerial;
+	        deleteCookie("serial");
+	    }
+	    location = "pcucmd://cancel?confirm=no";
+	}
+-->
+</script>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+								
+							
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='C' id='pcubtncancel' name='pcubtncancel'  onclick="document.location='pcucmd://CallScriptFunc?funcname=callCancel'"><u>C</u>ancel</button></td>
+
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='B' id='pcubtnback' name='pcubtnback'  onclick="document.location='pcucmd://CallScriptFunc?funcname=OnBack'"><u>B</u>ack</button></td>
+<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='o' id='pcubtncontinue' name='pcubtncontinue'  onclick="OnUnlock()">C<u>o</u>ntinue</button></td>
+
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<div class="subscworkflow_container">
+	<h1>Contact Corel Customer Support</h1>
+	<hr class="tophr">
+	<p>To learn how to activate your product offline, please visit <a href="#" onclick="location='pcucmd://fullbrowse?url=http://www.corel.com/activate'">www.corel.com/activate</a>. You will need to reference your installation code and serial number shown below.</p>
+	<br/>
+	<br/>
+	<hr class="tophr">
+	<p>To proceed, enter the Activation Code you receive from Customer Service in the corresponding space below.</p>
+	<p>Installation Code:&nbsp;&nbsp;&nbsp;&nbsp;<input type="text" readonly="true" size="4" id="txtInstCode1" /> - <input type="text" readonly="true" size="4" id="txtInstCode2" /> - <input type="text" readonly="true" size="4" id="txtInstCode3" /> - <input type="text" readonly="true" size="4" id="txtInstCode4" /> - <input type="text" readonly="true" size="4" id="txtInstCode5" /></p>
+	<div style="margin-bottom: 5px">
+		<label for="txtKey" accesskey="E" class="inputlabel">S<u>e</u>rial number</label>
+		<input type="text" id="txtKey" size="72" class="inputfield" onblur="fieldout(this)" onfocus="fieldin(this)" onpropertychange="OnTxtFieldChanging()" />
+	</div>
+	<div style="margin-bottom: 5px">
+		<label for="txtActivationCode" accesskey="A" class="inputlabel"><u>A</u>ctivation Code</label>
+		<input type="text" id="txtActivationCode" size="72" class="inputfield" onblur="fieldout(this)" onfocus="fieldin(this)" onpropertychange="OnTxtFieldChanging()" />
+	</div>
+	<div>
+		ID:&nbsp;&nbsp;&nbsp;&nbsp;<input type="text" readonly="true" size="29" id="txtID" class="inputfield" />
+	</div>
+</div>
+						
+					</body>
+				</html>

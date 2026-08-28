@@ -1,0 +1,244 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<link href="../shared/ccc.css" type="text/css" rel="STYLESHEET" />
+<script type="text/javascript" src="../shared/ccc.js"></script>
+<script type="text/javascript" language="javascript">
+<!--
+    var g_bError = false;
+    var g_bLogin = false;
+    var g_dnd = false;
+    var vUserID = getParamVal("userId");
+    function rpt(str) {
+       vUserID = str;
+    }
+    location = "pcucmd://replacetoken?callback='rpt'&string='<userid>'";
+
+    function onUnload() {
+        if (g_dnd && !g_bLogin) {
+            location = "pcucmd://SetSchedule?numdays=-1";
+            location = "pcucmd://SetCookie?neveraskagain=true";
+        }
+    }
+
+    function onpageload() {
+
+        location = 'pcucmd://FrameDataLoaded';
+
+        window.onunload = onUnload;
+
+        var vCompanyName = getParamVal("companyname");
+		var vDaysRemaining = getParamVal("daysRemaining");
+
+		if (parseInt(vDaysRemaining) <= 0) {
+		    pEl = document.getElementById("dnd");
+		    if (pEl) {
+		        pEl.style.display = "block";
+		    }
+		    vDaysRemaining = "0"; //don't show -1 in the UI
+		}
+
+		var pEl = document.getElementById("idDays");
+		if (pEl) {
+		    pEl.innerHTML = vDaysRemaining;
+		}
+
+		pEl = document.getElementById("idCompanyName");
+		if (pEl) {
+		    pEl.innerHTML = (vCompanyName == "") ? vUserID : vCompanyName;
+		}
+
+		location = "pcucmd://SetCookie?neveraskagain=false";
+
+		clearErrorMsg();
+
+    }
+
+    function forgotPassword() {
+		location.href="pcucmd://fullbrowse?url='" + getCorelComServer() + "corel/accountForgotPassword.jsp?ipm=true'";
+	}
+	
+
+	function UpdateNeverAsk()
+	{
+	    var neverAsk = document.getElementById("dnd");
+        if (neverAsk != null) {
+            if (neverAsk.checked) {				
+				location = "pcucmd://SetCookie?neveraskagain=" + "true";
+            }
+			else
+			{
+				location = "pcucmd://SetCookie?neveraskagain=" + "false";
+			}
+        }	
+	}
+
+	function processerror(strError) {
+
+	    g_bError = true;
+
+	    var nIndex = strError.indexOf("|");
+	    var strErrorDesc = strError;
+	    var strErrorcode;
+	    if (nIndex >= 0)
+        {
+	        strErrorDesc = strErrorDesc.substr(nIndex + 1);
+	        strErrorCode = strError.substr(0, nIndex);
+	    }
+
+	    error_msg.style.display = "block";
+	    error_msg.innerText = strErrorDesc;
+
+	    var pEl = document.getElementById("password");
+        if (null != pEl)
+        {
+	        pEl.value = "";
+	    }
+
+	}
+
+	function logon() {
+	    clearErrorMsg();
+
+	    location = "pcucmd://signinuser?username='" + vUserID + "'&password='" + document.getElementById("password").value + "'&closewindow=false&onerror=processerror";
+	    if (!g_bError) {
+	        g_bLogin = true;
+                location = "pcucmd://Next?step=termsofservice_page";
+        }
+        g_bError = false;
+	}	
+
+    function clearErrorMsg() {
+        error_msg.style.display = "none";
+        error_msg.innerText = "";
+		g_bError = false;
+    }
+
+    function onYourAccount() {
+        location = "pcucmd://FullBrowse?url='" + getCorelComServer() + "/youraccount'";
+        return false;
+    }
+
+-->
+</script>
+
+<style type="text/css">
+    #warning_msg { margin: 6px 0px; padding: 10px; background-color: red; color: white; font-size: 12px; }
+</style>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+								
+							
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='submit' accessKey='C' id='pcubtnclose' name='pcubtnclose'  onclick="location='pcucmd://Cancel?confirm=no'"><u>C</u>lose</button></td>
+
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<div class="subscworkflow_container" style="overflow: hidden;">
+
+    <div>Please sign in to accept the Terms of Service</div>
+    <hr class="tophr" />
+
+    <p>
+        The administrator (account owner) must go to <a href="#" onclick="onYourAccount();">www.corel.com/YourAccount</a> to accept the Terms of Service.  If you are the administrator, please sign in below.
+    </p>
+    <p>&nbsp;</p>
+    
+    
+    <div>
+		<form style="margin: 0px" action="javascript:logon();">
+			<div style="margin-bottom: 10px;">
+				<div id="idCompanyName"></div>
+			</div>
+			<div style="margin-bottom: 5px;">
+				<label for="password" class="inputlabel">Password</label>
+				<input id="password" type="password" size="72" class="inputfield" onblur="fieldout(this)" onfocus="fieldin(this)" />
+			</div>
+			<div><a href="javascript:forgotPassword();" class="small blacklink">Forgot password?</a></div>
+			<div class="button_container">
+				<button class="initiator" accesskey="S" type="submit"><u>S</u>ign in</button>
+			</div>
+            <div id="error_msg" style="display: none; background-color: transparent; color: red;"></div>
+		</form>
+	</div>
+
+    <div id="warning_msg" style="position: absolute; top: 400px; width: 525px;" >
+        The Terms of Service have been updated.  To use your membership or subscription, you must accept the Terms of Service within <span id='idDays' style="font-weight: bold;">X</span> days.
+    </div>
+    
+
+    <div id="dnd" style="display: block; position: absolute; left: 17px; top: 486px; display: none;">
+		<!-- <input id="dontdisplay" type="checkbox" tabindex="2" onclick="javascript:UpdateNeverAsk()" /> -->
+        <input id="dontdisplay" type="checkbox" onclick="g_dnd=this.checked" tabindex="2" />
+		<label for="dontdisplay" class="small">Don't show again</label>
+	</div>
+		
+</div>
+
+						
+					</body>
+				</html>

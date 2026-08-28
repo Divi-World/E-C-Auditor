@@ -1,0 +1,289 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+		<META HTTP-EQUIV="MSThemeCompatible" CONTENT="yes">
+		
+			<!-- process skin css -->
+			<link rel="stylesheet" type="text/css" 
+					href='../trialSkin/1241638714996,35.txt.css'
+				/>
+		
+		
+		
+		
+			
+			<script type="text/javascript">
+//global vars (subscriptionorigin and subscriptionid)
+var subOrig;
+var subId;
+
+function rpt(str) {
+	subOrig = extractParam(str, "subscriptionorigin");
+	subId = extractParam(str, "subscriptionid");
+	//if retail(non-channel) subscription show Redeem Code button
+	if (subOrig == '2' && (subId == '2000152' || subId == '2000174')) {
+		document.getElementById('redeemacctel').style.display = 'block';
+	}
+	else {
+		document.getElementById('purchasecodeast').style.display = 'none';
+	}
+	//if Academic 365 volume subscription, hide Renew button
+	if (subId == '2000173') {
+		document.getElementById('renewacctel').style.display = 'none';
+	}
+}
+function headInit() {
+	location = "pcucmd://replacetoken?callback=rpt&string='?subscriptionorigin=<subscriptionorigin>&subscriptionid=<subscriptionid>'";
+}
+function launchRenewFlow() {
+	//if retail(non-channel) subscription add x-updatedsubscriptionid parameter with new value
+	var newsubParam = '';
+	if (subOrig == '2' && (subId == '2000152' || subId == '2000174')) {
+		newsubParam = '&x-updatedsubscriptionid=1700103';
+	}
+	else if (subOrig == '2' && subId == '2000174') {
+		newsubParam = '&x-updatedsubscriptionid=2000175';
+	}
+	var url = "pcucmd://fullbrowse?URL='http://iws.corel.com/ipmws/redirect/index.jsp?wf=r&pculicenseid=540227267&pcusourceid=999925&lang=en&profileid=<profileid>&subscriptionid=<subscriptionid>&serial=<PSN>&<SVRCKS>&x-profileid=<ProfileID>" + newsubParam + "'";
+	document.location.href = url;
+	document.getElementById('renewacctel').style.display = 'none';
+	document.getElementById('redeemacctel').style.display = 'none';
+	document.getElementById('refreshacctel').style.display = 'block';
+	document.getElementById('contentbrick').style.display = 'none';
+	document.getElementById('purchasecodeast').style.display = 'none';
+}
+function launchRefreshAcct() {
+	location.href = "pcucmd://authenticate?showpsid='true'";
+	location.href = "pcucmd://continue";
+}
+function redeemcode() {
+	var url = "pcucmd://fullbrowse?URL='http://iws.corel.com/ipmws/redirect/index.jsp?wf=redeem&pculicenseid=540227267&pcusourceid=999925&lang=en&serial=<PSN>&serialtype=<PST>&hfpid=<PCID>&profileid=<profileid>&subscriptionid=<subscriptionid>&<SVRCKS>&x-profileid=<ProfileID>'";
+	document.location.href = url;
+	document.getElementById('renewacctel').style.display = 'none';
+	document.getElementById('redeemacctel').style.display = 'none';
+	document.getElementById('refreshacctel').style.display = 'block';
+	document.getElementById('contentbrick').style.display = 'none';
+	document.getElementById('purchasecodeast').style.display = 'none';
+}
+function closewin() {
+	document.location.href = "pcucmd://continue";
+}
+</script>
+		
+		<script type="text/javascript" src="../shared/CCC.js"></script>
+		<script type="text/javascript">
+	
+			var itrkid	= 0;
+			var promo	= null;
+			var productName = "	CorelDRAW Technical Suite";
+			
+			function btnHybridRegContinue_OnClick() {
+				if (getParamVal("isregistered") == 1) {
+					document.location='pcucmd://Continue';
+				} else {
+					document.location='pcucmd://SetSequence?name=register';
+				}
+			}
+			
+			function init() {
+				document.location = "pcucmd://ResetCounter";
+				document.location.replace('pcucmd://FrameDataLoaded');
+
+				document.location.href = 'pcucmd://AddTrackingData?id=1617600788922&name=workflow&value=trial';
+				document.location.href = 'pcucmd://AddTrackingData?id=1617600788922&name=trackingid&value=0';					
+			
+		
+				if (itrkid != null) {
+					document.location.replace('pcucmd://SetCookie?itrkid=' + itrkid);
+				}	
+
+				init_trial_page();
+			}
+		
+			function getPCUNVPs(fullList, noAdmin) {
+				var nvps = '&licenseid=540227267&sourceid=999925&lang=en&x-profileid=<ProfileID>&hfpid=<PCID>&NumDays=<NumDays>';
+
+				if (typeof(promo) != "undefined" && promo!=null) {
+					document.location = "pcucmd://SetCookie?promo=''";
+					
+					nvps += "&promo=" + promo;
+				}
+		
+				if (typeof(noAdmin) != "undefined" && !noAdmin) {
+					nvps += "&admin=yes";
+				}
+		
+				if (fullList) {
+					nvps += "&<SVRCKS>";
+				} 
+
+				return nvps;		
+			}
+			
+			function launchStore(noAdmin,fullBrowser,alternativelicenseid) {
+				var storeUrl = addGoogleAnalyticsParamsToUrl("http://iws.corel.com/ipmws/redirect/index.jsp?_redirect=pcupurchase" + getPCUNVPs(true, noAdmin));
+				if(alternativelicenseid){
+					storeUrl += "&alternativelicenseid=" + alternativelicenseid; 
+				}
+				var url = "pcucmd://browse?URL='" + storeUrl + "'";
+				if(arguments.length >= 2 && (fullBrowser == "true" || fullBrowser == true)){
+		        		storeUrl += "&fullbrowser=true";
+			        	url = "pcucmd://fullbrowse?url='" + storeUrl + "'";
+				}
+				document.location.href = url;
+			}
+		
+			function launchStoreForTryAndDie(noAdmin,fullBrowser,alternativelicenseid) {
+				var storeUrl = addGoogleAnalyticsParamsToUrl("http://iws.corel.com/ipmws/redirect/index.jsp?_redirect=command&buildcode=<SNF>" + getPCUNVPs(true, noAdmin));
+				if(alternativelicenseid){
+					storeUrl += "&alternativelicenseid=" + alternativelicenseid; 
+				}
+				var url = "pcucmd://browse?URL='" + storeUrl + "'";
+				if(arguments.length >= 2 && (fullBrowser == "true" || fullBrowser == true)){
+	        		storeUrl += "&fullbrowser=true";
+		        	url = "pcucmd://fullbrowse?url='" + storeUrl + "'";
+				}
+				document.location.href = url;
+			}
+			
+			function addGoogleAnalyticsParamsToUrl(url){
+			   originalUrl = url;
+			   try{
+			      url = addOrUpdateQStringParam(url,"utm_term","Trial");
+			      url = addOrUpdateQStringParam(url,"ctm_term","Trial");
+			      url = addOrUpdateQStringParam(url,"utm_medium","IPM");
+			      url = addOrUpdateQStringParam(url,"ctm_medium","IPM");
+			      url = addOrUpdateQStringParam(url,"utm_source","540227267-999925");
+			      url = addOrUpdateQStringParam(url,"ctm_source","540227267-999925");
+			      url = addOrUpdateQStringParam(url,"utm_campaign","1617600788922");
+			      url = addOrUpdateQStringParam(url,"ctm_campaign","1617600788922");
+			      url = addOrUpdateQStringParam(url,"utm_content","<PCID>");
+			      url = addOrUpdateQStringParam(url,"ctm_content","<PCID>");
+			      url = addOrUpdateQStringParam(url,"x-vehicle","Trial");
+			   } catch(err) {
+			      return originalUrl;
+			   }
+			   return url;
+			}
+
+			function addOrUpdateQStringParam(uri, key, value) {
+			  var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+			  var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+			  if (uri.match(re)) {
+			    return uri.replace(re, '$1' + key + "=" + value + '$2');
+			  }
+			  else {
+			    return uri + separator + key + "=" + value;
+			  }
+			}
+		
+			function activate() { 
+				 location.href = "pcucmd://Activate?admin=yes";
+				 location.href = "pcucmd://Next?condition=true";
+			}
+
+			function replacePname(){
+				if(productName == "null") productName = "Corel";
+				content.innerHTML=content.innerHTML.replace("[pname]",productName);
+			}
+
+		</script>
+	</head>
+	<body tabindex="-1" onload="init();replacePname()">
+		<div style="text-align:left;">
+			<div  id="content">
+				
+				<div class="workflow_container">
+	<h1>Your CorelDRAW Technical Suite subscription is active</h1>
+	<hr class="tophr">
+	<div class="textcol">
+		<div id="contentbrick">
+		<p>Thank you for subscribing to this product. We hope you enjoy using it.</p>
+		<p>For useful learning resources, tips, and inspiration, check out the Welcome screen (<strong>Help</strong> > <strong>Welcome screen</strong>).</p>
+		</div>
+		<div id="renewacctel">
+			<div class="button_container">
+				<button class="initiator" accesskey="n" onclick="return launchRenewFlow();" id="idRenew">RE<u>N</u>EW NOW</button>
+			</div>
+		</div>
+		<div id="redeemacctel" style="display: none">
+			<div class="button_container">
+				<button class="redeemcodebtn" accesskey="d" onclick="return redeemcode();" id="idRedeem">Renew By Re<u>d</u>eem code*</button>
+			</div>
+		</div>
+		<div id="refreshacctel" style="display: none">
+			<p>If you’ve renewed your subscription, click on the link below to refresh your product with the latest status from Your Account.</p>
+			<div class="button_container">
+				<button class="initiator" accesskey="s" onclick="launchRefreshAcct()" id="idRefresh">REFRESH <U>S</U>TATUS</button>
+			</div>
+		</div>
+	</div>
+	<div class="imgcol">
+		<img src="../shared/images/cdtstrialimg1.png" ondragstart="return false;">
+	</div>
+	<div class="artcreds"><p id="purchasecodeast">*Purchase a code from one of our partners</p></div>
+</div>
+			</div>
+				
+				
+					
+					
+					
+				
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='C' id='pcubtnclose' name='pcubtnclose'  onclick="location='pcucmd://continue'"><u>C</u>lose</button></td>
+
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+			
+			
+				
+					<div id="pcu_data" style="display:none;">
+						PageDimension:586,700
+					</div>
+				
+				
+			
+		</div>
+	</body>
+</html>

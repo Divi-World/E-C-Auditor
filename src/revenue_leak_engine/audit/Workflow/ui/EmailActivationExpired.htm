@@ -1,0 +1,91 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+<html>
+<head>
+<title>Validate Your Email</title>
+<meta http-equiv="MSThemeCompatible" content="yes">
+<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<link href="../shared/ccc.css" type="text/css" rel="STYLESHEET" />
+<script src="../shared/ccc.js"></script>
+<script language="javascript">
+var useremail = '';
+function rpt(str) {
+	useremail = str;
+}
+function onpageload() {
+	location = "pcucmd://replacetoken?callback='rpt'&string='<userid>'";
+    userid.innerHTML = useremail;
+    error_msg.style.display = "none";
+    location = 'pcucmd://FrameDataLoaded';
+}
+
+function sendEmail() {
+    idResendEmailBlock.style.display = "none";
+    error_msg.innerText = "Sending ... please wait....";
+    error_msg.style.backgroundColor = "#61A706";
+    error_msg.style.display = "block";
+    sendEmailValidation();
+}
+
+function callBack(strReturn) {
+    if (strReturn == "0") {
+        error_msg.innerText = "Your email was sent successfully.";
+    }
+    if (strReturn == "-1") {
+	    error_msg.style.backgroundColor = "red";
+        error_msg.innerText = "Your email was not sent. There is a problem with either the email server or your Internet connection. Please try again.";
+    }
+    else if (strReturn == "-2") {
+	    error_msg.style.backgroundColor = "red";
+        error_msg.innerText = "Your email was not sent. There is a problem with either the email server or your Internet connection. Please try again.";
+    }
+    else if (strReturn == "1") {
+	    error_msg.style.backgroundColor = "red";
+        error_msg.innerText = "Your email was not sent. There is a problem with either the email server or your Internet connection. Please try again.";
+    }
+    idResendEmailBlock.style.display = "block";
+}
+
+</script>
+
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="border: none; text-align: right;" id="Table1">
+		<button style='overflow:visible;' class='buttonBar' type='submit' accessKey='C' id='pcubtnclose' name='pcubtnclose'  onclick="location='pcucmd://Cancel?confirm=yes'"><u>C</u>lose</button>
+	</div>
+</div>
+
+
+
+	
+
+<div id="DialogTitle" style="display:none;">
+Validation Period Has Expired
+</div>
+						
+						
+<div id="pcu_data" style="display:none;">PageDimension:586,600</div>
+<div class="subscworkflow_container" style="height: 390px">
+	<h1>Email Validation Period Has Expired</h1>
+	<hr>
+	<div style="margin-top: 25px; line-height: 18px">The period to validate your corel.com account has expired. To sign in, you must validate your account first. Click <b>Resend email</b>, check your email, and follow the instructions.<br><br></div>
+	<div style="margin-bottom: 3px">Email associated with corel.com account: <span id="userid"></span></div>
+	<div><a href="#" onclick="changeEmail();">Change email</a></div>
+	<div id="idResendEmailBlock" style="margin-top: 10px">
+		<button class="initiator" accesskey="E" onclick="sendEmail();">Resend <u>e</u>mail</button>
+	</div>
+	<div id="error_msg"></div>
+</div>
+</body>
+</html>

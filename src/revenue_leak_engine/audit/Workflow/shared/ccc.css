@@ -1,0 +1,405 @@
+/* highest level CSS for CDTS2024 */
+
+v\:* { behavior: url(#default#VML);}
+body,table,tr,td,input {
+	font-family: Segoe UI, Tahoma, sans-serif;
+	font-size:13px;
+	color: black;
+	margin:0;
+	padding:0;
+}
+input {
+	vertical-align: middle;
+}
+select {
+	font-size:1em;
+}
+body {
+	overflow:auto;
+	background:white;
+}
+image, img {
+	border: 0;
+	padding: 0;
+	margin: 0;
+}
+a {
+	color: #009CFF;
+}
+p, li  {
+	font-size: 1em; /* 13px */
+	font-weight: normal;
+}
+p, ul, h1, h2 {
+	margin-top: 0.769em; /* 10px */
+	margin-bottom: 0.769em; /* 10px */
+}
+button {
+	cursor: pointer;
+	background-color: #009CDE;
+	color: white;
+	border: 0;
+	padding: 0.231em 1.154em; /* 3px 15px */
+}
+.initiator {
+	color: white;
+	border: 0;
+	background: #009CDE;
+	padding: 0.231em 1.154em; /* 3px 15px */
+}
+.whitebtn {
+	background:white;
+	color:black;
+	border: 0.077em solid black; /* 1px */
+	padding: 0.154em 1.077em; /* 2px 14px */
+}
+h1 {
+	font-weight: normal;
+	margin: 0.111em 0.111em 0.111em 0; /* 2px 2px 2px 0 */
+	font-size: 1.385em; /* 18px */
+}
+h2  {
+	font-weight: bold;
+	font-style: italic;
+	margin: 0.154em 0.154em 0.154em 0; /* 2px 2px 2px 0 */
+}
+h3 {	
+	font-size: 0.923em; /* 12px */	
+	font-weight: bold;
+	margin: 0.182em 0.182em 0.182em 0; /* 2px 2px 2px 0 */
+}
+.small {
+	font-weight: normal;
+	font-size: 0.846em; /* 11px */
+}
+
+/* layout */
+.OuterContainer {
+	height: 53.846em; /* 700px */
+	width: 45.077em; /* 586px */
+	padding: 0;
+	margin: 0;
+	border: 0.077em solid #CACACA; /* 1px */
+}
+.topbar {
+	height: 1.538em; /* 20px */
+}
+.topbanner {
+	height: 9.231em;  /* 120px */
+}
+.tbdrag {
+	width: 95%;
+	cursor: default;
+}
+.tbcls {
+	width: 5%;
+	text-align: center;
+}
+.topx {
+	margin-top: 0.615em; /* 8px */
+	width: 0.923em; /* 12px */
+}
+.BannerStyle {
+	text-align: left;
+}
+.BannerImg {
+	height: 6.923em; /* 90px */
+	margin-left: 17px;
+}
+tr#message td iframe {
+	width: 44.769em; /* 582px */
+	height: 100%;
+	margin:0;
+	padding:0;
+	border:0;
+}
+.tdbottomhr {
+	height: 10px;
+	padding: 0 1.385em; /* 0 18px */
+}
+td.tdbottomhr hr {
+	padding: 0;
+	margin: 0;
+}
+.tdprogress {
+	padding: 0 1.385em; /* 0 18px */
+	height: 3.385em; /* 44px */
+}
+.daysleft_bar {
+	text-align: center;
+	font-size: 3.846em; /* 50px */
+	line-height: 0.9em; /* 45px */
+	color: #009CDE;
+	float: left;
+	width: 1.7em;
+	height: 1.1em; /* 55px */
+	padding: 0;
+	margin: 0;
+}
+#divDaysLeftOnBanner {
+	font-size: 1.385em; /* 18px */
+	text-transform: uppercase;
+	margin-bottom: 0.167em; /* 3px */
+	margin-top: 0.056em; /* 1px */
+}
+.tdbuttonbar {
+	padding: 0 1.231em; /* 0 16px */
+	height: 3.385em; /* 44px */
+}
+#divUnderSlider {
+	background-image:url('Images/TrialCounter/grey_bkg.gif');
+	border: 0.077em solid rgb(123,123,123); /* 1px */
+	height: 0.769em; /* 10px */
+	margin-left: 15.8%;
+	width: 83.8%;
+}
+#divOverSlider {
+	background-color: #009CDE;
+	height: 0.846em; /* 11px */
+	width: 100%;
+	overflow:hidden;
+}
+
+/* DIM asset CSS */
+.DimBannerImg {
+	height: 6.923em; /* 100px */
+	margin-left: 1.308em; /* 17px */
+	margin-top: 1.308em; /* 17px */
+}
+.dimasset_container {
+	width: 40em; /* 520px */
+	padding: 1.923em 1.538em 1.538em 1.538em; /* 25px 20px 20px 20px */
+	overflow: hidden;
+}
+#downloaditem {
+	font-weight: bold;
+}
+.dlgdescription {
+    font-weight: bold;
+}
+.installbutton_container {
+	text-align: center;
+	margin-top: 3.846em; /* 50px */
+	margin-bottom: 3.846em; /* 50px */
+}
+.installtr {
+	width: 100%;
+	margin-top: 3.077em; /* 40px */
+}
+.downloadtop {
+	padding-top: 0.769em; /* 10px */
+	border-top: 0.077em solid grey; /* 1px */
+}
+table.installtr td {
+	text-align: center;
+	width: 50%;
+}
+.graytext {
+    color: gray;
+}
+.dimbutton_container {
+	position: absolute;
+	width: 40.769em; /* 530px */
+	height: 2.308em; /* 30px */
+	text-align: right;
+	top: 27.154em; /* 353px */
+	left: 0.769em; /* 10px */
+}
+
+/* small DIM dialogs (cancel download,check for updates,no updates) */
+body.smalldim table {
+	height: 10em; /* 130px */
+	width: 26.154em; /* 340px */
+	margin: 0.385em; /* 5px */
+	text-align: center;
+}
+body.smalldim input {
+	margin-right:0.385em; /* 5px */
+	width:5.769em; /* 75px */
+}
+/* opt in opt out */
+.msgprefs {
+	background-color: #E8E8E8;
+	color: black;
+}
+body.msgprefs a {
+	color: blue;
+}
+#optbackground {
+	width:47.077em; /* 612px */
+	margin: 0.769em; /* 10px */
+	padding: 0.769em; /* 10px */
+}
+#optcontentupper {
+	padding-bottom: 1.538em; /* 20px */
+	border-bottom: solid 0.077em #AAAAAA; /* 1px */
+}
+#optcontentlower {
+	margin:0;
+	padding:0.615em 0 0 0; /* 8px */
+}
+#optprivacy {
+	float: left;
+}
+#optbuttons {
+	float: right;
+}
+div#optbuttons input {
+	width:5.769em; /* 75px */
+}
+#allmsgs, #autoupdates {
+	padding-left: 0.692em; /* 9px */
+}
+#cuhopt {
+	margin-bottom: -0.154em; /* -2px */
+}
+a.httplinktext {
+    text-decoration: underline;
+	color: blue;
+    cursor: hand;
+}
+
+/* Subscription static asset CSS */
+.workflow_container, .subscworkflow_container {
+	height: 37.231em; /* 484px */
+	margin: 0.769em 1.308em 0 1.308em; /* 10px 17px 0px 17px */
+	position: relative;
+	overflow: hidden;
+}
+#error_msg, .error_msg {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	padding: 1.154em; /* 15px */
+	background-color: red;
+	color: white;
+}
+.button_container {
+	width: 100%;
+	text-align: right;
+}
+.regsyswarning {
+	width: 40.769em; /* 530px */
+	height: 12.308em; /* 160px */
+	margin: 0 0.769em 0.769em 0.769em; /* 0 10px 10px 10px */
+}
+.warning {
+	padding: 2.308em; /* 30px */
+}
+
+/* Memberships description static dialog */
+.membdesc {
+	padding: 1.154em 2.308em 1.538em 2.308em; /* 15px 30px 20px 30px */
+}
+.toparea {
+	width: 64.615em; /* 840px */
+	margin-bottom: 1.154em; /* 15px */
+}
+.midarea {
+	margin-top: 1.538em; /* 20px */
+}
+.membdesc_hdr {
+	font-weight: normal;
+	font-size: 3.462em; /* 45px */
+}
+.membdesc_subhdr {
+	font-weight: normal;
+	font-size: 2.692em; /* 35px */
+	padding-top: 0;
+	margin-top: 0;
+}
+.tdDesc {
+	padding: 0 2.308em; /* 0 30px */
+}
+.tdBtns {
+	width: 20em; /* 260px */
+	vertical-align: middle;
+	text-align: center;
+}
+.dynEl {
+	display: none;
+}
+#idMemberExpired, #idAlreadyMember, #idDaysLeft{
+	color: #1F497D;
+	font-size: 1.231em; /* 16px */
+}
+#idMemberExpired, #idAlreadyMember {
+	font-weight: bold;
+}
+#idAlreadyMember {
+	padding-bottom: 0.154em; /* 2px */
+}
+#idMemberExpired, #idDaysLeft {
+	padding-top: 0;
+	padding-bottom: 1.538em; /* 20px */
+}
+.Err {
+	padding: 1.154em; /* 15px */
+	background-color: #FF6835;
+	border: 0.077em solid black; /* 1px */
+}
+#idIncluded {
+	text-align: center;
+}
+div#idIncluded div {
+	width: 7.692em; /* 100px */
+	color: #009CDE;
+	border: 1px solid #009CDE;
+	background-color: white;
+	padding: 0.231em 1.154em; /* 3px 15px */
+}
+
+/* App Launcher static dialog */
+.applaunch_BannerImg {
+	height: 6.923em; /* 90px */
+	margin-left: 1.538em; /* 20px */
+	margin-top: 1.538em; /* 20px */
+}
+.applaunch_container {
+	height: 40.769em; /* 530px */
+	width: 41.231em; /* 536px */
+	padding: 0.769em 1.923em 0 1.923em; /* 10px 25px 0px 25px */
+	position: relative;
+	overflow: hidden;
+}
+.applaunch_headp {
+	margin-top: 0;
+	margin-bottom: 1.154em; /* 15px */
+}
+.appselect{
+	margin-bottom: 1.538em; /* 20px */
+}
+.appselect_tdr {
+	padding-left: 0.769em; /* 10px */
+	font-size: 1.077em; /* 14px */
+}
+.appselect_spacing {
+	padding-top: 1.154em; /* 15px */
+}
+.appselect_icon {
+	width: 3.846em; /* 50px */
+}
+.appselect_list {
+	margin-left: 4.692em; /* 61px */
+}
+.applaunch_grey {
+	color: grey;
+}
+.applaunch_wfbuttons {
+	position: absolute;
+	bottom: 0;
+	left: 30;
+	width: 40.462em; /* 526px */
+	text-align: right;
+	height: 4.615em; /* 60px */
+	border-top: 0.077em solid #CACACA; /* 1px */
+}
+.applaunch_wfbuttons table {
+	height: 3.846em; /* 50px */
+	vertical-align: top;
+}
+div#apps_nolaunch p {
+	margin-bottom: 0.231em; /* 3px */
+	margin-top: 0.231em; /* 3px */
+}

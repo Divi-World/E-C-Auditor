@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Frameset//EN">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<title></title>
+		<meta http-equiv="X-UA-Compatible" content="IE=11">
+		<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+		<meta name="vs_targetSchema" content="http://schemas.microsoft.com/intellisense/ie5">
+		<meta http-equiv="MSThemeCompatible" content="yes">
+		<link href="shared/ccc.css" type="text/css" rel="STYLESHEET">
+		<script type="text/javascript" src="shared/ccc.js"></script>
+        <script type="text/javascript" src="shared/jquery.js"></script>
+        <script type="text/javascript">
+            function init() {
+				document.location='pcucmd://FrameLoaded';
+				location.href = "pcucmd://validate?param=/systeminfo[substring(@os_version,1,4)='MAC_']";
+				location.href = "pcucmd://CallScriptFunc?condition=false&funcname=showcls";
+                location='pcucmd://ContainerLoaded/';
+            }
+            function dragWnd() {
+                try {
+                    StartMoveWindow();
+                }
+                catch (err) {}
+            }
+			function showcls() {
+				document.getElementById('topclose').style.display = 'block';
+			}
+        </script>
+	</head>
+	<body onload="init()" style="overflow: hidden">
+		<!-- outermost container -->
+		<table id="outerContainer" class="OuterContainer" cellspacing="0" cellpadding="0" border="0">
+			<tr id="topbar" class="topbar">
+				<td id="tbdrag" class="tbdrag" onmousedown="StartMoveWindow();"></td>
+				<td class="tbcls"><a href="#" onclick="CloseDlg();" id="topclose" style="display: none"><img class="topx" src="shared/Images/xclose.png"></a></td>
+			</tr>
+			<tr valign="top" class="topbanner">
+				<td id="banner" colspan="2" class="BannerStyle" onmousedown="StartMoveWindow();"><img src="shared/Images/banner.png" class="BannerImg"></td>
+			</tr>
+			<tr id="message">
+				<!-- this is the area that contains the main content -->
+				<td colspan="2">
+					<iframe align="center" id="Content" name="Content" frameBorder="0" allowTransparency="true"></iframe>
+				</td>
+			</tr>
+			<tr>
+				<td class="tdbottomhr" colspan="2"><hr/></td>
+			</tr>
+			<tr id="tdProgress">
+				<td class="tdprogress" colspan="2">
+					<!-- this is the area for the progress bar-->
+					<div class="daysleft_bar">
+						<span id="divCountOnBanner"></span>
+					</div>
+					<div id="divDaysLeftOnBanner"></div>
+					<div id="divUnderSlider">
+						<div id="divOverSlider"></div>
+					</div>
+				</td>
+			</tr>
+			<tr>
+				<!-- Contents in this area comes from the contents page -->
+				<td class="tdbuttonbar" colspan="2" id="ButtonBar"></td>
+			</tr>
+		</table>
+	</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<script type="text/javascript" src="../shared/ccc.js"></script>
+<script type="text/javascript" language="javascript">
+/** FOR TESTING ONLY: toggle whether you load this content from ipm.corel.com DEV, STG or PROD **/
+/** based on value/existence of HKEY_LOCAL_MACHINE\SOFTWARE\Corel\autuni_env **/
+var envflag = 'prod';
+function checkenv() {
+	location.href = "pcucmd://validate?param=/registry/regkey[@name='hklm/software/corel']/regval[@name='autuni_env'][@value='dev']";
+	location.href = "pcucmd://CallScriptFunc?condition=true&funcname=devorstg&param=dev";
+	location.href = "pcucmd://CallScriptFunc?condition=false&funcname=devorstg&param=stg";
+}
+function devorstg(env) {
+	envflag = env;
+}
+/** END FOR TESTING ONLY **/
+
+function onpageload()
+{
+	//get language param value
+	var langcode = getParamVal("Lang");
+	if (langcode == '') {
+		langcode = 'en';
+	}
+	langcode = langcode.toLowerCase();
+
+	/** FOR TESTING ONLY **/
+	//if reg string exists its not PROD so check for DEV vs STG, if reg string does not exist its PROD
+	location.href = "pcucmd://validate?param=/registry/regkey[@name='hklm/software/corel']/regval[@name='autuni_env']";
+	location.href = "pcucmd://CallScriptFunc?condition=true&funcname=checkenv";
+	//base iframe URL
+	var iframeURL = 'https://ipm.corel.com/cdgs/2024/ipmchangecreds_';
+	switch(envflag) {
+	  case 'dev':
+		iframeURL = 'https://dev.ipm.corel.public.corel.net/cdgs/2024/ipmchangecreds_';
+		break;
+	  case 'stg':
+		iframeURL = 'https://stg.ipm.corel.public.corel.net/cdgs/2024/ipmchangecreds_';
+		break;
+	  default:
+		iframeURL = 'https://ipm.corel.com/cdgs/2024/ipmchangecreds_';
+	}
+	/** END FOR TESTING ONLY **/
+
+	//construct iframe src URL
+	iframeURL += langcode + '.html' + location.search.substring(0);
+	//iframeURL = addGoogleAnalyticsParamsToUrl(iframeURL);
+
+	//append the iframe src URL
+	document.getElementById('msgiframe').src = iframeURL;
+	location = 'pcucmd://FrameDataLoaded';
+}
+</script>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+								
+							
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='C' id='pcubtncancel' name='pcubtncancel'  onclick="document.location='pcucmd://cancel?confirm=yes'"><u>C</u>ancel</button></td>
+
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<iframe id="msgiframe" width="576" height="480" src="" marginwidth="0" marginheight="0" frameborder="0" scrolling="no" allowtransparency="yes"></iframe>
+						
+					</body>
+				</html>

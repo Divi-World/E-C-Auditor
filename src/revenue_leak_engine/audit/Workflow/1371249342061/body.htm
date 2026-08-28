@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<script src="../shared/ccc.js"></script>
+<script language="javascript">
+	function markConvertedTrial() {
+		document.location = 'pcucmd://SetCookie?convtrial=1';
+	}
+	function onpageload()
+	{
+		location='pcucmd://FrameDataLoaded/';
+		var strSerial = getParamVal("serial");
+		var oSerial = document.getElementById("txtSerial");
+		if (strSerial != null && oSerial != null)
+			oSerial.innerText = FormatSerial(strSerial).toUpperCase();
+
+		var strActCode = getParamVal("activationcode");
+		var oActCode = document.getElementById("txtActCode");
+
+		if (strActCode != null && oActCode != null)
+			oActCode.innerText = FormatActivationCode(strActCode).toUpperCase();
+
+		var oProductTitle = document.getElementById( "txtProductTitle" );
+
+		var strProductTitle = getParamValCaseSentitive("producttitle");
+		if ( oProductTitle != null && strProductTitle != null )
+			oProductTitle.innerText = unescape( strProductTitle );
+
+		markConvertedTrial();
+	}
+</script>
+<style type="text/css" media="print">
+<!--
+	.PrintClass {
+		display:inline;
+	}
+	.ScreenClass {
+		display:none;
+	}
+-->
+</style>
+<style type="text/css" media="screen">
+<!--
+	.PrintClass	{
+		display:none;
+	}
+	.ScreenClass {
+		display:inline;
+	}
+-->
+</style>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+								
+							
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='C' id='pcubtnclose' name='pcubtnclose'  onclick="document.location='pcucmd://Continue'"><u>C</u>lose</button></td>
+
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<div class="subscworkflow_container">
+	<div class="ScreenClass">
+		<h1>Thank you, your purchase is now complete.</h1>
+		<hr class="tophr">
+		<p>Save or print your serial number and activation code, in case you need to re-install the product in the future.</p>
+		<div class="button_container" style="text-align: center; margin-bottom: 20px">
+			<button class="initiator" accesskey="S" type="button" id="btnSaveAsTextFile" onclick="location='pcucmd://SaveCode/'" NAME="btnSaveAsTextFile"><u>S</u>ave to File</button>
+			<button class="initiator" accesskey="P" type="button" id="btnPrint" onclick="document.execCommand('Print',true)" NAME="Button1" style="margin-left: 30px"><u>P</u>rint Now</button>
+		</div>
+	</div>
+	<div class="PrintClass">
+		<span id="txtProductTitle"></span><br />
+		Here is your Purchase serial number and Activation Code.<br />
+		Print this page out and keep in a safe location.<br />
+		Purchase serial number: <span id="txtSerial"></span><br />
+		Activation Code: <span id="txtActCode"></span>
+	</div>
+</div>
+						
+					</body>
+				</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/strict.dtd">		    
+				<html>
+					<head>
+						<meta http-equiv="MSThemeCompatible" content="yes">
+						<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+						
+								<link rel="stylesheet" type="text/css" href='..\genericSkin\1248383926732,22.txt.css'/>
+								
+						
+							
+							<script src="../shared/ccc.js"></script>
+<script language="javascript">
+function onpageload()
+{
+  location='pcucmd://FrameDataLoaded';
+  location="pcucmd://CanContinue?enable=false";
+}
+
+function onPageContinue()
+{
+  location='pcucmd://SetRegConfirmationCode?offline=true';
+  location='pcucmd://Next?condition=yes';
+}
+
+function OnTxtFieldChanging()
+{
+		var oKey = document.getElementById("txtCode");
+		var sResult = "false";
+
+		if (oKey != null)
+		{
+			if (ValidateSerial(oKey.value))
+			{
+				sResult = "true";
+			}
+
+			location = "pcucmd://StoreParam?code=" + oKey.value;
+		}
+
+		location="pcucmd://CanContinue?enable=" + sResult;
+
+}
+</script>
+						
+						
+					</head>
+			    	
+			    	<body onload="onpageload();" tabindex="-1">
+							
+							
+								
+								
+								
+							
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+	
+
+
+<div id="ButtonBar" style="display: none;">
+	<div style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;" id="Table1">
+		<div style="float:left;text-align:left">
+			<table align="center">
+				<tr>
+					
+				</tr>
+			</table>
+		</div>
+		<div style="float:right;text-align:right">
+			<table align="center">
+				<tr>
+					<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='B' id='pcubtnback' name='pcubtnback'  onclick="document.location='pcucmd://previous'"><u>B</u>ack</button></td>
+<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='o' id='pcubtncontinue' name='pcubtncontinue'  onclick="document.location='pcucmd://callscriptfunc?funcname=onPageContinue'">C<u>o</u>ntinue</button></td>
+<td><button style='overflow:visible;width:100%' class='buttonBar' type='button' accessKey='C' id='pcubtncancel' name='pcubtncancel'  onclick="document.location='pcucmd://Cancel'"><u>C</u>ancel</button></td>
+
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+
+
+	
+
+
+						
+						
+							
+								<div id="pcu_data" style="display:none;">
+									PageDimension:586,700
+								</div>
+							
+							
+						
+						
+							
+							<div class="subscworkflow_container">
+	<h1>Registration confirmation</h1>
+	<hr class="tophr">
+	<p>Once you successfully register, you will receive a confirmation code which you must enter below to continue.<br><br>Confirmation code:</p>
+	<br>
+	<input style="margin-left:0px; margin-right:0px; width:350px;" type="text" id="txtCode" onpropertychange="OnTxtFieldChanging();" NAME="txtCode"/>
+</div>
+						
+					</body>
+				</html>
