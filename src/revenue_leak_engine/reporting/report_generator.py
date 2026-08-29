@@ -334,6 +334,7 @@ def generate_report(findings: dict) -> str:
         estimated_monthly_leak_usd=findings.get("estimated_monthly_leak_usd", 0),
         estimated_annual_leak_usd=findings.get("estimated_annual_leak_usd", 0),
         screenshot_label=findings.get("screenshot_context", ""),
+        profile_name=findings.get("profile_name", "mobile"),
         run_id=findings.get("run_id", "N/A"),
         engine_version=findings.get("engine_version", "N/A"),
         viewport=findings.get("viewport", "390x844"),

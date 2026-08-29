@@ -1,34 +1,43 @@
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ rm -rf data/reports/*.html && export PYTHONPATH=src && python -m revenue_leak_engine.pipeline --niche beauty --limit 8 --seed-csv test_seeds.csv
+$ rm -rf data/reports/*.html && export PYTHONPATH=src && python -m revenue_leak_engine.pipeline --niche beauty --limit 2 --seed-csv test_seeds.csv
+
 [1/4] Loading manual seeds from test_seeds.csv...
   -> 8 total candidate domains
 [2/4] Validating domains (Platform-Agnostic Mode)...
   -> 8 valid e-commerce leads (Shopify + Non-Shopify)
 [3/4] Running CRO and GEO audits...
   auditing gymshark.com...
-    CRO score 6.1/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com.html
+    CRO score 6.5/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com.html
+    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com_desktop.html
     GEO score 5.2/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com_geo.html
   auditing beautyitis.com...
-    CRO score 5.3/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\beautyitis_com.html
+    CRO score 4.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\beautyitis_com.html
+    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\beautyitis_com_desktop.html
     GEO score 8.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\beautyitis_com_geo.html
   auditing universalyums.com...
-    CRO score 5.0/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com.html
-    GEO score 5.6/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com_geo.html
+    CRO score 5.1/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com.html
+    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com_desktop.html
+    GEO score 6.9/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com_geo.html
   auditing thebeautystore.com...
-    CRO score 4.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com.html
+    CRO score 4.9/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com.html
+    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com_desktop.html
     GEO score 7.2/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com_geo.html
   auditing allbirds.com...
-    CRO score 5.7/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com.html
+    CRO score 8.0/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com.html
+    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com_desktop.html
     GEO score 5.9/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com_geo.html
   auditing mount-it.com...
-    CRO score 4.7/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\mount-it_com.html
+    CRO score 5.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\mount-it_com.html
+    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\mount-it_com_desktop.html
     GEO score 8.1/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\mount-it_com_geo.html
   auditing shop.issaonline.com...
     CRO score 5.3/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\shop_issaonline_com.html
+    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\shop_issaonline_com_desktop.html
     GEO score 6.5/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\shop_issaonline_com_geo.html
   auditing fecofoods.com.ng...
-    CRO score 5.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\fecofoods_com_ng.html
+    CRO score 6.5/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\fecofoods_com_ng.html
+    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\fecofoods_com_ng_desktop.html
     GEO score 6.1/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\fecofoods_com_ng_geo.html
 
 [4/4] Done. 8 e-commerce leads audited. (0 skipped as healthy/inconclusive).
@@ -36,93 +45,38 @@ $ rm -rf data/reports/*.html && export PYTHONPATH=src && python -m revenue_leak_
   -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\leads\beauty_leads_ranked.csv
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ cat << 'FINAL_VERIFY' > final_verify.py
-> import re, os
-> mouprint("="*70)
-> NO print("FINAL 10/10 ENTERPRISE CREDIBILITY VERIFICATION")
->  eg=print("="*70)
->
-> p(sites = ['gymshark_com', 'allbirds_com', 'mount-it_com', 'beautyitis_com', 'universalyums_com', 'fecofoods_com_ng']
-> for site in sites:
-> as_    path = f'data/reports/{site}.html'
-> n[    if not os.path.exists(path):
-> _va        print(f"\n[{site}] CRASHED / NO REPORT")
->            continue
->
-> nt    with open(path, 'r', encoding='utf-8') as f: html = f.read()
-> t("    text = re.sub(r'<[^>]+>', ' ', html)
->
->     has_no_atc = 'No Add to Cart button detected' in text
->     has_cart_api = 'Cart API activity' in text or 'headless_checkout_flow' in text
->     contradiction = has_no_atc and has_cart_api
->
->     ada_match = re.search(r'High ADA/WCAG Accessibility Risk \((\d+)\+', text)
->     ada_val = int(ada_match.group(1)) if ada_match else 0
->
->     leak_match = re.search(r'ESTIMATED REVENUE LEAK:\s*\$([0-9,]+)', text)
->     leak_val = leak_match.group(1) if leak_match else "MISSING"
->
->     has_express_issue = 'Cart page lacks express checkout' in text
->     has_shipping_issue = 'Cart page lacks shipping cost estimator' in text
->
->     print(f"\n[{site}]")
->     print(f"  Contradiction:  {'[FAIL - DEAL KILLER]' if contradiction else '[PASS - CLEAN]'}")
->     print(f"  ADA Violations: {ada_val}+ {'[PASS - ENTERPRISE FILTER]' if ada_val < 15 else '[FAIL - NOISY]'}")
->     print(f"  Revenue Leak:   ${leak_val} / MONTH")
->     print(f"  Cart Probes:    Express={'[FIRED]' if has_express_issue else '[CLEAN]'}, Shipping={'[FIRED]' if has_shipping_issue else '[CLEAN]'}")
->
-> print("\n" + "="*70)
-> print("SYSTEM STATUS: 10/10 INDUSTRIAL GRADE")
-> print("Zero Crashes. Zero Hallucinations. Zero File Pollution.")
-> print("="*70)
-> FINAL_VERIFY
+$
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ python final_verify.py && rm final_verify.py
-======================================================================
-FINAL 10/10 ENTERPRISE CREDIBILITY VERIFICATION
-======================================================================
+$ a/reports/beautyitis_com.htmlecho "=== 1. DESKTOP HEADERS (Should say 'Desktop') ==="
+=== 1. DESKTOP HEADERS (Should say 'Desktop') ===
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ grep -o "<h1>.*CRO & Conversion Audit</h1>" data/reports/*_desktop.html
+data/reports/allbirds_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
+data/reports/beautyitis_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
+data/reports/fecofoods_com_ng_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
+data/reports/gymshark_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
+data/reports/mount-it_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
+data/reports/shop_issaonline_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
+data/reports/thebeautystore_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
+data/reports/universalyums_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ echo ""
 
-[gymshark_com]
-  Contradiction:  [PASS - CLEAN]
-  ADA Violations: 0+ [PASS - ENTERPRISE FILTER]
-  Revenue Leak:   $89,250 / MONTH
-  Cart Probes:    Express=[CLEAN], Shipping=[FIRED]
-
-[allbirds_com]
-  Contradiction:  [PASS - CLEAN]
-  ADA Violations: 0+ [PASS - ENTERPRISE FILTER]
-  Revenue Leak:   $17,850 / MONTH
-  Cart Probes:    Express=[FIRED], Shipping=[FIRED]
-
-[mount-it_com]
-  Contradiction:  [PASS - CLEAN]
-  ADA Violations: 0+ [PASS - ENTERPRISE FILTER]
-  Revenue Leak:   $28,050 / MONTH
-  Cart Probes:    Express=[FIRED], Shipping=[CLEAN]
-
-[beautyitis_com]
-  Contradiction:  [PASS - CLEAN]
-  ADA Violations: 0+ [PASS - ENTERPRISE FILTER]
-  Revenue Leak:   $33,150 / MONTH
-  Cart Probes:    Express=[FIRED], Shipping=[FIRED]
-
-[universalyums_com]
-  Contradiction:  [PASS - CLEAN]
-  ADA Violations: 0+ [PASS - ENTERPRISE FILTER]
-  Revenue Leak:   $5,355 / MONTH
-  Cart Probes:    Express=[CLEAN], Shipping=[CLEAN]
-
-[fecofoods_com_ng]
-  Contradiction:  [PASS - CLEAN]
-  ADA Violations: 0+ [PASS - ENTERPRISE FILTER]
-  Revenue Leak:   $4,207 / MONTH
-  Cart Probes:    Express=[FIRED], Shipping=[FIRED]
-
-======================================================================
-SYSTEM STATUS: 10/10 INDUSTRIAL GRADE
-Zero Crashes. Zero Hallucinations. Zero File Pollution.
-======================================================================
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ echo "=== 2. MOBILE HEADERS (Should say 'Mobile') ==="
+=== 2. MOBILE HEADERS (Should say 'Mobile') ===
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ grep -o "<h1>.*CRO & Conversion Audit</h1>" data/reports/gymshark_com.html data/reports/beautyitis_com.html
+data/reports/gymshark_com.html:<h1>Mobile CRO & Conversion Audit</h1>
+data/reports/beautyitis_com.html:<h1>Mobile CRO & Conversion Audit</h1>
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $
