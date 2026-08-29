@@ -87,6 +87,9 @@ def _process_screenshot(path_str, annotations=None):
 def generate_report(findings: dict) -> str:
     domain = findings.get("domain", "unknown")
     safe_name = domain.replace(".", "_").replace(":", "_")
+    profile_name = findings.get("profile_name", "mobile")
+    if profile_name != "mobile":
+        safe_name = f"{safe_name}_{profile_name}"
 
     os.makedirs(REPORTS_DIR, exist_ok=True)
     output_path = os.path.join(REPORTS_DIR, f"{safe_name}.html")

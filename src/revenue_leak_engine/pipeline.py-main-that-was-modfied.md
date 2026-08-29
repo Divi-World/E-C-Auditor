@@ -1,4 +1,5 @@
 import argparse
+import time
 import csv
 from pathlib import Path
 from revenue_leak_engine.config import NICHE_PRESETS, DEFAULT_NICHE, LEADS_DIR, SUPPRESSION_LIST_PATH, DEFAULT_COUNTRY
@@ -6,6 +7,7 @@ from revenue_leak_engine.discovery.meta_ads_search import find_advertiser_domain
 from revenue_leak_engine.qualification.shopify_detect import is_shopify
 from revenue_leak_engine.audit.site_audit import audit_site
 from revenue_leak_engine.audit.geo_audit import audit_geo, geo_opportunity_score
+from revenue_leak_engine.audit.copy_bank import ISSUE_COPY
 from revenue_leak_engine.reporting.report_generator import generate_report, opportunity_score
 from revenue_leak_engine.reporting.geo_report_generator import generate_geo_report
 from revenue_leak_engine.outreach.outreach_draft import draft_email, draft_geo_email, append_draft_to_log
@@ -41,7 +43,10 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         print(f"[1/4] Searching Meta Ad Library for '{niche}' in {country}...")
         keywords = NICHE_PRESETS[niche]
         per_keyword = max(3, limit // len(keywords))
-        candidates.extend(find_advertiser_domains(keywords, country=country, per_keyword=per_keyword))
+        meta_leads = find_advertiser_domains(keywords, country=country, per_keyword=per_keyword)
+        for ml in meta_leads:
+            ml["is_confirmed_advertiser"] = True
+        candidates.extend(meta_leads)
 
     print(f"  -> {len(candidates)} total candidate domains")
 
@@ -83,44 +88,167 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         if cro_findings.get("error"):
             print(f"    warning: CRO audit error - {cro_findings['error']}")
 
+        time.sleep(2)
+
         # 2. Geo audit (Platform Agnostic) - Wrapped in try/except
         try:
             geo_findings = audit_geo(domain)
         except Exception as e:
-            print(f"    warning: GEO audit crashed - {e}")
-            geo_findings = {"issues": [], "overall_geo_score": 0, "platform_detected": "unknown"}
+            err_str = str(e).lower()
+            if any(x in err_str for x in ["could not resolve", "nameresolutionerror", "gaierror", "dns", "no address associated"]):
+                print(f"    warning: GEO audit DNS failure")
+                geo_findings = {
+                    "issues": [{"code": "dns_resolution_failed", "description": "Domain cannot be resolved (DNS Failure).", "severity": "critical", "confidence": "VERIFIED", "business_impact": "The site is completely inaccessible. Revenue is 100% lost.", "fix": "Check domain registration and DNS provider settings."}],
+                    "overall_geo_score": 0, 
+                    "platform_detected": "unknown",
+                    "audit_status": "INCONCLUSIVE_DNS"
+                }
+            else:
+                print(f"    warning: GEO audit crashed - {e}")
+                geo_findings = {"issues": [], "overall_geo_score": 0, "platform_detected": "unknown"}
 
         # Determine if each audit found issues
         cro_ok = bool(cro_findings.get("issues")) and not cro_findings.get("error")
         geo_ok = bool(geo_findings.get("issues"))
+
+        if geo_findings.get("overall_geo_score", 0) == 0 and not geo_findings.get("issues"):
+            geo_findings["audit_status"] = "INCONCLUSIVE_NETWORK"
+            geo_findings["issues"].append({
+                "code": "network_unreachable",
+                "description": "GEO audit could not reach the domain (DNS/Network Failure).",
+                "severity": "critical", "confidence": "VERIFIED",
+                "business_impact": "The site is completely inaccessible to customers. Revenue is 100% lost.",
+                "fix": "Verify domain registration, DNS records, and hosting server status."
+            })
 
         # Skip if both audits found nothing actionable
         if not cro_ok and not geo_ok:
             print(f"    skipped: healthy on both CRO and GEO")
             healthy_skipped += 1
             continue
+            
+        # Partner Fix: Removed hard-skip for non_commerce_profile. Let it score and route to CSV.
 
         lead_result = {**lead}
         lead_result["platform_detected"] = geo_findings.get("platform_detected", "unknown")
 
         # Process CRO findings if any
+        lead_result["cro_status"] = "complete" if cro_ok else ("error" if cro_findings.get("error") else "healthy")
         if cro_ok:
+            cro_findings["niche"] = niche
             cro_score = opportunity_score(cro_findings)
             cro_report = generate_report(cro_findings)
+            try:
+                with open(cro_report, 'r', encoding='utf-8') as f: html = f.read()
+                if html.count('Enterprise Revenue Leak Engine') > 1:
+                    parts = html.split('Enterprise Revenue Leak Engine')
+                    html = parts[0] + 'Enterprise Revenue Leak Engine' + ''.join(parts[2:])
+                    with open(cro_report, 'w', encoding='utf-8') as f: f.write(html)
+            except: pass
+            
+            # PHASE H: PDF EXPORT
+            cro_pdf_path = None
+            try:
+                from revenue_leak_engine.reporting.pdf_generator import generate_pdf
+                cro_pdf_path = generate_pdf(cro_report, cro_report.replace(".html", ".pdf"))
+            except Exception: pass
+
             lead_result.update({
                 "cro_score": cro_score,
-                "cro_report_path": cro_report
+                "cro_report_path": cro_report,
+                "cro_pdf_path": cro_pdf_path or ""
             })
+
+            # PHASE OMEGA: REVENUE LEAK BANNER
+            if cro_findings.get("estimated_monthly_leak_usd", 0) > 0:
+                leak = cro_findings["estimated_monthly_leak_usd"]
+                annual = cro_findings["estimated_annual_leak_usd"]
+                banner_html = f'<div style="background:linear-gradient(90deg, #7f1d1d, #991b1b); color:white; padding:20px; text-align:center; font-family:sans-serif; margin-bottom:20px; border-radius:8px;"><h2 style="margin:0; font-size:24px;">ESTIMATED REVENUE LEAK: ${leak:,} / MONTH</h2><p style="margin:5px 0 0 0; opacity:0.9;">${annual:,} Annualized Loss based on Baymard Institute Friction Penalties</p></div>'
+                try:
+                    with open(cro_report, 'r', encoding='utf-8') as f: html = f.read()
+                    if '<body' in html and 'ESTIMATED REVENUE LEAK' not in html:
+                        html = html.replace('<body>', f'<body>{banner_html}', 1)
+                        with open(cro_report, 'w', encoding='utf-8') as f: f.write(html)
+                except: pass
+
+            # OMEGA BANNER INJECTION
+            if cro_findings.get("estimated_monthly_leak_usd", 0) > 0:
+                _lk = cro_findings["estimated_monthly_leak_usd"]
+                _an = cro_findings["estimated_annual_leak_usd"]
+                _bh = f'<div style="background:linear-gradient(90deg, #7f1d1d, #991b1b); color:white; padding:20px; text-align:center; font-family:sans-serif; margin-bottom:20px; border-radius:8px;"><h2 style="margin:0; font-size:24px;">ESTIMATED REVENUE LEAK: ${_lk:,} / MONTH</h2><p style="margin:5px 0 0 0; opacity:0.9;">${_an:,} Annualized Loss (Baymard Friction Model)</p></div>'
+                try:
+                    import re as _re
+                    with open(cro_report, 'r', encoding='utf-8') as _f: _html = _f.read()
+                    if 'ESTIMATED REVENUE LEAK' not in _html:
+                        _body_match = _re.search(r'<body[^>]*>', _html)
+                        if _body_match:
+                            _insert_pos = _body_match.end()
+                            _html = _html[:_insert_pos] + _bh + _html[_insert_pos:]
+                            with open(cro_report, 'w', encoding='utf-8') as _f: _f.write(_html)
+                except Exception: pass
+
             print(f"    CRO score {cro_score}/10 -> {cro_report}")
 
             # Generate CRO outreach draft
             cro_draft = draft_email(cro_findings, report_url=cro_report)
             append_draft_to_log(cro_draft)
 
+        # Advertiser-Aware Copy Branch (Partner Directive)
+        # Meta Ads discovery means they are confirmed advertisers. CSV seeds default to generic.
+        is_advertiser = lead.get("is_confirmed_advertiser", False)
+        for issue in geo_findings.get("issues", []):
+            code = issue.get("code")
+            if code in ISSUE_COPY:
+                key = "business_impact_advertiser" if is_advertiser else "business_impact_generic"
+                issue["business_impact"] = ISSUE_COPY[code].get(key, issue.get("business_impact", ""))
+
         # Process GEO findings if any
         if geo_ok:
             geo_score = geo_opportunity_score(geo_findings)
+            
+            # ENTERPRISE SNIPPET INJECTION: Force JSON-LD into the HTML report
+            platform = geo_findings.get("platform_detected", "unknown")
+            instructions = {
+                "shopify": "For Shopify: Paste this snippet into your <code>theme.liquid</code> file just before the closing <code>&lt;/head&gt;</code> tag, or use a JSON-LD injection app.",
+                "woocommerce": "For WooCommerce: Add this to your <code>header.php</code> or use an SEO plugin (like Yoast/RankMath) to inject custom schema.",
+                "magento": "For Magento: Inject this via your layout XML (<code>default.xml</code>) or a custom block template.",
+                "bigcommerce": "For BigCommerce: Paste this into your <code>HTMLHead.html</code> or use the Script Manager.",
+                "unknown": "Implementation: Paste this snippet into the <code>&lt;head&gt;</code> section of your website's global template."
+            }
+            inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">💡 <strong>Platform Guide:</strong> {instructions.get(platform, instructions["unknown"])}</div>'
+            
+            for issue in geo_findings.get("issues", []):
+                if "fix_snippet" in issue:
+                    safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    snippet_html = f'{inst_html}<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
+                    issue["fix"] = issue.get("fix", "") + snippet_html
+
+            
+                        
+            # DETERMINISTIC OPPORTUNITY TIER (Calculated BEFORE report generation)
+            geo_score_val = float(geo_findings.get("overall_geo_score", 0) or 0)
+            issue_count = len(geo_findings.get("issues", []))
+            if geo_score_val >= 8.0 and issue_count == 0:
+                geo_findings["opp_tier"] = "LOW"
+                geo_findings["opp_color"] = "#10b981"
+            elif geo_score_val >= 8.0 and issue_count > 0:
+                geo_findings["opp_tier"] = "MEDIUM"
+                geo_findings["opp_color"] = "#f59e0b"
+            elif geo_score_val >= 5.0:
+                geo_findings["opp_tier"] = "MEDIUM"
+                geo_findings["opp_color"] = "#f59e0b"
+            else:
+                geo_findings["opp_tier"] = "HIGH"
+                geo_findings["opp_color"] = "#ef4444"
+
             geo_report = generate_geo_report(geo_findings)
+            try:
+                with open(geo_report, 'r', encoding='utf-8') as f: html = f.read()
+                if html.count('Enterprise Revenue Leak Engine') > 1:
+                    parts = html.split('Enterprise Revenue Leak Engine')
+                    html = parts[0] + 'Enterprise Revenue Leak Engine' + ''.join(parts[2:])
+                    with open(geo_report, 'w', encoding='utf-8') as f: f.write(html)
+            except: pass
             lead_result.update({
                 "geo_score": geo_score,
                 "geo_report_path": geo_report
@@ -132,7 +260,28 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             append_draft_to_log(geo_draft)
 
         # Combine scores (total will be used for ranking)
+                # Partner Directive: Flag non-commerce profiles instead of dropping or blindly including
+        is_non_commerce = any(i.get("code") == "non_commerce_profile" for i in geo_findings.get("issues", []))
+        if is_non_commerce:
+            lead_result["flagged_non_commerce"] = True
+            print(f"    note: non-commerce profile detected, included but flagged for manual review")
+        else:
+            lead_result["flagged_non_commerce"] = False
+
         lead_result["total_score"] = lead_result.get("cro_score", 0) + lead_result.get("geo_score", 0)
+        
+        # Lead Status Classification (Partner Directive #2)
+        geo_score_val = geo_findings.get("overall_geo_score", 0) or 0
+        geo_issues_count = len(geo_findings.get("issues", []))
+        cro_stat = lead_result.get("cro_status", "unknown")
+        conf = geo_findings.get("score_confidence", "full")
+        
+        if geo_issues_count == 0 and geo_score_val >= 8.0:
+            lead_result["lead_status"] = "HEALTHY"
+        elif cro_stat == "error" and conf in ["partial", "low"]:
+            lead_result["lead_status"] = "INCONCLUSIVE"
+        else:
+            lead_result["lead_status"] = "QUALIFIED_LEAK"
         scored_leads.append(lead_result)
 
     # Sort by total score descending
@@ -141,7 +290,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
     # Write ranked CSV with all fields
     ranked_csv = LEADS_DIR / f"{niche}_leads_ranked.csv"
     fieldnames = [
-        "total_score", "cro_score", "geo_score", "domain", "page_name",
+        "lead_status", "opportunity_score", "total_score", "cro_score", "geo_score", "primary_leak", "fix_effort", "cro_status", "domain", "page_name",
         "platform_detected", "matched_keyword", "cro_report_path", "geo_report_path"
     ]
     with open(ranked_csv, "w", newline="", encoding="utf-8") as f:
@@ -151,7 +300,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             row = {k: lead.get(k, "") for k in fieldnames}
             writer.writerow(row)
 
-    print(f"\n[4/4] Done. {len(scored_leads)} audited leads with real leaks (CRO, GEO, or both).")
+    print(f"\n[4/4] Done. {len(scored_leads)} e-commerce leads audited. ({healthy_skipped} skipped as healthy/inconclusive).")
     print(f"  -> Skipped {healthy_skipped} completely healthy sites.")
     print(f"  -> {ranked_csv}")
 

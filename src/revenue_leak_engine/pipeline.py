@@ -80,7 +80,8 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
 
         # 1. Core site audit (CRO) - Wrapped in try/except to prevent pipeline crashes
         try:
-            cro_findings = audit_site(domain)
+            from revenue_leak_engine.audit.viewport_profiles import MOBILE_PROFILE, DESKTOP_PROFILE
+            cro_findings = audit_site(domain, profile=MOBILE_PROFILE)
         except Exception as e:
             print(f"    warning: CRO audit crashed - {e}")
             cro_findings = {"error": str(e), "issues": []}
@@ -188,6 +189,16 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 except Exception: pass
 
             print(f"    CRO score {cro_score}/10 -> {cro_report}")
+            
+            # Desktop Telemetry (Secondary)
+            try:
+                desktop_findings = audit_site(domain, profile=DESKTOP_PROFILE)
+                desktop_report = generate_report(desktop_findings)
+                lead_result["desktop_report_path"] = desktop_report
+                print(f"    Desktop telemetry -> {desktop_report}")
+            except Exception as e:
+                print(f"    warning: Desktop audit crashed - {e}")
+                lead_result["desktop_report_path"] = "" 
 
             # Generate CRO outreach draft
             cro_draft = draft_email(cro_findings, report_url=cro_report)

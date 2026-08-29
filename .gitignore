@@ -64,3 +64,8 @@ Expanding_functionality.txt
 SYSTEM_BASELINE_90526.md
 reports_for_review.zip
 data/reports/
+reports_for_review.zip
+data/reports/
+data/leads/
+*.pyc
+__pycache__/
