@@ -288,6 +288,10 @@ def find_a_product_url(page, domain: str) -> str | None:
 def _audit_homepage_and_collection(page, domain: str, findings: dict):
     try:
         page.goto(f"https://{domain}", timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
+        try:
+            page.wait_for_selector("footer", timeout=6000, state="attached")
+        except Exception:
+            pass
         time.sleep(0.8)
         hp_data = page.evaluate("""
             () => {
@@ -300,6 +304,26 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
                 return { has_free_shipping, has_returns, has_payment_trust };
             }
         """)
+        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
+            try:
+                page.wait_for_function(
+                    "document.body && document.body.innerText.length > 500",
+                    timeout=4000
+                )
+            except Exception:
+                pass
+            time.sleep(1.0)
+            hp_data = page.evaluate("""
+                () => {
+                    const html = document.body ? document.body.innerText.toLowerCase() : '';
+                    const footer = document.querySelector('footer') ? document.querySelector('footer').innerText.toLowerCase() : html;
+                    const has_free_shipping = html.includes('free shipping') || html.includes('free delivery');
+                    const has_returns = html.includes('return') || html.includes('refund') || html.includes('guarantee');
+                    const payment_icons = document.querySelectorAll('img[alt*="visa" i], img[alt*="mastercard" i], img[alt*="paypal" i], img[alt*="amex" i], [class*="payment-icon"], svg[aria-label*="payment" i]');
+                    const has_payment_trust = payment_icons.length > 0 || footer.includes('secure checkout') || footer.includes('ssl');
+                    return { has_free_shipping, has_returns, has_payment_trust };
+                }
+            """)
         if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
             findings["issues"].append({
                 "code": "missing_global_trust_signals", "description": "Homepage lacks global trust signals (Free Shipping, Returns, or Guarantees).",

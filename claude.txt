@@ -1,82 +1,139 @@
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ rm -rf data/reports/*.html && export PYTHONPATH=src && python -m revenue_leak_engine.pipeline --niche beauty --limit 2 --seed-csv test_seeds.csv
+$ grep -n "wait_for_selector" src/revenue_leak_engine/audit/site_audit.py
+292:            page.wait_for_selector("footer", timeout=6000, state="attached")
+992:                page.wait_for_selector("[class*='price'], [data-price], button[name='add'], [data-add-to-cart], [class*='product']", state="visible", timeout=6000)
+1172:                        page.wait_for_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]", state="attached", timeout=3000)
+1573:            page.wait_for_selector("form, [data-action], [aria-label*='add' i], [class*='add' i], [class*='bag' i]", timeout=1500)
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ grep -n "wait_for_function" src/revenue_leak_engine/audit/site_audit.py
+309:                page.wait_for_function(
+998:                page.wait_for_function("""() => {
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ grep -n "if not hp_data.get('has_free_shipping')" src/revenue_leak_engine/audit/site_audit.py
+307:        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
+327:        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ grep -A 12 "time.sleep(1.0)" src/revenue_leak_engine/audit/site_audit.py
+            time.sleep(1.0)
+            hp_data = page.evaluate("""
+                () => {
+                    const html = document.body ? document.body.innerText.toLowerCase() : '';
+                    const footer = document.querySelector('footer') ? document.querySelector('footer').innerText.toLowerCase() : html;
+                    const has_free_shipping = html.includes('free shipping') || html.includes('free delivery');
+                    const has_returns = html.includes('return') || html.includes('refund') || html.includes('guarantee');
+                    const payment_icons = document.querySelectorAll('img[alt*="visa" i], img[alt*="mastercard" i], img[alt*="paypal" i], img[alt*="amex" i], [class*="payment-icon"], svg[aria-label*="payment" i]');
+                    const has_payment_trust = payment_icons.length > 0 || footer.includes('secure checkout') || footer.includes('ssl');
+                    return { has_free_shipping, has_returns, has_payment_trust };
+                }
+            """)
+        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
+--
+        time.sleep(1.0) # Wait for challenge iframe to inject
+        for frame in page.frames:
+            frame_url = frame.url.lower()
+            if any(sig in frame_url for sig in ['challenges.cloudflare.com', 'hcaptcha.com', 'recaptcha']):
+                checkbox_selectors = [
+                    'input[type="checkbox"]', '.mark', '#challenge-stage input[type="checkbox"]',
+                    'label.ctp-checkbox-label', '[aria-label*="verify" i]', '[aria-label*="human" i]',
+                    'button:has-text("Verify")', 'button:has-text("I am human")',
+                ]
+                for sel in checkbox_selectors:
+                    try:
+                        el = frame.query_selector(sel)
+                        if el and el.is_visible():
+--
+            time.sleep(1.0)
 
-[1/4] Loading manual seeds from test_seeds.csv...
-  -> 8 total candidate domains
-[2/4] Validating domains (Platform-Agnostic Mode)...
-  -> 8 valid e-commerce leads (Shopify + Non-Shopify)
-[3/4] Running CRO and GEO audits...
-  auditing gymshark.com...
-    CRO score 6.5/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com.html
-    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com_desktop.html
-    GEO score 5.2/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\gymshark_com_geo.html
-  auditing beautyitis.com...
-    CRO score 4.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\beautyitis_com.html
-    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\beautyitis_com_desktop.html
-    GEO score 8.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\beautyitis_com_geo.html
-  auditing universalyums.com...
-    CRO score 5.1/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com.html
-    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com_desktop.html
-    GEO score 6.9/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\universalyums_com_geo.html
-  auditing thebeautystore.com...
-    CRO score 4.9/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com.html
-    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com_desktop.html
-    GEO score 7.2/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\thebeautystore_com_geo.html
-  auditing allbirds.com...
-    CRO score 8.0/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com.html
-    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com_desktop.html
-    GEO score 5.9/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\allbirds_com_geo.html
-  auditing mount-it.com...
-    CRO score 5.8/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\mount-it_com.html
-    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\mount-it_com_desktop.html
-    GEO score 8.1/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\mount-it_com_geo.html
-  auditing shop.issaonline.com...
-    CRO score 5.3/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\shop_issaonline_com.html
-    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\shop_issaonline_com_desktop.html
-    GEO score 6.5/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\shop_issaonline_com_geo.html
-  auditing fecofoods.com.ng...
-    CRO score 6.5/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\fecofoods_com_ng.html
-    Desktop telemetry -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\fecofoods_com_ng_desktop.html
-    GEO score 6.1/10 -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\reports\fecofoods_com_ng_geo.html
+            # Human-like behavior to help bypass WAF behavioral analysis
+            try:
+                import random
+                page.mouse.move(100 + random.randint(-20, 20), 200 + random.randint(-20, 20))
+                page.mouse.wheel(0, 300)
+                page.wait_for_timeout(600)
+                page.mouse.wheel(0, -150)
+            except Exception:
+                pass
 
-[4/4] Done. 8 e-commerce leads audited. (0 skipped as healthy/inconclusive).
-  -> Skipped 0 completely healthy sites.
-  -> C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\data\leads\beauty_leads_ranked.csv
-((.venv) )
-USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$
-((.venv) )
-USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ a/reports/beautyitis_com.htmlecho "=== 1. DESKTOP HEADERS (Should say 'Desktop') ==="
-=== 1. DESKTOP HEADERS (Should say 'Desktop') ===
-((.venv) )
-USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ grep -o "<h1>.*CRO & Conversion Audit</h1>" data/reports/*_desktop.html
-data/reports/allbirds_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
-data/reports/beautyitis_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
-data/reports/fecofoods_com_ng_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
-data/reports/gymshark_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
-data/reports/mount-it_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
-data/reports/shop_issaonline_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
-data/reports/thebeautystore_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
-data/reports/universalyums_com_desktop.html:<h1>Desktop CRO & Conversion Audit</h1>
-((.venv) )
-USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$
-((.venv) )
-USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ echo ""
+            # POST-LOAD WAF VERIFICATION
+--
+                time.sleep(1.0)
+                page.screenshot(path=str(shot_path), full_page=False)
+            _ctx = f"{profile_name.capitalize()} Viewport: Clean page load. Primary CTA verified."
+            if "unclosable_overlay" in findings.get("notes", ""): _ctx = f"{profile_name.capitalize()} Viewport: Unclosable overlay detected. Interactive checks skipped."
+            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower(): _ctx = f"{profile_name.capitalize()} Viewport: Overlay dismissed. Buy box verified visible."
+            findings["screenshot_context"] = _ctx
+            findings["screenshot_path"] = str(shot_path)
 
+            cwv = _extract_cwv_and_friction(page)
+            findings["checks_completed"]["cwv"] = True
+            findings["cwv"] = cwv
+            try:
+                _check_ttfb(page, findings)
+--
+                    time.sleep(1.0)
+                    break
+        except: pass
+
+        ultimate_atc = None
+        try:
+            ultimate_atc = page.evaluate('''() => {
+                const forms = document.querySelectorAll('form');
+                for(const f of forms) {
+                    const action = (f.getAttribute('action') || '').toLowerCase();
+                    const hasPrice = f.querySelector('[class*="price" i], [data-price]') !== null;
+                    if(action.includes('cart') || action.includes('add') || action.includes('bag') || hasPrice) {
+                        const btn = f.querySelector('button[type="submit"], input[type="submit"], button:not([type]), [role="button"]');
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ echo "=== 2. MOBILE HEADERS (Should say 'Mobile') ==="
-=== 2. MOBILE HEADERS (Should say 'Mobile') ===
+$  grep -A 5 "wait_for_selector" src/revenue_leak_engine/audit/site_audit.py
+            page.wait_for_selector("footer", timeout=6000, state="attached")
+        except Exception:
+            pass
+        time.sleep(0.8)
+        hp_data = page.evaluate("""
+            () => {
+--
+                page.wait_for_selector("[class*='price'], [data-price], button[name='add'], [data-add-to-cart], [class*='product']", state="visible", timeout=6000)
+            except Exception:
+                pass
+
+            # ENTERPRISE PROTOCOL: WHITE-SCREEN PREVENTION (React/Hydrogen/Next.js Hydration Wait)
+            try:
+--
+                        page.wait_for_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]", state="attached", timeout=3000)
+                        drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]")
+                    except Exception: pass
+
+                page.remove_listener("response", _intercept_cart_api)
+
+--
+            page.wait_for_selector("form, [data-action], [aria-label*='add' i], [class*='add' i], [class*='bag' i]", timeout=1500)
+        except: pass
+
+        try:
+            page.evaluate('''() => {
+                const els = document.querySelectorAll('[class*="swatch" i], [class*="variant" i], [class*="option" i], [role="radio"], [role="option"], select');
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ grep -o "<h1>.*CRO & Conversion Audit</h1>" data/reports/gymshark_com.html data/reports/beautyitis_com.html
-data/reports/gymshark_com.html:<h1>Mobile CRO & Conversion Audit</h1>
-data/reports/beautyitis_com.html:<h1>Mobile CRO & Conversion Audit</h1>
+$ export PYTHONPATH=src && python -c "
+> from revenue_leak_engine.audit.site_audit import audit_site
+> hashes = set()
+> for i in range(5):
+>     r = audit_site('gymshark.com')
+>     hashes.add(r.get('findings_hash'))
+>     print(f'Run {i+1}: hash={r[\"findings_hash\"]}')
+> print('IDENTICAL ACROSS ALL RUNS:', len(hashes) == 1)
+> "
+Run 1: hash=59c18b30d3820911
+Run 2: hash=1348ff90cc8ea559
+Run 3: hash=216df08fd0dca067
+Run 4: hash=8475cb96455ee264
+Run 5: hash=59c18b30d3820911
+IDENTICAL ACROSS ALL RUNS: False
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $

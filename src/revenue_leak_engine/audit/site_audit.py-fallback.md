@@ -29,6 +29,7 @@ from revenue_leak_engine.config import (
 )
 from revenue_leak_engine.audit.seo_audit import audit_seo_onpage
 from .revenue_math import calculate_revenue_risk
+from .viewport_profiles import MOBILE_PROFILE
 from revenue_leak_engine.audit.popup_handler import (
     detect_overlay, classify_overlay, dismiss_overlays,
 )
@@ -287,6 +288,10 @@ def find_a_product_url(page, domain: str) -> str | None:
 def _audit_homepage_and_collection(page, domain: str, findings: dict):
     try:
         page.goto(f"https://{domain}", timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
+        try:
+            page.wait_for_selector("footer", timeout=6000, state="attached")
+        except Exception:
+            pass
         time.sleep(0.8)
         hp_data = page.evaluate("""
             () => {
@@ -299,6 +304,26 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
                 return { has_free_shipping, has_returns, has_payment_trust };
             }
         """)
+        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
+            try:
+                page.wait_for_function(
+                    "document.body && document.body.innerText.length > 500",
+                    timeout=4000
+                )
+            except Exception:
+                pass
+            time.sleep(1.0)
+            hp_data = page.evaluate("""
+                () => {
+                    const html = document.body ? document.body.innerText.toLowerCase() : '';
+                    const footer = document.querySelector('footer') ? document.querySelector('footer').innerText.toLowerCase() : html;
+                    const has_free_shipping = html.includes('free shipping') || html.includes('free delivery');
+                    const has_returns = html.includes('return') || html.includes('refund') || html.includes('guarantee');
+                    const payment_icons = document.querySelectorAll('img[alt*="visa" i], img[alt*="mastercard" i], img[alt*="paypal" i], img[alt*="amex" i], [class*="payment-icon"], svg[aria-label*="payment" i]');
+                    const has_payment_trust = payment_icons.length > 0 || footer.includes('secure checkout') || footer.includes('ssl');
+                    return { has_free_shipping, has_returns, has_payment_trust };
+                }
+            """)
         if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
             findings["issues"].append({
                 "code": "missing_global_trust_signals", "description": "Homepage lacks global trust signals (Free Shipping, Returns, or Guarantees).",
@@ -706,7 +731,9 @@ def _attempt_interactive_waf_solve(page):
     except Exception:
         return False
 
-def audit_site(domain: str) -> dict:
+def audit_site(domain: str, profile: dict = None) -> dict:
+    if profile is None:
+        profile = MOBILE_PROFILE
     import uuid as _uuid
     findings = {
         "domain": domain, "product_url": None, "load_time_ms": None,
@@ -714,10 +741,13 @@ def audit_site(domain: str) -> dict:
         "issues": [], "annotations": [], "screenshot_path": None, "popup_screenshot_path": None,
         "notes": "", "error": None, "platform": "custom", "tech_stack": [],
         "run_id": str(_uuid.uuid4())[:8], "engine_version": "v60.4",
-        "viewport": f"{MOBILE_VIEWPORT.get('width', 390)}x{MOBILE_VIEWPORT.get('height', 844)}",
+        "viewport": f"{profile['viewport']['width']}x{profile['viewport']['height']}",
+        "profile_name": profile["name"],
     }
     safe = domain.replace(".", "_")
-    viewport_h = MOBILE_VIEWPORT.get("height", 844)
+    profile_name = profile.get("name", "mobile")
+    safe_name = f"{safe}_{profile_name}" if profile_name != "mobile" else safe
+    viewport_h = profile["viewport"].get("height", 844)
 
     seen_urls: list[str] = []
     console_errors: list[str] = []
@@ -731,8 +761,8 @@ def audit_site(domain: str) -> dict:
             "--no-sandbox",
             "--disable-setuid-sandbox"
         ])
-        _ctx_opts = dict(viewport=MOBILE_VIEWPORT, has_touch=True, ignore_https_errors=True,
-            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+        _ctx_opts = dict(viewport=profile["viewport"], has_touch=profile["has_touch"], ignore_https_errors=True,
+        user_agent=profile["user_agent"])
         if _get_proxies(): _ctx_opts["proxy"] = {"server": _get_proxies()["https"]}
         context = browser.new_context(**_ctx_opts)
         
@@ -923,7 +953,7 @@ def audit_site(domain: str) -> dict:
                     if overlay_box: findings["popup_annotation"] = [overlay_box]
                 except Exception: pass
                 kind = classify_overlay(overlay)
-                popup_shot = SCREENSHOTS_DIR / f"{safe}_popup.png"
+                popup_shot = SCREENSHOTS_DIR / f"{safe_name}_popup.png"
                 page.screenshot(path=str(popup_shot), full_page=False)
                 findings["popup_screenshot_path"] = str(popup_shot)
                 if kind == "marketing_popup": findings["notes"] += f"marketing_popup_detected_and_dismissed. "
@@ -955,8 +985,14 @@ def audit_site(domain: str) -> dict:
             except Exception: pass
             page.wait_for_timeout(1000)
 
-            shot_path = SCREENSHOTS_DIR / f"{safe}.png"
+            shot_path = SCREENSHOTS_DIR / f"{safe_name}.png"
             
+            # ENTERPRISE HYDRATION WAIT (Partner 2 Directive: Wait for Buy Box to render before screenshot)
+            try:
+                page.wait_for_selector("[class*='price'], [data-price], button[name='add'], [data-add-to-cart], [class*='product']", state="visible", timeout=6000)
+            except Exception:
+                pass
+
             # ENTERPRISE PROTOCOL: WHITE-SCREEN PREVENTION (React/Hydrogen/Next.js Hydration Wait)
             try:
                 page.wait_for_function("""() => {
@@ -982,9 +1018,9 @@ def audit_site(domain: str) -> dict:
             if os.path.exists(str(shot_path)) and os.path.getsize(str(shot_path)) < 4000:
                 time.sleep(1.0)
                 page.screenshot(path=str(shot_path), full_page=False)
-            _ctx = "Mobile Viewport: Clean page load. Primary CTA verified."
-            if "unclosable_overlay" in findings.get("notes", ""): _ctx = "Mobile Viewport: Unclosable overlay detected. Interactive checks skipped."
-            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower(): _ctx = "Mobile Viewport: Overlay dismissed. Buy box verified visible."
+            _ctx = f"{profile_name.capitalize()} Viewport: Clean page load. Primary CTA verified."
+            if "unclosable_overlay" in findings.get("notes", ""): _ctx = f"{profile_name.capitalize()} Viewport: Unclosable overlay detected. Interactive checks skipped."
+            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower(): _ctx = f"{profile_name.capitalize()} Viewport: Overlay dismissed. Buy box verified visible."
             findings["screenshot_context"] = _ctx
             findings["screenshot_path"] = str(shot_path)
 
@@ -1021,14 +1057,14 @@ def audit_site(domain: str) -> dict:
                         break
             except Exception: pass
 
-            atc_btn = _check_add_to_cart(page, findings, viewport_h, seen_urls)
+            atc_btn = _check_add_to_cart(page, findings, viewport_h, seen_urls, profile.get("is_mobile", True))
             findings["checks_completed"]["atc_probe"] = True
             
             # ENTERPRISE CREDIBILITY SHIELD: If no ATC found, try visual fallback
             if atc_btn is None:
                 atc_btn = _check_atc_visual_fallback(page, findings)
 
-            if atc_btn and not cwv.get("touch_target_ok"):
+            if atc_btn and not cwv.get("touch_target_ok") and profile.get("is_mobile"):
                 findings["issues"].append({"code": "small_touch_target", "description": "Add to Cart button is smaller than 32x32px on mobile.", "evidence": "Touch target analysis failed minimum 32px requirement.", "severity": "medium", "confidence": "high", "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."})
             pdp_express = False
             if not skip_interactive:
@@ -1441,7 +1477,7 @@ def _check_load_speed(findings: dict):
     elif ms and ms > 8000 and lcp == 0:
         findings["issues"].append({"code": "slow_load_fallback", "description": f"Total page load time is {ms}ms, indicating severe main-thread blocking.", "evidence": f"{ms}ms measured via navigation timing.", "severity": "medium", "confidence": "medium", "fix": "Audit main-thread blocking scripts and compress above-the-fold imagery."})
 
-def _check_add_to_cart(page, findings, viewport_h: int, seen_urls: list = None):
+def _check_add_to_cart(page, findings, viewport_h: int, seen_urls: list = None, is_mobile: bool = True):
     atc_data = page.evaluate("""
         () => {
             const selectors = ["button[name='add']", "[data-add-to-cart]", ".single_add_to_cart_button", ".add_to_cart_button", "form[action*='/cart/add'] button", "form[action*='/cart'] button[type='submit']", "form[action*='add'] button[type='submit']", "[data-action='add-to-cart']", "button[type='submit'][class*='product']", "button[data-testid*='add' i]", "button[id*='add' i]", "input[type='submit'][name*='add' i]", "product-form button[type='submit']"];
@@ -1666,7 +1702,7 @@ def _check_add_to_cart(page, findings, viewport_h: int, seen_urls: list = None):
         findings["issues"].append({"code": "small_touch_target", "description": f"Add to Cart button ({int(w)}x{int(h)}px) is smaller than the 32x32px mobile minimum.", "evidence": f"Touch target analysis: {int(w)}x{int(h)}px.", "severity": "medium", "confidence": "high", "fix": "Increase padding on the mobile ATC button to ensure it meets WCAG touch target guidelines."})
         findings["annotations"].append({"type": "small_touch_target", "x": atc_data.get("x", 0), "y": atc_data.get("y", 0), "width": w, "height": h, "label": "Touch Target < 32px"})
 
-    if atc_data.get("y", 0) > viewport_h * 0.95:
+    if is_mobile and atc_data.get("y", 0) > viewport_h * 0.95:
         findings["issues"].append({"code": "add_to_cart_below_fold", "description": "Add to Cart sits below the mobile fold with no sticky purchase bar.", "evidence": f"button top at y={int(atc_data.get('y', 0))} on a {viewport_h}px viewport", "severity": "medium", "confidence": "high", "fix": "Add a sticky mobile Add to Cart bar or move the buy box above the fold."})
     return "JS_BTN"
 
