@@ -813,7 +813,7 @@ def audit_site(domain: str) -> dict:
                         findings["notes"] += "pdp_used_curl_cffi_fallback. "
                         findings["audit_status"] = "PARTIAL_HTTP_FALLBACK"
                         safe_html = r.text[:100000].replace('#', '%23').replace('\n', ' ')
-                        page.goto(f"data:text/html;charset=utf-8,{safe_html}", wait_until="domcontentloaded", timeout=5000)
+                        page.set_content(safe_html, wait_until="domcontentloaded", timeout=5000)
                     else:
                         findings["error"] = f"INCONCLUSIVE: Navigation and HTTP fallback failed (Status: {r.status_code})"
                         browser.close()
@@ -1166,7 +1166,7 @@ def audit_site(domain: str) -> dict:
                 if cart_loaded:
                     time.sleep(0.8)
                     findings["checks_completed"]["funnel_cart"] = True
-                    
+
                     # PHASE C: SAFE SYNTHETIC CART INTERACTION (Zip Code / Shipping Estimator)
                     try:
                         zip_inputs = page.query_selector_all('input[name*="zip" i], input[name*="postcode" i], input[name*="postal" i], input[id*="zip" i]')
@@ -1191,17 +1191,18 @@ def audit_site(domain: str) -> dict:
                                 }
                             """)
                         except Exception: pass
-                    
-                try:
-                    _check_checkout_behavior(page, domain, findings)
-                    findings["checks_completed"]["checkout_behavior"] = True
-                except Exception as _e:
-                    findings["notes"] += f"checkout_behavior_failed: {_e}. "
 
-                if not cart_express: findings["issues"].append({"code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).", "evidence": "No express wallet buttons detected on /cart or /checkout page.", "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.", "fix": get_express_fix(findings.get("platform", "custom"))})
-                cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
-                if not any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $']):
-                    findings["issues"].append({"code": "cart_no_shipping_estimator", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks shipping cost estimator or free-shipping threshold.", "evidence": "No shipping/delivery language found on cart page.", "business_impact": "Baymard: 48% of abandonments are due to surprise shipping costs at checkout.", "fix": "Add a dynamic 'Spend $X more for Free Shipping' progress bar and shipping estimator on the cart page."})
+                    try:
+                        _check_checkout_behavior(page, domain, findings)
+                        findings["checks_completed"]["checkout_behavior"] = True
+                    except Exception as _e:
+                        findings["notes"] += f"checkout_behavior_failed: {_e}. "
+
+                    if not cart_express:
+                        findings["issues"].append({"code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).", "evidence": "No express wallet buttons detected on /cart or /checkout page.", "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.", "fix": get_express_fix(findings.get("platform", "custom"))})
+                    cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
+                    if not any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $']):
+                        findings["issues"].append({"code": "cart_no_shipping_estimator", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks shipping cost estimator or free-shipping threshold.", "evidence": "No shipping/delivery language found on cart page.", "business_impact": "Baymard: 48% of abandonments are due to surprise shipping costs at checkout.", "fix": "Add a dynamic 'Spend $X more for Free Shipping' progress bar and shipping estimator on the cart page."})
             except Exception as _e: findings["notes"] += f"funnel_cart_probe_failed: {_e}. "
 
         except PWTimeout:
@@ -1866,6 +1867,11 @@ def _check_accessibility_risk(page, findings):
                 // 2. Form inputs without labels
                 const inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
                 inputs.forEach(inp => {
+                    // ENTERPRISE FILTER: Ignore hidden or off-screen inputs (honeypots, tracking tokens)
+                    const cs = window.getComputedStyle(inp);
+                    if (cs.display === 'none' || cs.visibility === 'hidden' || inp.offsetWidth === 0) return;
+                    if (inp.hasAttribute('aria-hidden') && inp.getAttribute('aria-hidden') === 'true') return;
+
                     // ENTERPRISE FILTER: Ignore hidden or off-screen inputs
                     const cs = window.getComputedStyle(inp);
                     if (cs.display === 'none' || cs.visibility === 'hidden' || inp.offsetWidth === 0) return;

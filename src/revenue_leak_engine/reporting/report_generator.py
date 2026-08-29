@@ -135,7 +135,24 @@ def generate_report(findings: dict) -> str:
         "tiktok_pixel_missing": {"shopify": "Shopify Admin > Settings > Apps > TikTok > Data Sharing.", "woocommerce": "WooCommerce > Settings > Integration > TikTok.", "custom": "GTM or global header template."},
         "no_cart_drawer": {"shopify": "Shopify Admin > Online Store > Themes > Customize > Theme Settings > Cart (Enable Drawer).", "woocommerce": "Appearance > Customize > WooCommerce > Cart (Enable AJAX mini-cart).", "custom": "Theme cart template or slide-out cart plugin."},
         "no_express_checkout": {"shopify": "Shopify Admin > Settings > Payments > Shopify Payments > Manage (Enable Wallets).", "woocommerce": "WooCommerce > Settings > Payments > Stripe/PayPal (Enable Payment Request).", "custom": "Payment gateway dashboard and checkout integration."},
-        "missing_sticky_atc": {"shopify": "Online Store > Themes > Customize > Product Page (Enable Sticky ATC).", "woocommerce": "Appearance > Customize > Single Product (or use a Sticky ATC plugin).", "custom": "Product template (add fixed-position bottom bar)."},
+        "missing_sticky_atc": {
+        "shopify": "📍 Exact File: <code>sections/main-product.liquid</code> or <code>assets/product.css</code>. Add a fixed-position bottom bar for mobile viewports.",
+        "woocommerce": "📍 WP Admin: <code>Appearance > Customize > Additional CSS</code> or use a plugin like 'Sticky Add To Cart for WooCommerce'.",
+        "bigcommerce": "📍 BigCommerce Admin: <code>Storefront > Theme Marketplace</code> (Enable sticky header/footer) or edit <code>templates/components/products/add-to-cart.html</code>.",
+        "custom": "📍 Global Product Template: Inject a <code>position: fixed; bottom: 0;</code> CSS bar tied to the primary buy button."
+    },
+    "hidden_shipping_costs": {
+        "shopify": "📍 Exact File: <code>sections/main-product.liquid</code> (Buy Buttons block) or install a Shipping Estimator App Block.",
+        "woocommerce": "📍 WP Admin: <code>WooCommerce > Settings > Shipping</code> (Enable shipping calculator on product page) or use a plugin.",
+        "bigcommerce": "📍 BigCommerce Admin: <code>Settings > Shipping</code> (Enable shipping estimator) or edit <code>templates/components/products/add-to-cart.html</code>.",
+        "custom": "📍 Product Template: Integrate your shipping provider's API estimator widget directly below the price."
+    },
+    "no_express_checkout": {
+        "shopify": "📍 Shopify Admin: <code>Settings > Payments > Shopify Payments > Manage</code> (Toggle Apple Pay/Google Pay/Shop Pay).",
+        "woocommerce": "📍 WP Admin: <code>WooCommerce > Settings > Payments > Stripe/PayPal</code> (Enable Payment Request API / Express Checkout).",
+        "bigcommerce": "📍 BigCommerce Admin: <code>Settings > Payments > Digital Wallets</code> (Enable Apple Pay/Google Pay).",
+        "custom": "📍 Payment Gateway Dashboard: Enable native wallet APIs and update checkout frontend to render wallet buttons."
+    },
         "hidden_shipping_costs": {"shopify": "Online Store > Themes > Customize > Product Page (Add shipping estimator app block).", "woocommerce": "WooCommerce > Settings > Shipping (or use a shipping calculator plugin).", "custom": "Product template (integrate shipping API estimator)."},
         "missing_product_schema": {"shopify": "Online Store > Themes > Edit Code (product-template.liquid) or use an SEO app.", "woocommerce": "Use Yoast/RankMath SEO plugin, or add to single-product.php.", "custom": "Global product template (inject JSON-LD script)."}
     }

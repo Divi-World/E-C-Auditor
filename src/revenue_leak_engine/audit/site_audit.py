@@ -1621,7 +1621,7 @@ def _check_add_to_cart(page, findings, viewport_h: int, seen_urls: list = None):
         if not cart_network:
             findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM, Shadow Root, and Ultimate Hunter returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
         else:
-            findings["issues"].append({"code": "headless_checkout_flow", "description": "Add-to-Cart handled via custom headless portal (Network verified).", "evidence": "DOM search returned no standard match, but network interceptor confirmed cart API activity.", "severity": "low", "confidence": "VERIFIED", "business_impact": "Custom headless flows can introduce friction if not optimized for mobile.", "fix": "Manual verification recommended. Ensure the custom checkout flow is optimized for mobile conversion."})
+            findings["issues"].append({"code": "headless_checkout_flow", "description": "Add-to-Cart handled via custom headless portal (Network verified).", "evidence": "DOM search returned no standard match, but network interceptor confirmed cart API activity.", "severity": "medium", "confidence": "VERIFIED", "business_impact": "Silent headless cart adds lack visual feedback, causing users to double-click and generate duplicate cart lines or abandon out of confusion.", "fix": "Implement a visual toast notification or slide-out drawer to confirm the item was added to the cart."})
         return None
 
     if not atc_data.get("visible"):
