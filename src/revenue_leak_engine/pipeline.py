@@ -160,6 +160,14 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 "cro_pdf_path": cro_pdf_path or ""
             })
 
+            # Generate High-Tech Outreach Draft
+            try:
+                from revenue_leak_engine.outreach.email_generator import generate_outreach_email
+                email_draft = generate_outreach_email(cro_findings)
+                lead_result["outreach_draft"] = email_draft.replace("\n", " | ")
+            except Exception as e:
+                lead_result["outreach_draft"] = f"Failed: {e}"
+
             print(f"    CRO score {cro_score}/10 -> {cro_report}")
             
             # Desktop Telemetry (Secondary)
