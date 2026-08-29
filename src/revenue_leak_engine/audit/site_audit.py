@@ -288,10 +288,12 @@ def find_a_product_url(page, domain: str) -> str | None:
 def _audit_homepage_and_collection(page, domain: str, findings: dict):
     try:
         page.goto(f"https://{domain}", timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
+        footer_loaded = True
         try:
             page.wait_for_selector("footer", timeout=6000, state="attached")
         except Exception:
-            pass
+            footer_loaded = False
+            findings["notes"] += "trust_signals_inconclusive_footer_timeout. "
         time.sleep(0.8)
         hp_data = page.evaluate("""
             () => {
@@ -304,7 +306,7 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
                 return { has_free_shipping, has_returns, has_payment_trust };
             }
         """)
-        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
+        if footer_loaded and not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
             try:
                 page.wait_for_function(
                     "document.body && document.body.innerText.length > 500",
@@ -1168,14 +1170,17 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                 navigated = page.url != url_before
                 drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], [class*='mini-cart' i], [class*='cart-modal' i], cart-drawer, [id*='slide-cart' i], [class*='slide-cart' i], [class*='drawer' i][class*='cart' i]")
                 if not drawer:
+                    drawer_loaded = True
                     try:
                         page.wait_for_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]", state="attached", timeout=3000)
                         drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]")
-                    except Exception: pass
+                    except Exception:
+                        drawer_loaded = False
+                        findings["notes"] += "cart_drawer_wait_timeout_inconclusive. "
 
                 page.remove_listener("response", _intercept_cart_api)
                 
-                if navigated or not (drawer and drawer.is_visible()):
+                if drawer_loaded and (navigated or not (drawer and drawer.is_visible())):
                     if cart_api_success:
                         findings["notes"] += "cart_api_success_but_no_drawer. "
                     else:
