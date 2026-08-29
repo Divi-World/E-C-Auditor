@@ -1,0 +1,49 @@
+diff --git a/src/revenue_leak_engine/pipeline.py b/src/revenue_leak_engine/pipeline.py
+index 65c09a5..e5c68a3 100644
+--- a/src/revenue_leak_engine/pipeline.py
++++ b/src/revenue_leak_engine/pipeline.py
+@@ -196,6 +196,20 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
+                 desktop_report = generate_report(desktop_findings)
+                 lead_result["desktop_report_path"] = desktop_report
+                 print(f"    Desktop telemetry -> {desktop_report}")
++                # Inject revenue banner into desktop report too
++                if cro_findings.get("estimated_monthly_leak_usd", 0) > 0:
++                    _dlk = cro_findings["estimated_monthly_leak_usd"]
++                    _dan = cro_findings["estimated_annual_leak_usd"]
++                    _dbh = f'<div style="background:linear-gradient(90deg, #7f1d1d, #991b1b); color:white; padding:20px; text-align:center; font-family:sans-serif; margin-bottom:20px; border-radius:8px;"><h2 style="margin:0; font-size:24px;">ESTIMATED REVENUE LEAK: ${_dlk:,} / MONTH</h2><p style="margin:5px 0 0 0; opacity:0.9;">${_dan:,} Annualized Loss (Baymard Friction Model)</p></div>'
++                    try:
++                        import re as _re2
++                        with open(desktop_report, 'r', encoding='utf-8') as _df: _dhtml = _df.read()
++                        if 'ESTIMATED REVENUE LEAK' not in _dhtml:
++                            _dbody = _re2.search(r'<body[^>]*>', _dhtml)
++                            if _dbody:
++                                _dhtml = _dhtml[:_dbody.end()] + _dbh + _dhtml[_dbody.end():]
++                        with open(desktop_report, 'w', encoding='utf-8') as _df: _df.write(_dhtml)
++                    except Exception: pass
+             except Exception as e:
+                 print(f"    warning: Desktop audit crashed - {e}")
+                 lead_result["desktop_report_path"] = "" 
+diff --git a/src/revenue_leak_engine/reporting/report_generator.py b/src/revenue_leak_engine/reporting/report_generator.py
+index fda3caa..ffe4feb 100644
+--- a/src/revenue_leak_engine/reporting/report_generator.py
++++ b/src/revenue_leak_engine/reporting/report_generator.py
+@@ -88,6 +88,9 @@ def generate_report(findings: dict) -> str:
+     domain = findings.get("domain", "unknown")
+     safe_name = domain.replace(".", "_").replace(":", "_")
+     profile_name = findings.get("profile_name", "mobile")
++    if profile_name != "mobile":
++        safe_name = f"{safe_name}_{profile_name}"
++    profile_name = findings.get("profile_name", "mobile")
+     if profile_name != "mobile":
+         safe_name = f"{safe_name}_{profile_name}"
+ 
+@@ -334,6 +337,9 @@ def generate_report(findings: dict) -> str:
+         run_id=findings.get("run_id", "N/A"),
+         engine_version=findings.get("engine_version", "N/A"),
+         viewport=findings.get("viewport", "390x844"),
++        profile_name=findings.get("profile_name", "mobile"),
++        profile_label="Desktop" if findings.get("profile_name") == "desktop" else "Mobile",
++        profile_name=findings.get("profile_name", "mobile"),
+         findings_hash=findings.get("findings_hash", "N/A"),
+         checks_completed=findings.get("checks_completed", {}),
+         checks_total=len(findings.get("checks_completed", {})),

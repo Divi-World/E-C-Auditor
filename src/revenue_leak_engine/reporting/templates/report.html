@@ -57,7 +57,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     <div class="header">
         <div class="header-brand">
             <div class="sub">Enterprise Revenue Intelligence</div>
-            <h1>Mobile CRO & Conversion Audit</h1>
+            <h1>{{ profile_name | capitalize }} CRO & Conversion Audit</h1>
             <div class="domain">{{ domain }}</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Platform: <strong style="color: var(--accent-blue);">{{ platform | capitalize }}</strong></div>
         </div>
@@ -92,18 +92,18 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     {% endif %}
 
     {% if screenshot_b64 or popup_b64 %}
-    <div class="section-title">Visual Evidence (Mobile Viewport)</div>
+    <div class="section-title">Visual Evidence ({{ profile_name | capitalize }} Viewport)</div>
     <div class="screenshot-grid">
         {% if screenshot_b64 %}
         <div class="screenshot-card">
             <img src="data:image/png;base64,{{ screenshot_b64 }}" alt="Product Page Screenshot">
-            <div class="screenshot-label">{{ findings.get("screenshot_context", "Mobile Viewport: Telemetry captured.") }}</div>
+            <div class="screenshot-label">{{ screenshot_label or (profile_name ~ ' Viewport: Telemetry captured.') }}</div>
         </div>
         {% endif %}
         {% if popup_b64 %}
         <div class="screenshot-card">
             <img src="data:image/png;base64,{{ popup_b64 }}" alt="Popup Screenshot">
-            <div class="screenshot-label">{{ findings.get("screenshot_context", "Mobile Viewport: Overlay detected.") }}</div>
+            <div class="screenshot-label">{{ screenshot_label or (profile_name ~ ' Viewport: Overlay detected.') }}</div>
         </div>
         {% endif %}
     </div>

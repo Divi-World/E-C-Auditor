@@ -721,6 +721,8 @@ def audit_site(domain: str, profile: dict = None) -> dict:
         "profile_name": profile["name"],
     }
     safe = domain.replace(".", "_")
+    profile_name = profile.get("name", "mobile")
+    safe_name = f"{safe}_{profile_name}" if profile_name != "mobile" else safe
     viewport_h = profile["viewport"].get("height", 844)
 
     seen_urls: list[str] = []
@@ -735,8 +737,8 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             "--no-sandbox",
             "--disable-setuid-sandbox"
         ])
-        _ctx_opts = dict(viewport=MOBILE_VIEWPORT, has_touch=True, ignore_https_errors=True,
-            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+        _ctx_opts = dict(viewport=profile["viewport"], has_touch=profile["has_touch"], ignore_https_errors=True,
+        user_agent=profile["user_agent"])
         if _get_proxies(): _ctx_opts["proxy"] = {"server": _get_proxies()["https"]}
         context = browser.new_context(**_ctx_opts)
         
@@ -927,7 +929,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                     if overlay_box: findings["popup_annotation"] = [overlay_box]
                 except Exception: pass
                 kind = classify_overlay(overlay)
-                popup_shot = SCREENSHOTS_DIR / f"{safe}_popup.png"
+                popup_shot = SCREENSHOTS_DIR / f"{safe_name}_popup.png"
                 page.screenshot(path=str(popup_shot), full_page=False)
                 findings["popup_screenshot_path"] = str(popup_shot)
                 if kind == "marketing_popup": findings["notes"] += f"marketing_popup_detected_and_dismissed. "
@@ -959,8 +961,14 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             except Exception: pass
             page.wait_for_timeout(1000)
 
-            shot_path = SCREENSHOTS_DIR / f"{safe}.png"
+            shot_path = SCREENSHOTS_DIR / f"{safe_name}.png"
             
+            # ENTERPRISE HYDRATION WAIT (Partner 2 Directive: Wait for Buy Box to render before screenshot)
+            try:
+                page.wait_for_selector("[class*='price'], [data-price], button[name='add'], [data-add-to-cart], [class*='product']", state="visible", timeout=6000)
+            except Exception:
+                pass
+
             # ENTERPRISE PROTOCOL: WHITE-SCREEN PREVENTION (React/Hydrogen/Next.js Hydration Wait)
             try:
                 page.wait_for_function("""() => {
@@ -986,9 +994,9 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             if os.path.exists(str(shot_path)) and os.path.getsize(str(shot_path)) < 4000:
                 time.sleep(1.0)
                 page.screenshot(path=str(shot_path), full_page=False)
-            _ctx = "Mobile Viewport: Clean page load. Primary CTA verified."
-            if "unclosable_overlay" in findings.get("notes", ""): _ctx = "Mobile Viewport: Unclosable overlay detected. Interactive checks skipped."
-            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower(): _ctx = "Mobile Viewport: Overlay dismissed. Buy box verified visible."
+            _ctx = f"{profile_name.capitalize()} Viewport: Clean page load. Primary CTA verified."
+            if "unclosable_overlay" in findings.get("notes", ""): _ctx = f"{profile_name.capitalize()} Viewport: Unclosable overlay detected. Interactive checks skipped."
+            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower(): _ctx = f"{profile_name.capitalize()} Viewport: Overlay dismissed. Buy box verified visible."
             findings["screenshot_context"] = _ctx
             findings["screenshot_path"] = str(shot_path)
 
