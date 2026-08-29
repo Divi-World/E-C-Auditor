@@ -983,8 +983,11 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                 skip_interactive = True
                 findings["issues"].append({"code": "unclosable_overlay", "description": "A viewport-blocking overlay could not be automatically dismissed.", "evidence": "Overlay persisted after dismissal attempts and DOM nuke.", "severity": "high", "confidence": "VERIFIED", "business_impact": "Viewport-blocking overlays without accessible dismissals cause immediate user abandonment.", "fix": "Ensure marketing popups have a visible, accessible close button."})
 
+            network_idle_loaded = True
             try: page.wait_for_load_state("networkidle", timeout=TIMEOUT_PROBE)
-            except Exception: pass
+            except Exception:
+                network_idle_loaded = False
+                findings["notes"] += "network_idle_wait_timeout. "
             page.wait_for_timeout(1000)
 
             shot_path = SCREENSHOTS_DIR / f"{safe_name}.png"
@@ -996,6 +999,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                 pass
 
             # ENTERPRISE PROTOCOL: WHITE-SCREEN PREVENTION (React/Hydrogen/Next.js Hydration Wait)
+            white_screen_loaded = True
             try:
                 page.wait_for_function("""() => {
                     const body = document.body;
@@ -1003,6 +1007,8 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                     return body && body.scrollHeight > 200 && main && main.offsetHeight > 50;
                 }""", timeout=8000)
             except Exception:
+                white_screen_loaded = False
+                findings["notes"] += "white_screen_hydration_wait_timeout. "
                 page.wait_for_timeout(3000) # Hard fallback for heavy WAF/JS sites
 
             # Force lazy-loaded above-the-fold images to render
