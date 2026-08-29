@@ -1860,6 +1860,23 @@ def _check_console_errors(findings, console_errors):
         findings["issues"].append({"code": "console_errors", "severity": "medium", "confidence": "VERIFIED", "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.", "evidence": "; ".join(real_js_errors[:3])[:300], "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.", "fix": "Debug the throwing script."})
 
 
+def _check_ab_testing_maturity(findings, tech_stack):
+    """Phase A/B: A/B Testing & Personalization Maturity Audit"""
+    has_ab_tool = any("A/B" in tool or "Personalization" in tool for tool in tech_stack)
+    has_cdp = any("CDP" in tool for tool in tech_stack)
+    has_esp = any("ESP" in tool or "SMS" in tool for tool in tech_stack)
+    
+    if not has_ab_tool and (has_cdp or has_esp):
+        findings["issues"].append({
+            "code": "missing_ab_testing",
+            "severity": "medium",
+            "confidence": "VERIFIED",
+            "description": "Enterprise tech stack detected, but no A/B Testing or Personalization platform found.",
+            "evidence": "CDP/ESP integrations present, but no Optimizely, VWO, or Intellimize detected.",
+            "business_impact": "Without A/B testing, CRO decisions are based on opinions rather than statistical evidence.",
+            "fix": "Implement an A/B testing platform (Optimizely, VWO, or Shopify native apps) to validate CRO hypotheses."
+        })
+
 def _fingerprint_tech_stack(seen_urls: list, html_has: str, findings: dict):
     """Phase A: Enterprise Tech Stack Maturity Fingerprinting"""
     stack = set()
