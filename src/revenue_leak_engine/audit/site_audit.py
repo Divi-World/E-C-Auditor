@@ -1115,6 +1115,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             try:
                 _fingerprint_tech_stack(seen_urls, html_has, findings)
                 findings["checks_completed"]["tech_stack"] = True
+                _check_ab_testing_maturity(page, findings, findings.get("tech_stack", []))
             except Exception as _e:
                 findings["notes"] += f"tech_stack_failed: {_e}. "
 
@@ -1860,7 +1861,7 @@ def _check_console_errors(findings, console_errors):
         findings["issues"].append({"code": "console_errors", "severity": "medium", "confidence": "VERIFIED", "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.", "evidence": "; ".join(real_js_errors[:3])[:300], "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.", "fix": "Debug the throwing script."})
 
 
-def _check_ab_testing_maturity(findings, tech_stack):
+def _check_ab_testing_maturity(page, findings, tech_stack):
     """Phase A/B: A/B Testing & Personalization Maturity Audit"""
     has_ab_tool = any("A/B" in tool or "Personalization" in tool for tool in tech_stack)
     has_cdp = any("CDP" in tool for tool in tech_stack)
