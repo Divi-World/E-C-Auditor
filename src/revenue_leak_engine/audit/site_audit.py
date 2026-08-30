@@ -1176,6 +1176,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
 
                 navigated = page.url != url_before
                 drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], [class*='mini-cart' i], [class*='cart-modal' i], cart-drawer, [id*='slide-cart' i], [class*='slide-cart' i], [class*='drawer' i][class*='cart' i]")
+                drawer_loaded = True
                 if not drawer:
                     drawer_loaded = True
                     try:
