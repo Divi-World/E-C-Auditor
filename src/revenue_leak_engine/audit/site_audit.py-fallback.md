@@ -288,10 +288,12 @@ def find_a_product_url(page, domain: str) -> str | None:
 def _audit_homepage_and_collection(page, domain: str, findings: dict):
     try:
         page.goto(f"https://{domain}", timeout=TIMEOUT_NAVIGATION, wait_until="domcontentloaded")
+        footer_loaded = True
         try:
             page.wait_for_selector("footer", timeout=6000, state="attached")
         except Exception:
-            pass
+            footer_loaded = False
+            findings["notes"] += "trust_signals_inconclusive_footer_timeout. "
         time.sleep(0.8)
         hp_data = page.evaluate("""
             () => {
@@ -304,7 +306,7 @@ def _audit_homepage_and_collection(page, domain: str, findings: dict):
                 return { has_free_shipping, has_returns, has_payment_trust };
             }
         """)
-        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
+        if footer_loaded and not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
             try:
                 page.wait_for_function(
                     "document.body && document.body.innerText.length > 500",
@@ -981,8 +983,11 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                 skip_interactive = True
                 findings["issues"].append({"code": "unclosable_overlay", "description": "A viewport-blocking overlay could not be automatically dismissed.", "evidence": "Overlay persisted after dismissal attempts and DOM nuke.", "severity": "high", "confidence": "VERIFIED", "business_impact": "Viewport-blocking overlays without accessible dismissals cause immediate user abandonment.", "fix": "Ensure marketing popups have a visible, accessible close button."})
 
+            network_idle_loaded = True
             try: page.wait_for_load_state("networkidle", timeout=TIMEOUT_PROBE)
-            except Exception: pass
+            except Exception:
+                network_idle_loaded = False
+                findings["notes"] += "network_idle_wait_timeout. "
             page.wait_for_timeout(1000)
 
             shot_path = SCREENSHOTS_DIR / f"{safe_name}.png"
@@ -994,6 +999,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                 pass
 
             # ENTERPRISE PROTOCOL: WHITE-SCREEN PREVENTION (React/Hydrogen/Next.js Hydration Wait)
+            white_screen_loaded = True
             try:
                 page.wait_for_function("""() => {
                     const body = document.body;
@@ -1001,6 +1007,8 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                     return body && body.scrollHeight > 200 && main && main.offsetHeight > 50;
                 }""", timeout=8000)
             except Exception:
+                white_screen_loaded = False
+                findings["notes"] += "white_screen_hydration_wait_timeout. "
                 page.wait_for_timeout(3000) # Hard fallback for heavy WAF/JS sites
 
             # Force lazy-loaded above-the-fold images to render
@@ -1107,6 +1115,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             try:
                 _fingerprint_tech_stack(seen_urls, html_has, findings)
                 findings["checks_completed"]["tech_stack"] = True
+                _check_ab_testing_maturity(page, findings, findings.get("tech_stack", []))
             except Exception as _e:
                 findings["notes"] += f"tech_stack_failed: {_e}. "
 
@@ -1167,15 +1176,19 @@ def audit_site(domain: str, profile: dict = None) -> dict:
 
                 navigated = page.url != url_before
                 drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], [class*='mini-cart' i], [class*='cart-modal' i], cart-drawer, [id*='slide-cart' i], [class*='slide-cart' i], [class*='drawer' i][class*='cart' i]")
+                drawer_loaded = True
                 if not drawer:
+                    drawer_loaded = True
                     try:
                         page.wait_for_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]", state="attached", timeout=3000)
                         drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]")
-                    except Exception: pass
+                    except Exception:
+                        drawer_loaded = False
+                        findings["notes"] += "cart_drawer_wait_timeout_inconclusive. "
 
                 page.remove_listener("response", _intercept_cart_api)
                 
-                if navigated or not (drawer and drawer.is_visible()):
+                if drawer_loaded and (navigated or not (drawer and drawer.is_visible())):
                     if cart_api_success:
                         findings["notes"] += "cart_api_success_but_no_drawer. "
                     else:
@@ -1848,6 +1861,23 @@ def _check_console_errors(findings, console_errors):
         real_js_errors = sorted(list(set(real_js_errors))) # DETERMINISTIC SORT
         findings["issues"].append({"code": "console_errors", "severity": "medium", "confidence": "VERIFIED", "description": f"{len(real_js_errors)} critical JavaScript execution error(s) fired during page load.", "evidence": "; ".join(real_js_errors[:3])[:300], "business_impact": "Critical JS errors break interactive elements, tracking tags, and checkout flows.", "fix": "Debug the throwing script."})
 
+
+def _check_ab_testing_maturity(page, findings, tech_stack):
+    """Phase A/B: A/B Testing & Personalization Maturity Audit"""
+    has_ab_tool = any("A/B" in tool or "Personalization" in tool for tool in tech_stack)
+    has_cdp = any("CDP" in tool for tool in tech_stack)
+    has_esp = any("ESP" in tool or "SMS" in tool for tool in tech_stack)
+    
+    if not has_ab_tool and (has_cdp or has_esp):
+        findings["issues"].append({
+            "code": "missing_ab_testing",
+            "severity": "medium",
+            "confidence": "VERIFIED",
+            "description": "Enterprise tech stack detected, but no A/B Testing or Personalization platform found.",
+            "evidence": "CDP/ESP integrations present, but no Optimizely, VWO, or Intellimize detected.",
+            "business_impact": "Without A/B testing, CRO decisions are based on opinions rather than statistical evidence.",
+            "fix": "Implement an A/B testing platform (Optimizely, VWO, or Shopify native apps) to validate CRO hypotheses."
+        })
 
 def _fingerprint_tech_stack(seen_urls: list, html_has: str, findings: dict):
     """Phase A: Enterprise Tech Stack Maturity Fingerprinting"""
