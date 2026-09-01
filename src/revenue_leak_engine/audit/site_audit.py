@@ -1039,7 +1039,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             
             # Anti-Blank Fallback
             import os
-            if os.path.exists(str(shot_path)) and os.path.getsize(str(shot_path)) < 10000:
+            if os.path.exists(str(shot_path)) and os.path.getsize(str(shot_path)) < 15000:
                 time.sleep(1.0)
                 page.screenshot(path=str(shot_path), full_page=False)
             _ctx = f"{profile_name.capitalize()} Viewport: Clean page load. Primary CTA verified."
@@ -1251,6 +1251,19 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                             findings["notes"] += "navigated_to_cart_via_ghost_hunter. "
                     except Exception: pass
 
+                # ENTERPRISE UPGRADE: Headless Portal Network Fallback
+
+
+                if not cart_loaded and cart_api_success:
+
+
+                    cart_loaded = True
+
+
+                    findings["notes"] += "headless_portal_verified_via_network. "
+
+
+
                 if cart_loaded:
                     time.sleep(0.8)
                     findings["checks_completed"]["funnel_cart"] = True
@@ -1454,6 +1467,37 @@ def _check_checkout_behavior(page, domain, findings):
                 resp = page.goto(co_url, timeout=TIMEOUT_CHECKOUT, wait_until="domcontentloaded")
                 if resp and resp.status < 400: checkout_loaded = True; break
             except Exception: continue
+        
+        # ENTERPRISE UPGRADE: Ghost Checkout Hunter (Checkout Behavior)
+
+        
+        if not checkout_loaded:
+
+        
+            try:
+
+        
+                btn = page.query_selector("a[href*='/checkout'], button:has-text('Checkout'), button:has-text('Proceed'), [data-testid*='checkout' i], input[value*='checkout' i]")
+
+        
+                if btn and btn.is_visible():
+
+        
+                    btn.click()
+
+        
+                    page.wait_for_load_state("domcontentloaded", timeout=5000)
+
+        
+                    checkout_loaded = True
+
+        
+                    findings["notes"] += "checkout_behavior_navigated_via_ghost_hunter. "
+
+        
+            except Exception: pass
+
+
         
         if checkout_loaded:
             time.sleep(0.8)
