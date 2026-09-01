@@ -1240,6 +1240,17 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                             findings["notes"] += "navigated_to_checkout_via_drawer_button. "
                     except Exception: pass
 
+                # ENTERPRISE UPGRADE: Ghost Checkout Hunter (Catches custom headless portals)
+                if not cart_loaded:
+                    try:
+                        checkout_link = page.query_selector("a[href*='/checkout'], a[href*='/cart'], a[href*='/bag'], a[href*='/basket'], button:has-text('Checkout'), button:has-text('Cart'), button:has-text('Bag'), [data-testid*='checkout' i]")
+                        if checkout_link and checkout_link.is_visible():
+                            checkout_link.click()
+                            page.wait_for_load_state("domcontentloaded", timeout=5000)
+                            cart_loaded = True
+                            findings["notes"] += "navigated_to_cart_via_ghost_hunter. "
+                    except Exception: pass
+
                 if cart_loaded:
                     time.sleep(0.8)
                     findings["checks_completed"]["funnel_cart"] = True
