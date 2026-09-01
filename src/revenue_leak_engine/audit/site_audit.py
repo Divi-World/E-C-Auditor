@@ -282,6 +282,22 @@ def find_a_product_url(page, domain: str) -> str | None:
         if heuristic_url: return heuristic_url
     except Exception:
         pass
+
+    # ENTERPRISE SITEMAP FALLBACK (Catches sites with non-standard product paths or WAF blocks)
+    try:
+        from curl_cffi import requests as cffi_requests
+        for sm_url in [f"https://{domain}/sitemap.xml", f"https://{domain}/sitemap_index.xml", f"https://{domain}/sitemap_products.xml"]:
+            try:
+                r = cffi_requests.get(sm_url, timeout=5, impersonate="chrome120", proxies=_get_proxies())
+                if r.status_code == 200:
+                    match = re.search(r'<loc>(https?://[^<]+/(?:products?|p|item|dp|shop)/[^<]+)</loc>', r.text, re.I)
+                    if match:
+                        url = match.group(1).split('?')[0]
+                        if not any(bl in url.lower() for bl in ['cart', 'checkout', 'account', 'search', 'policy']):
+                            return url
+            except Exception: continue
+    except Exception: pass
+
     return None
 
 
@@ -402,7 +418,7 @@ def _check_advanced_ux_seo(page, findings):
                 const hasVariants = document.querySelector('[class*="variant" i], [class*="swatch" i], select[name*="variant"], [data-option]') !== null;
                 const hasShippingInfo = /free shipping|shipping cost|delivery|ships in|estimated delivery/.test(buyBoxText);
                 const hasReturnsInfo = /return|refund|guarantee|exchange|money back/.test(buyBoxText);
-                const imgs = document.querySelectorAll('img');
+                const imgs = document.querySelectorAll('img[src], img[data-src], img[srcset], picture source');
                 const hasVideo = document.querySelector('video, iframe[src*="youtube"], iframe[src*="vimeo"], [class*="video"]') !== null;
                 const hasSizing = /size guide|sizing|fit guide|dimensions|measurements/.test(bodyText);
                 const hasFAQ = /faq|frequently asked|questions/.test(bodyText);
@@ -1023,7 +1039,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             
             # Anti-Blank Fallback
             import os
-            if os.path.exists(str(shot_path)) and os.path.getsize(str(shot_path)) < 4000:
+            if os.path.exists(str(shot_path)) and os.path.getsize(str(shot_path)) < 10000:
                 time.sleep(1.0)
                 page.screenshot(path=str(shot_path), full_page=False)
             _ctx = f"{profile_name.capitalize()} Viewport: Clean page load. Primary CTA verified."
@@ -1212,6 +1228,18 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                         if resp and (resp.status < 400 or resp.status in [301, 302]): cart_loaded = True; break
                     except Exception:
                         if any(x in page.url.lower() for x in ["cart", "checkout", "bag", "basket"]): cart_loaded = True; break
+                
+                # ENTERPRISE UPGRADE: Human-Like Drawer Checkout Click
+                if not cart_loaded and cart_api_success:
+                    try:
+                        checkout_btn = page.query_selector("[data-testid='checkout-button'], button:has-text('Checkout'), a:has-text('Checkout'), [class*='checkout' i] button, [class*='cart' i] a[href*='checkout'], a[href*='/checkout']")
+                        if checkout_btn and checkout_btn.is_visible():
+                            checkout_btn.click()
+                            page.wait_for_load_state("domcontentloaded", timeout=5000)
+                            cart_loaded = True
+                            findings["notes"] += "navigated_to_checkout_via_drawer_button. "
+                    except Exception: pass
+
                 if cart_loaded:
                     time.sleep(0.8)
                     findings["checks_completed"]["funnel_cart"] = True

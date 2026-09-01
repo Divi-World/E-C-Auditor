@@ -254,7 +254,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
             {% for check, status in checks_completed.items() %}<span style="color: {% if status %}#22c55e{% else %}#ef4444{% endif %};">{{ "✓" if status else "✗" }} {{ check }}</span> &nbsp;{% endfor %}
         </div>
         <strong>Enterprise Revenue Leak Engine</strong><br>
-        This audit was conducted using headless browser telemetry to simulate real-user mobile conditions. 
+        This audit was conducted using headless browser telemetry to simulate real-user {{ profile_name }} conditions. 
         Data reflects verified DOM states, network performance, and Core Web Vitals. 
         Implement the prioritized directives to capture leaked revenue and optimize conversion velocity.
     </div>
