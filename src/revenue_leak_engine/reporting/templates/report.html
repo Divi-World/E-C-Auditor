@@ -96,13 +96,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     <div class="screenshot-grid">
         {% if screenshot_b64 %}
         <div class="screenshot-card">
-            <img src="data:image/png;base64,{{ screenshot_b64 }}" alt="Product Page Screenshot">
+            {% if screenshot_b64 %}<img src="data:image/png;base64,{{ screenshot_b64 }}" alt="Product Page Screenshot">{% else %}<div style="padding:15px; background:#fff3cd; border-left:4px solid #ffc107; color:#856404; border-radius:4px; margin:10px 0;"><strong>⚠️ Visual Evidence Suppressed:</strong> Headless rendering blocked by WAF/Captcha or hydration delay. Telemetry derived from network/DOM analysis.</div>{% endif %}
             <div class="screenshot-label">{{ screenshot_label or (profile_name ~ ' Viewport: Telemetry captured.') }}</div>
         </div>
         {% endif %}
         {% if popup_b64 %}
         <div class="screenshot-card">
-            <img src="data:image/png;base64,{{ popup_b64 }}" alt="Popup Screenshot">
+            {% if popup_b64 %}<img src="data:image/png;base64,{{ popup_b64 }}" alt="Popup Screenshot">{% endif %}
             <div class="screenshot-label">{{ screenshot_label or (profile_name ~ ' Viewport: Overlay detected.') }}</div>
         </div>
         {% endif %}
