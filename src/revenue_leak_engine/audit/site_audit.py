@@ -1322,7 +1322,12 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                     if not cart_express:
                         findings["issues"].append({"code": "cart_no_express_checkout", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks express checkout (Apple Pay/Shop Pay/PayPal).", "evidence": "No express wallet buttons detected on /cart or /checkout page.", "business_impact": "Shoppers forced to type full card details on cart abandon at 2.5x the rate.", "fix": get_express_fix(findings.get("platform", "custom"))})
                     cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
-                    if not any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $']):
+                    shipping_found = any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $'])
+                    if not shipping_found:
+                        time.sleep(1.0)
+                        cart_text = page.evaluate("() => document.body ? document.body.innerText.toLowerCase().slice(0, 5000) : ''")
+                        shipping_found = any(sig in cart_text for sig in ['free shipping', 'shipping cost', 'estimated delivery', 'ships in', 'spend $'])
+                    if not shipping_found:
                         findings["issues"].append({"code": "cart_no_shipping_estimator", "severity": "medium", "confidence": "VERIFIED", "description": "Cart page lacks shipping cost estimator or free-shipping threshold.", "evidence": "No shipping/delivery language found on cart page.", "business_impact": "Baymard: 48% of abandonments are due to surprise shipping costs at checkout.", "fix": "Add a dynamic 'Spend $X more for Free Shipping' progress bar and shipping estimator on the cart page."})
             except Exception as _e: findings["notes"] += f"funnel_cart_probe_failed: {_e}. "
 
