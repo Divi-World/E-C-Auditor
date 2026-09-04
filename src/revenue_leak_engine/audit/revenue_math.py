@@ -30,12 +30,15 @@ def calculate_revenue_risk(findings: dict) -> dict:
         "cart_no_shipping_estimator": 0.02
     }
     
-    total_penalty = min(sum(penalties.get(i.get("code"), 0) for i in findings.get("issues", [])), 0.25)
+    raw_penalty = sum(penalties.get(i.get("code"), 0) for i in findings.get("issues", []))
+    total_penalty = min(raw_penalty, 0.25)
+    penalty_capped = raw_penalty > 0.25
     monthly_leak = int(base_monthly_sessions * 0.03 * total_penalty * avg_order_value)  # 3% E-commerce Conversion Rate
     
     return {
         "estimated_monthly_leak_usd": monthly_leak,
         "estimated_annual_leak_usd": monthly_leak * 12,
         "base_sessions": base_monthly_sessions,
-        "total_penalty_pct": total_penalty
+        "total_penalty_pct": total_penalty,
+        "penalty_capped": penalty_capped
     }

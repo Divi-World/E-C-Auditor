@@ -418,7 +418,15 @@ def _check_advanced_ux_seo(page, findings):
                 const hasVariants = document.querySelector('[class*="variant" i], [class*="swatch" i], select[name*="variant"], [data-option]') !== null;
                 const hasShippingInfo = /free shipping|shipping cost|delivery|ships in|estimated delivery/.test(buyBoxText);
                 const hasReturnsInfo = /return|refund|guarantee|exchange|money back/.test(buyBoxText);
-                const domImgs = document.querySelectorAll('img[src], img[data-src], img[srcset], picture source'); const bgImgs = document.querySelectorAll('[style*="background-image"]'); const imgs = [...domImgs, ...bgImgs];
+                const allImgs = document.querySelectorAll('img, picture source, [style*="background-image"]');
+                let imgsCount = 0;
+                allImgs.forEach(el => {
+                    const src = (el.src || el.getAttribute('data-src') || el.getAttribute('srcset') || el.style.backgroundImage || '').toLowerCase();
+                    if (!src.includes('pixel') && !src.includes('analytics') && !src.includes('1x1') && !src.includes('beacon') && !src.includes('facebook.com/tr')) {
+                        imgsCount++;
+                    }
+                });
+                const imgs = { length: imgsCount };
                 const hasVideo = document.querySelector('video, iframe[src*="youtube"], iframe[src*="vimeo"], [class*="video"]') !== null;
                 const hasSizing = /size guide|sizing|fit guide|dimensions|measurements/.test(bodyText);
                 const hasFAQ = /faq|frequently asked|questions/.test(bodyText);
@@ -1012,7 +1020,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             try:
                 page.wait_for_selector("[class*='price'], [data-price], button[name='add'], [data-add-to-cart], [class*='product']", state="visible", timeout=6000)
             except Exception:
-                pass
+                findings["notes"] += "buy_box_hydration_wait_timeout. "
 
             # ENTERPRISE PROTOCOL: WHITE-SCREEN PREVENTION (React/Hydrogen/Next.js Hydration Wait)
             white_screen_loaded = True
@@ -1699,7 +1707,7 @@ def _check_add_to_cart(page, findings, viewport_h: int, seen_urls: list = None, 
     if not atc_data.get("found"):
         try:
             page.wait_for_selector("form, [data-action], [aria-label*='add' i], [class*='add' i], [class*='bag' i]", timeout=1500)
-        except: pass
+        except: findings["notes"] += "ultimate_atc_hydration_wait_timeout. "
         
         try:
             page.evaluate('''() => {
