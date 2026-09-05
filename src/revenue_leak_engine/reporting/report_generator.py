@@ -303,6 +303,10 @@ def generate_report(findings: dict) -> str:
         evidence_summary = "⚠️ STATIC ANALYSIS ONLY: Enterprise WAF blocked interactive browser telemetry. CRO score is capped. Findings are limited to structural HTML analysis (Meta, Schema, basic DOM). Add-to-Cart and Checkout flows could not be physically verified."
     else:
         evidence_summary = f"Health score derived from {high_count} Critical, {med_count} Medium, and {low_count} Low friction points verified via headless telemetry."
+        
+        # ENTERPRISE WAF DISCLOSURE
+        if "waf_detected_preflight" in findings.get("notes", ""):
+            evidence_summary += " <strong style='color:#f59e0b;'>⚠️ WAF Interference:</strong> Intermittent bot-protection was encountered and bypassed. Minor telemetry variance may occur due to external defense mechanisms."
 
     # 5. SCREENSHOTS
     popup_ann = findings.get("popup_annotation")
