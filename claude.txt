@@ -1,66 +1,790 @@
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ hark.com')
-# 1. Pinpoint the EXACT issue-code difference between a stable run and an unstable one
-    codes = set(i2['code'] for i2 in r.get('issues', []))
-    diff = baseline_codes.symmetric_difference(codes)
-    print(f'Run {i+1}: hash={r[\"findings_hash\"]}, diff_from_baseline={diff if diff else \"NONE\"}')
-    if diff:
-        print(f'   -> notes((.venv) )
-USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ =srexport PYTHONPATH=src && python -c "
-> r.gfrom revenue_leak_engine.audit.site_audit import audit_site
-> baseline = audit_site('gymshark.com')
-> baseline_codes = set(i['code'] for i in baseline.get('issues', []))
-> print('Baseline hash:', baseline['findings_hash'], '| codes:', sorted(baseline_codes))
-> print()
-> for i in range(5):
->     r = audit_site('gymshark.com')
->     codes = set(i2['code'] for i2 in r.get('issues', []))
->     diff = baseline_codes.symmetric_difference(codes)
->     print(f'Run {i+1}: hash={r[\"findings_hash\"]}, diff_from_baseline={diff if diff else \"NONE\"}')
->     if diff:
->         print(f'   -> notes for this run: {r.get(\"notes\", \"\")}')
-> "
-Baseline hash: 1fca48148c991f1e | codes: ['add_to_cart_below_fold', 'cart_no_express_checkout', 'cart_no_shipping_estimator', 'missing_ab_testing', 'missing_breadcrumbs', 'missing_delivery_urgency', 'missing_global_trust_signals', 'missing_sticky_atc', 'no_trust_signals', 'poor_lcp', 'poor_title_tag', 'slow_ttfb_server_health', 'small_touch_target', 'tiktok_pixel_missing']
+$ # 1. Confirm whether this exact string exists ANYWHERE in the entire project, not just one file
+from revenue_leak_engine.audit import site_audit
+print('Actual file being executed:', site_audit.__file__)
+import inspect
+print('Line count in loaded module:', len(inspect.getsource(site_audit).splitlines()))
+"
 
-Run 1: hash=029d84073f7cccfa, diff_from_baseline={'cart_no_shipping_estimator', 'collection_grid_missing_prices'}
-   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], close:button:has-text("X"). network_idle_wait_timeout. cart_drawer_wait_timeout_inconclusive. funnel_cart_probe_failed: Page.evaluate: Execution context was destroyed, most likely because of a navigation.
-Run 2: hash=badc24de2a82318e, diff_from_baseline={'poor_lcp', 'missing_global_trust_signals'}
-   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], close:button:has-text("X"). network_idle_wait_timeout. cart_drawer_wait_timeout_inconclusive.
-Run 3: hash=9bf24a6ca7f74d71, diff_from_baseline=NONE
-Run 4: hash=2baeb4dc5f99258a, diff_from_baseline={'cart_no_express_checkout', 'poor_lcp', 'cart_no_shipping_estimator'}
-   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], close:button:has-text("X"). network_idle_wait_timeout. cart_drawer_wait_timeout_inconclusive. funnel_cart_probe_failed: Page.evaluate: Execution context was destroyed, most likely because of a navigation.
-Run 5: hash=32ea36accfb47cdd, diff_from_baseline={'cart_no_express_checkout', 'poor_lcp', 'atc_detection_inconclusive', 'add_to_cart_below_fold', 'missing_image_alt', 'small_touch_target', 'headless_checkout_flow', 'missing_global_trust_signals'}
-   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. pdp_navigation_timeout_checking_dom. pdp_navigation_dom_hydrated_post_timeout. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], backdrop_click. network_idle_wait_timeout. buy_box_hydration_wait_timeout. white_screen_hydration_wait_timeout. screenshot_suppressed_blank_or_unhydrated. ultimate_atc_hydration_wait_timeout. ghost_click_coordinate_strike_executed. cart_api_detected_but_atc_not_found.
+# 4. Check for any exec()/compile() calls anywhere in the codebase - runtime code injection
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ tual line count matches what was dumped (mismatch = dump was incomplete or wrong file)
+grep -rn "pdp_navigation_timeout_checking_dom" --include="*.py" .
+wc -l src/revenue_leak_engine/audit/site_audit.py
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ # 2. Directly check: does the notes field contain a hydration/timeout string on the SAME run where the issue count differs?
+$ # 2. Check for stale compiled bytecode that could be running instead of the current .py file
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ find . -name "__pycache__" -exec ls -la {} \;
+total 172
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121  2486 Sep  5 12:06 __init__.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  2372 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16775 Sep  5 12:06 _eventloop.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 16662 Sep  5 11:06 _eventloop.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1758 Sep  5 12:06 _resources.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  1644 Sep  5 11:06 _resources.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 18388 Sep  5 12:06 _sockets.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 18275 Sep  5 11:06 _sockets.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9894 Sep  5 12:06 _streams.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  9780 Sep  5 11:06 _streams.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3366 Sep  5 12:06 _subprocesses.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  3252 Sep  5 11:06 _subprocesses.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9053 Sep  5 12:06 _tasks.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  8940 Sep  5 11:06 _tasks.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3264 Sep  5 12:06 _testing.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  3151 Sep  5 11:06 _testing.cpython-312.pyc
+total 102
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121   199 Sep  5 12:06 __init__.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121   199 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 15168 Sep  5 12:06 memory.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 15054 Sep  5 11:06 memory.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7774 Sep  5 12:06 stapled.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  7660 Sep  5 11:06 stapled.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 20493 Sep  5 12:06 tls.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 20379 Sep  5 11:06 tls.cpython-312.pyc
+total 233
+drwxr-xr-x 1 USER 197121      0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121      0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121    201 Sep  5 12:06 __init__.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 148684 Sep  5 12:06 _asyncio.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  78225 Sep  5 12:06 _trio.cpython-312-pytest-9.1.1.pyc
+total 514
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121   197 Sep  5 12:06 __init__.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121   197 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 12185 Sep  5 12:06 _contextmanagers.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  9007 Sep  5 11:06 _contextmanagers.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8485 Sep  5 12:06 _eventloop.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  8372 Sep  5 11:06 _eventloop.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8390 Sep  5 12:06 _exceptions.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  8277 Sep  5 11:06 _exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 49604 Sep  5 12:06 _fileio.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 49491 Sep  5 11:06 _fileio.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1053 Sep  5 12:06 _resources.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121   939 Sep  5 11:06 _resources.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1507 Sep  5 12:06 _signals.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  1393 Sep  5 11:06 _signals.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 41186 Sep  5 12:06 _sockets.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 41073 Sep  5 11:06 _sockets.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2459 Sep  5 12:06 _streams.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  2346 Sep  5 11:06 _streams.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9591 Sep  5 12:06 _subprocesses.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  9477 Sep  5 11:06 _subprocesses.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 33424 Sep  5 12:06 _synchronization.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 33311 Sep  5 11:06 _synchronization.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 18103 Sep  5 12:06 _tasks.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 17990 Sep  5 11:06 _tasks.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 28162 Sep  5 12:06 _tempfile.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 28049 Sep  5 11:06 _tempfile.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3913 Sep  5 12:06 _testing.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  3799 Sep  5 11:06 _testing.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3956 Sep  5 12:06 _typedattr.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  3842 Sep  5 11:06 _typedattr.cpython-312.pyc
+total 132
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121  4893 Sep  5 12:06 __init__.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  4779 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 27180 Sep  5 12:06 from_thread.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 25953 Sep  5 11:06 from_thread.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9211 Sep  5 12:06 lowlevel.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  9097 Sep  5 11:06 lowlevel.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 18257 Sep  5 12:06 pytest_plugin.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  3379 Sep  5 12:06 to_thread.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  3265 Sep  5 11:06 to_thread.cpython-312.pyc
+total 96
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121 27469 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 23796 Sep  5 10:35 _html5lib.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16355 Sep  5 10:35 _htmlparser.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 18636 Sep  5 10:35 _lxml.cpython-312.pyc
+total 300
+drwxr-xr-x 1 USER 197121      0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121      0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  40086 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   3757 Sep  5 10:35 _deprecation.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   3920 Sep  5 10:35 _typing.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   5610 Sep  5 10:35 _warnings.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  14474 Sep  5 10:35 css.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  50103 Sep  5 10:35 dammit.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 119858 Sep  5 10:35 element.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   1773 Sep  5 10:35 exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  28675 Sep  5 10:35 filter.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  10541 Sep  5 10:35 formatter.cpython-312.pyc
+total 9
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  320 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 2067 Sep  5 10:35 core.cpython-312.pyc
+total 133
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  1778 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 21852 Sep  5 10:35 api.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 55122 Sep  5 10:35 constant.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2977 Sep  5 10:35 legacy.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 17738 Sep  5 10:35 models.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 15191 Sep  5 10:35 utils.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   388 Sep  5 10:35 version.cpython-312.pyc
+total 57
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121   494 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3947 Sep  5 12:06 ansi.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16414 Sep  5 12:06 ansitowin32.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3552 Sep  5 12:06 initialise.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8137 Sep  5 12:06 win32.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9090 Sep  5 12:06 winterm.cpython-312.pyc
+total 337
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  7499 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 21013 Sep  5 10:35 cache.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 18803 Sep  5 10:35 cookies.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   424 Sep  5 10:35 errors.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10368 Sep  5 10:35 exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 15767 Sep  5 10:35 headers.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10202 Sep  5 10:35 impersonate.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16647 Sep  5 10:35 models.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 74495 Sep  5 10:35 session.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 11723 Sep  5 10:35 streams.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 46568 Sep  5 10:35 utils.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 80399 Sep  5 10:35 websockets.cpython-312.pyc
+total 124
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  2510 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   902 Sep  5 10:35 __version__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 15260 Sep  5 10:35 aio.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 20511 Sep  5 10:35 const.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 39929 Sep  5 10:35 curl.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 21529 Sep  5 10:35 fingerprints.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   901 Sep  5 10:35 utils.cpython-312.pyc
+total 52
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  1697 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 19703 Sep  5 10:35 main.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9991 Sep  5 10:35 parser.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5033 Sep  5 10:35 variables.cpython-312.pyc
+total 16
+drwxr-xr-x 1 USER 197121   0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121   0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121 873 Sep  5 10:35 __init__.cpython-312.pyc
+total 113
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121  1080 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1786 Sep  5 11:06 _abnf.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 23136 Sep  5 11:06 _connection.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13226 Sep  5 11:06 _events.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7988 Sep  5 11:06 _headers.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9653 Sep  5 11:06 _readers.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4704 Sep  5 11:06 _receivebuffer.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8468 Sep  5 11:06 _state.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4724 Sep  5 11:06 _util.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   218 Sep  5 11:06 _version.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6290 Sep  5 11:06 _writers.cpython-312.pyc
+total 144
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121  1628 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 11721 Sep  5 11:06 connection.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 19603 Sep  5 11:06 connection_pool.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 20114 Sep  5 11:06 http11.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 31180 Sep  5 11:06 http2.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 17975 Sep  5 11:06 http_proxy.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5759 Sep  5 11:06 interfaces.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16849 Sep  5 11:06 socks_proxy.cpython-312.pyc
+total 65
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121   204 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8548 Sep  5 11:06 anyio.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2696 Sep  5 11:06 auto.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4898 Sep  5 11:06 base.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7162 Sep  5 11:06 mock.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 11369 Sep  5 11:06 sync.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8887 Sep  5 11:06 trio.cpython-312.pyc
+total 136
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121  1582 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10378 Sep  5 11:06 connection.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 18680 Sep  5 11:06 connection_pool.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 17701 Sep  5 11:06 http11.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 27312 Sep  5 11:06 http2.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 17178 Sep  5 11:06 http_proxy.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5306 Sep  5 11:06 interfaces.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 15627 Sep  5 11:06 socks_proxy.cpython-312.pyc
+total 76
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:06 ..
+-rw-r--r-- 1 USER 197121  3171 Sep  5 11:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3757 Sep  5 11:06 _api.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3190 Sep  5 11:06 _exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 23137 Sep  5 11:06 _models.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   615 Sep  5 11:06 _ssl.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 14158 Sep  5 11:06 _synchronization.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5615 Sep  5 11:06 _trace.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1295 Sep  5 11:06 _utils.cpython-312.pyc
+total 53
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121   449 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7592 Sep  5 10:35 asgi.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3879 Sep  5 10:35 base.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 17058 Sep  5 10:35 default.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1947 Sep  5 10:35 mock.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6811 Sep  5 10:35 wsgi.cpython-312.pyc
+total 337
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  2125 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   320 Sep  5 10:35 __version__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10340 Sep  5 10:35 _api.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 15592 Sep  5 10:35 _auth.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 64136 Sep  5 10:35 _client.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10988 Sep  5 10:35 _config.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10400 Sep  5 10:35 _content.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16758 Sep  5 10:35 _decoders.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 12090 Sep  5 10:35 _exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 20595 Sep  5 10:35 _main.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 58255 Sep  5 10:35 _models.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13574 Sep  5 10:35 _multipart.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7195 Sep  5 10:35 _status_codes.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3832 Sep  5 10:35 _types.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 17520 Sep  5 10:35 _urlparse.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 27948 Sep  5 10:35 _urls.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9362 Sep  5 10:35 _utils.cpython-312.pyc
+total 69
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121   888 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 28058 Sep  5 10:35 core.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 22035 Sep  5 10:35 idnadata.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2593 Sep  5 10:35 intranges.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   219 Sep  5 10:35 package_data.cpython-312.pyc
+total 32
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 10864 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5563 Sep  5 12:06 _parse.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1207 Sep  5 12:06 exceptions.cpython-312.pyc
+total 624
+drwxr-xr-x 1 USER 197121      0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121      0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121   1661 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   2142 Sep  5 10:35 _identifier.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   4982 Sep  5 10:35 async_utils.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  19333 Sep  5 10:35 bccache.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 103900 Sep  5 10:35 compiler.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   1614 Sep  5 10:35 defaults.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  76643 Sep  5 10:35 environment.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   7723 Sep  5 10:35 exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  72277 Sep  5 10:35 filters.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  19128 Sep  5 10:35 idtracking.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  32073 Sep  5 10:35 lexer.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  32283 Sep  5 10:35 loaders.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  58227 Sep  5 10:35 nodes.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   2697 Sep  5 10:35 optimizer.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  61188 Sep  5 10:35 parser.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  48892 Sep  5 10:35 runtime.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   9058 Sep  5 10:35 tests.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  34806 Sep  5 10:35 utils.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   5361 Sep  5 10:35 visitor.cpython-312.pyc
+total 28
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121 20996 Sep  5 10:35 __init__.cpython-312.pyc
+total 765
+drwxr-xr-x 1 USER 197121      0 Sep  5 11:09 .
+drwxr-xr-x 1 USER 197121      0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  18034 Sep  5 11:09 BmpImagePlugin.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  11600 Sep  5 10:35 ExifTags.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  45624 Sep  5 11:09 GifImagePlugin.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   5533 Sep  5 11:09 GimpGradientFile.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   2753 Sep  5 11:09 GimpPaletteFile.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 180978 Sep  5 10:35 Image.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  11242 Sep  5 11:09 ImageChops.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  12491 Sep  5 10:35 ImageColor.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  38569 Sep  5 10:35 ImageDraw.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  35914 Sep  5 11:09 ImageFile.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  69268 Sep  5 10:35 ImageFont.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  14390 Sep  5 11:09 ImageMath.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   2586 Sep  5 10:35 ImageMode.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  30422 Sep  5 11:09 ImageOps.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  12377 Sep  5 11:09 ImagePalette.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   3424 Sep  5 11:09 ImageSequence.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  20124 Sep  5 10:35 ImageText.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  33521 Sep  5 11:09 JpegImagePlugin.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   8131 Sep  5 11:09 JpegPresets.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   1936 Sep  5 11:09 PaletteFile.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  63768 Sep  5 11:09 PngImagePlugin.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  14137 Sep  5 11:09 PpmImagePlugin.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  18904 Sep  5 10:35 TiffTags.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   2052 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   3439 Sep  5 10:35 _binary.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   2579 Sep  5 10:35 _deprecate.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   1629 Sep  5 10:35 _typing.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   1583 Sep  5 10:35 _util.cpython-312.pyc
+-rw-r--r-- 1 USER 197121    268 Sep  5 10:35 _version.cpython-312.pyc
+total 1064
+drwxr-xr-x 1 USER 197121       0 Sep  5 11:02 .
+drwxr-xr-x 1 USER 197121       0 Sep  5 11:02 ..
+-rw-r--r-- 1 USER 197121    8641 Sep  5 11:02 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121    2789 Sep  5 11:02 _context_manager.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 1063021 Sep  5 11:02 _generated.cpython-312.pyc
+total 1064
+drwxr-xr-x 1 USER 197121       0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121       0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121    8637 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121    4682 Sep  5 10:35 _context_manager.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 1056918 Sep  5 10:35 _generated.cpython-312.pyc
+total 773
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:02 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121   202 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 11744 Sep  5 10:35 _api_structures.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3761 Sep  5 10:35 _artifact.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 41387 Sep  5 10:35 _assertions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5992 Sep  5 11:02 _async_base.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13953 Sep  5 10:35 _browser.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 43061 Sep  5 10:35 _browser_context.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16532 Sep  5 10:35 _browser_type.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2742 Sep  5 10:35 _cdp_session.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4486 Sep  5 10:35 _clock.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 35787 Sep  5 10:35 _connection.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4126 Sep  5 10:35 _console_message.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2838 Sep  5 10:35 _credentials.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3176 Sep  5 10:35 _debugger.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3187 Sep  5 10:35 _dialog.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5114 Sep  5 10:35 _disposable.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3316 Sep  5 10:35 _download.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1722 Sep  5 10:35 _driver.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 22419 Sep  5 10:35 _element_handle.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2844 Sep  5 10:35 _errors.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1499 Sep  5 10:35 _event_context_manager.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 23748 Sep  5 10:35 _fetch.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2503 Sep  5 10:35 _file_chooser.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1491 Sep  5 10:35 _form_data.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 43826 Sep  5 10:35 _frame.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2086 Sep  5 10:35 _glob.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2236 Sep  5 10:35 _greenlets.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5331 Sep  5 10:35 _har_router.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 26491 Sep  5 10:35 _helper.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7816 Sep  5 10:35 _impl_to_api_mapping.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6485 Sep  5 10:35 _input.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 12889 Sep  5 10:35 _js_handle.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4373 Sep  5 10:35 _json_pipe.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5140 Sep  5 10:35 _local_utils.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 45547 Sep  5 10:35 _locator.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1442 Sep  5 10:35 _map.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 55735 Sep  5 10:35 _network.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4494 Sep  5 10:35 _object_factory.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 83743 Sep  5 10:35 _page.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2675 Sep  5 10:35 _playwright.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9131 Sep  5 10:35 _screencast.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3223 Sep  5 10:35 _selectors.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6792 Sep  5 10:35 _set_input_files_helpers.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3036 Sep  5 10:35 _str_utils.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2748 Sep  5 10:35 _stream.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8435 Sep  5 10:35 _sync_base.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13261 Sep  5 10:35 _tracing.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9346 Sep  5 10:35 _transport.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2836 Sep  5 10:35 _video.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10213 Sep  5 10:35 _waiter.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1715 Sep  5 10:35 _web_error.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3167 Sep  5 10:35 _web_storage.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1915 Sep  5 10:35 _writable_stream.cpython-312.pyc
+total 9
+drwxr-xr-x 1 USER 197121   0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121   0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121 429 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 668 Sep  5 10:35 _repo_version.cpython-312.pyc
+total 53
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:02 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:02 ..
+-rw-r--r-- 1 USER 197121   307 Sep  5 11:02 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4578 Sep  5 11:02 case_insensitive_dict.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3329 Sep  5 11:02 context_managers.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 30134 Sep  5 11:02 stealth.cpython-312.pyc
+total 96
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121   868 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7023 Sep  5 12:06 _callers.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 27425 Sep  5 12:06 _hooks.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 25587 Sep  5 12:06 _manager.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4155 Sep  5 12:06 _result.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4027 Sep  5 12:06 _tracing.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   653 Sep  5 12:06 _version.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1306 Sep  5 12:06 _warnings.cpython-312.pyc
+total 32
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121   942 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7284 Sep  5 10:35 asyncio.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 12000 Sep  5 10:35 base.cpython-312.pyc
+total 40
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 37871 Sep  5 12:06 __init__.cpython-312.pyc
+total 32
+drwxr-xr-x 1 USER 197121    0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 6872 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 4218 Sep  5 12:06 _mapping.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 5777 Sep  5 12:06 terminal.cpython-312.pyc
+total 204
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 14579 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 67238 Sep  5 12:06 _mapping.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5695 Sep  5 12:06 diff.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 43275 Sep  5 12:06 python.cpython-312.pyc
+total 20
+drwxr-xr-x 1 USER 197121    0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 2634 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 3651 Sep  5 12:06 _mapping.cpython-312.pyc
+total 148
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121  3470 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2634 Sep  5 12:06 console.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3227 Sep  5 12:06 filter.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4702 Sep  5 12:06 formatter.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 38742 Sep  5 12:06 lexer.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1565 Sep  5 12:06 modeline.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2692 Sep  5 12:06 plugin.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4453 Sep  5 12:06 regexopt.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8195 Sep  5 12:06 token.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 32978 Sep  5 12:06 unistring.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 14080 Sep  5 12:06 util.cpython-312.pyc
+total 9
+drwxr-xr-x 1 USER 197121    0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 4551 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  431 Sep  5 12:06 __main__.cpython-312.pyc
+total 48
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121   847 Sep  5 12:06 __init__.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  1458 Sep  5 12:06 _util.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 32728 Sep  5 12:06 plugin.cpython-312-pytest-9.1.1.pyc
+total 276
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  5784 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   587 Sep  5 10:35 __version__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2131 Sep  5 10:35 _internal_utils.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7269 Sep  5 10:35 _types.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 29625 Sep  5 10:35 adapters.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8049 Sep  5 10:35 api.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 15789 Sep  5 10:35 auth.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   669 Sep  5 10:35 certs.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2497 Sep  5 10:35 compat.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 28368 Sep  5 10:35 cookies.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7955 Sep  5 10:35 exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1588 Sep  5 10:35 hooks.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 41913 Sep  5 10:35 models.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1121 Sep  5 10:35 packages.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 31911 Sep  5 10:35 sessions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6143 Sep  5 10:35 status_codes.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  7288 Sep  5 10:35 structures.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 40032 Sep  5 10:35 utils.cpython-312.pyc
+total 176
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  6120 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8115 Sep  5 10:35 __meta__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 63115 Sep  5 10:35 css_match.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 51384 Sep  5 10:35 css_parser.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16820 Sep  5 10:35 css_types.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5549 Sep  5 10:35 pretty.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4720 Sep  5 10:35 util.cpython-312.pyc
+total 13
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  201 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 8179 Sep  5 10:35 socks.cpython-312.pyc
+total 8
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121 1754 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 3665 Sep  5 10:35 probe.cpython-312.pyc
+total 140
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  1014 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4695 Sep  5 10:35 connection.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1226 Sep  5 10:35 proxy.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8350 Sep  5 10:35 request.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2885 Sep  5 10:35 response.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 21189 Sep  5 10:35 retry.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 15667 Sep  5 10:35 ssl_.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5403 Sep  5 10:35 ssl_match_hostname.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13314 Sep  5 10:35 ssltransport.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 11698 Sep  5 10:35 timeout.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16229 Sep  5 10:35 url.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2003 Sep  5 10:35 util.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3449 Sep  5 10:35 wait.cpython-312.pyc
+total 264
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  7318 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6880 Sep  5 10:35 _base_connection.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 22739 Sep  5 10:35 _collections.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10610 Sep  5 10:35 _request_methods.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   647 Sep  5 10:35 _version.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 38900 Sep  5 10:35 connection.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 40102 Sep  5 10:35 connectionpool.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16612 Sep  5 10:35 exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 12001 Sep  5 10:35 fields.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3487 Sep  5 10:35 filepost.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 24389 Sep  5 10:35 poolmanager.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 57686 Sep  5 10:35 response.cpython-312.pyc
+total 140
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 11316 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5468 Sep  5 12:06 _compare_any.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2718 Sep  5 12:06 _compare_mapping.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3282 Sep  5 12:06 _compare_sequence.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3281 Sep  5 12:06 _compare_set.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3096 Sep  5 12:06 _guards.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   820 Sep  5 12:06 _typing.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4794 Sep  5 12:06 compare_text.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   641 Sep  5 12:06 highlight.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 61022 Sep  5 12:06 rewrite.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4718 Sep  5 12:06 truncate.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  8395 Sep  5 12:06 util.cpython-312.pyc
+total 144
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 94131 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 23397 Sep  5 12:06 argparsing.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   825 Sep  5 12:06 exceptions.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13292 Sep  5 12:06 findpaths.cpython-312.pyc
+total 72
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121 13076 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 17385 Sep  5 12:06 expression.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 28413 Sep  5 12:06 structures.cpython-312.pyc
+total 92
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121   698 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 70151 Sep  5 12:06 code.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 12061 Sep  5 12:06 source.cpython-312.pyc
+total 57
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121   389 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 24294 Sep  5 12:06 pprint.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6943 Sep  5 12:06 saferepr.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 11251 Sep  5 12:06 terminalwriter.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1695 Sep  5 12:06 wcwidth.cpython-312.pyc
+total 81
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121   197 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4965 Sep  5 12:06 error.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 68745 Sep  5 12:06 path.cpython-312.pyc
+total 1233
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121   492 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4837 Sep  5 12:06 _argcomplete.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   647 Sep  5 12:06 _version.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 31641 Sep  5 12:06 cacheprovider.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 55880 Sep  5 12:06 capture.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13514 Sep  5 12:06 compat.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 18110 Sep  5 12:06 debugging.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4785 Sep  5 12:06 deprecated.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 32637 Sep  5 12:06 doctest.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5091 Sep  5 12:06 faulthandler.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 95620 Sep  5 12:06 fixtures.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1836 Sep  5 12:06 freeze_support.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13123 Sep  5 12:06 helpconfig.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 44660 Sep  5 12:06 hookspec.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 33457 Sep  5 12:06 junitxml.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 24181 Sep  5 12:06 legacypath.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 46500 Sep  5 12:06 logging.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 47514 Sep  5 12:06 main.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 17002 Sep  5 12:06 monkeypatch.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 30471 Sep  5 12:06 nodes.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10956 Sep  5 12:06 outcomes.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6085 Sep  5 12:06 pastebin.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 41380 Sep  5 12:06 pathlib.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 85475 Sep  5 12:06 pytester.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 74250 Sep  5 12:06 python.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 39835 Sep  5 12:06 python_api.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 59988 Sep  5 12:06 raises.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16865 Sep  5 12:06 recwarn.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 26991 Sep  5 12:06 reports.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 24917 Sep  5 12:06 runner.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  3592 Sep  5 12:06 scope.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  5375 Sep  5 12:06 setuponly.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1917 Sep  5 12:06 setupplan.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13992 Sep  5 12:06 skipping.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4380 Sep  5 12:06 stash.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  9629 Sep  5 12:06 stepwise.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 18032 Sep  5 12:06 subtests.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 85312 Sep  5 12:06 terminal.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1266 Sep  5 12:06 terminalprogress.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121  5765 Sep  5 12:06 threadexception.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4796 Sep  5 12:06 timing.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 13874 Sep  5 12:06 tmpdir.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   998 Sep  5 12:06 tracemalloc.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 27294 Sep  5 12:06 unittest.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6904 Sep  5 12:06 unraisableexception.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6713 Sep  5 12:06 warning_types.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  6664 Sep  5 12:06 warnings.cpython-312.pyc
+total 189
+drwxr-xr-x 1 USER 197121      0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121      0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121    504 Sep  5 12:06 py.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 166550 Sep  5 10:35 typing_extensions.cpython-312.pyc
+total 269
+drwxr-xr-x 1 USER 197121      0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121      0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121    191 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   2069 Sep  5 10:35 copy_bank.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  77103 Sep  5 10:35 geo_audit.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  13299 Sep  5 10:35 popup_handler.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   2320 Sep  5 10:35 revenue_math.cpython-312.pyc
+-rw-r--r-- 1 USER 197121   4249 Sep  5 10:35 seo_audit.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 149215 Sep  5 10:35 site_audit.cpython-312.pyc
+-rw-r--r-- 1 USER 197121    866 Sep  5 10:35 viewport_profiles.cpython-312.pyc
+total 13
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  195 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 8620 Sep  5 10:35 meta_ads_search.cpython-312.pyc
+total 29
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:09 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121   194 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  4222 Sep  5 11:09 email_generator.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 10103 Sep  5 10:35 outreach_draft.cpython-312.pyc
+total 5
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121  199 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 3332 Sep  5 10:35 shopify_detect.cpython-312.pyc
+total 41
+drwxr-xr-x 1 USER 197121     0 Sep  5 11:09 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121   195 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1910 Sep  5 10:35 geo_report_generator.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  1661 Sep  5 11:09 pdf_generator.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 23079 Sep  5 10:35 report_generator.cpython-312.pyc
+total 36
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 .
+drwxr-xr-x 1 USER 197121     0 Sep  5 10:35 ..
+-rw-r--r-- 1 USER 197121   848 Sep  5 10:35 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121  2582 Sep  5 10:35 config.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 16991 Sep  5 10:35 pipeline.cpython-312.pyc
+total 69
+drwxr-xr-x 1 USER 197121    0 Sep  5 12:06 .
+drwxr-xr-x 1 USER 197121    0 Sep  5 12:06 ..
+-rw-r--r-- 1 USER 197121  167 Sep  5 12:06 __init__.cpython-312.pyc
+-rw-r--r-- 1 USER 197121 6380 Sep  5 12:06 test_geo_fixtures.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 5148 Sep  5 12:06 test_geo_regression.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 7536 Sep  5 12:06 test_meta_ads_search.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 3002 Sep  5 12:06 test_module_isolation.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 6574 Sep  5 12:06 test_popup_handler.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 8216 Sep  5 12:06 test_report_generator.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 2707 Sep  5 12:06 test_revenue_math.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 3431 Sep  5 12:06 test_shopify_detect.cpython-312-pytest-9.1.1.pyc
+-rw-r--r-- 1 USER 197121 3082 Sep  5 12:06 test_validation.cpython-312-pytest-9.1.1.pyc
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ find . -name "site_audit.cpython*.pyc"
+./src/revenue_leak_engine/audit/__pycache__/site_audit.cpython-312.pyc
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ # 3. Confirm exactly which file Python is actually importing at runtime
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $ export PYTHONPATH=src && python -c "
-> from revenue_leak_engine.audit.site_audit import audit_site
-> for i in range(8):
->     r = audit_site('gymshark.com')
->     timeout_flags = [n for n in ['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout'] if n in r.get('notes', '')]
->     print(f'Run {i+1}: issues={len(r.get(\"issues\", []))}, hash={r[\"findings_hash\"][:8]}, timeout_flags_present={timeout_flags}')
+> from revenue_leak_engine.audit import site_audit
+> print('Actual file being executed:', site_audit.__file__)
+> import inspect
+> print('Line count in loaded module:', len(inspect.getsource(site_audit).splitlines()))
 > "
-Traceback (most recent call last):
-  File "<string>", line 6, in <module>
-KeyError: 'findings_hash'
-Run 1: issues=15, hash=6fbcc5f1, timeout_flags_present=['network_idle_wait_timeout']
+Actual file being executed: C:\Users\USER\Documents\Projects\Revenue-Leak-Engine\src\revenue_leak_engine\audit\site_audit.py
+Line count in loaded module: 2137
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ # 3. If both of the above show a clean correlation (timeout flag present exactly when hash/issue-count differs), this closes the question with certainty.
+$ # 4. Check for any exec()/compile() calls anywhere in the codebase - runtime code injection
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ # If they DON'T correlate, that's real evidence I'm wrong about the cause — and equally important to know.
+$ grep -rn "exec(\|compile(" --include="*.py" src/
+src/revenue_leak_engine/audit/geo_audit.py:820:                    if soup.find("meta", property=re.compile(r"product:price")): has_price = True
+src/revenue_leak_engine/audit/geo_audit.py:821:                    if soup.find("meta", property=re.compile(r"product:availability")): has_avail = True
+src/revenue_leak_engine/audit/geo_audit.py:822:                    if soup.find("meta", property=re.compile(r"product:brand")): has_brand = True
+src/revenue_leak_engine/audit/geo_audit.py:823:                    if soup.find("meta", property=re.compile(r"product:retailer_item_id")) or soup.find("meta", attrs={"name": "sku"}): has_sku = True
+src/revenue_leak_engine/audit/geo_audit.py:824:                    if soup.find("meta", property=re.compile(r"og:title")) or soup.find("title"): has_name = True
+src/revenue_leak_engine/audit/geo_audit.py:825:                    if soup.find("meta", property=re.compile(r"og:image")): has_image = True
+src/revenue_leak_engine/audit/geo_audit.py:833:                    if soup.find("meta", property=re.compile(r"product:price")) or soup.find("meta", attrs={"itemprop": "price"}): has_price = True
+src/revenue_leak_engine/audit/geo_audit.py:834:                    if soup.find("meta", property=re.compile(r"product:availability")) or soup.find("meta", attrs={"itemprop": "availability"}): has_avail = True
+src/revenue_leak_engine/audit/geo_audit.py:835:                    if soup.find("meta", property=re.compile(r"product:brand")) or soup.find("meta", attrs={"itemprop": "brand"}): has_brand = True
+src/revenue_leak_engine/audit/geo_audit.py:836:                    if soup.find("meta", property=re.compile(r"product:retailer_item_id")) or soup.find("meta", attrs={"itemprop": "sku"}): has_sku = True
+src/revenue_leak_engine/audit/geo_audit.py:837:                    if soup.find("meta", property=re.compile(r"og:title")) or soup.find("title"): has_name = True
+src/revenue_leak_engine/audit/geo_audit.py:838:                    if soup.find("meta", property=re.compile(r"og:image")): has_image = True
+src/revenue_leak_engine/audit/popup_handler.py:107:COOKIE_RE = re.compile(r"\b(cookies?|privacy|consent|gdpr|ccpa)\b", re.I)
+src/revenue_leak_engine/audit/popup_handler.py:108:MARKETING_RE = re.compile(r"(%\s*off|unlock|discount|subscribe|sign\s*up|join|"
+src/revenue_leak_engine/audit/popup_handler.py:110:APP_SIG_RE = re.compile(r"(klaviyo|privy|justuno|popup|modal|newsletter)", re.I)
+src/revenue_leak_engine/audit/popup_handler.py:111:AGE_RE = re.compile(r"(are you \d{2}\+?|over \d{2}|age verif|born in)", re.I)
+src/revenue_leak_engine/audit/popup_handler.py:112:REGION_RE = re.compile(r"(choose your (country|region)|select (your )?(country|region)|"
+src/revenue_leak_engine/audit/site_audit.py:234:    product_url_pattern = re.compile(r'/(products?|p|shop|item|dp|catalog|buy)/[a-zA-Z0-9_\-]+/?$', re.I)
+src/revenue_leak_engine/audit/site_audit.py:584:        atc_text = soup.find(string=re.compile(r'add to cart|subscribe|buy now|join|select plan', re.I))
+src/revenue_leak_engine/audit/site_audit.py:1709:            atc_loc = page.locator("button, [role='button']").filter(has_text=re.compile(r"add|cart|bag|buy|shop|subscribe", re.I)).first
+src/revenue_leak_engine/audit/site_audit.py:1866:            atc_locator = page.get_by_role("button", name=re.compile(r"add|cart|bag|buy|shop", re.I))
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ # 5. Search for this string as a possible dynamic f-string construction (partial match, not exact)
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ grep -rn "pdp_navigation\|hydrated_post_timeout" --include="*.py" .
+./src/revenue_leak_engine/audit/site_audit.py:149:                    findings["notes"] += f"{phase_name}_dom_hydrated_post_timeout. "
+./src/revenue_leak_engine/audit/site_audit.py:866:            if not _goto_resilient(page, product_url, findings, "pdp_navigation"):
+./src/revenue_leak_engine/audit/site_audit.py:867:                findings["notes"] += "pdp_navigation_failed_attempting_http_fallback. "
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ # 6. Confirm the file's actual line count matches what was dumped (mismatch = dump was incomplete or wrong file)
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ wc -l src/revenue_leak_engine/audit/site_audit.py
+2137 src/revenue_leak_engine/audit/site_audit.py
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $
