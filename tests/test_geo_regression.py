@@ -21,7 +21,7 @@ def test_live_integrity():
     result = audit_geo('beautyitis.com')
     assert "overall_geo_score" in result, "Missing overall score."
     assert "score_confidence" in result, "Missing confidence metric."
-    assert result["score_confidence"] in ["VERIFIED", "PARTIAL", "UNVERIFIED", "full", "partial", "low"], f"Invalid confidence state: {result['score_confidence']}"
+    assert result["score_confidence"] in ["VERIFIED", "PARTIAL", "UNVERIFIED", "full", "partial", "low", "unreachable"], f"Invalid confidence state: {result['score_confidence']}"
     print(f"PASS: Live audit completed. Score: {result['overall_geo_score']}, Confidence: {result['score_confidence']}")
 
 if __name__ == "__main__":

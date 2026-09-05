@@ -251,7 +251,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
             <strong style="color: #fff;">Audit Provenance</strong><br>
             Run ID: {{ run_id }} &nbsp;|&nbsp; Engine: {{ engine_version }} &nbsp;|&nbsp; Viewport: {{ viewport }}<br>
             Checks Completed: {{ checks_passed }}/{{ checks_total }} &nbsp;|&nbsp; Findings Hash: <code>{{ findings_hash }}</code><br>
-            {% for check, status in checks_completed.items() %}<span style="color: {% if status %}#22c55e{% else %}#ef4444{% endif %};">{{ "✓" if status else "✗" }} {{ check }}</span> &nbsp;{% endfor %}
+            {% for check, status in checks_completed.items() %}<span style="color: {% if status %}#22c55e{% else %}#ef4444{% endif %};">{% if status == "reachable_only" %}~{% elif status %}✓{% else %}✗{% endif %} {{ check }}</span> &nbsp;{% endfor %}
         </div>
         <strong>Enterprise Revenue Leak Engine</strong><br>
         This audit was conducted using headless browser telemetry to simulate real-user {{ profile_name }} conditions. 

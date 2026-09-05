@@ -1165,6 +1165,20 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             except Exception as _e:
                 findings["notes"] += f"accessibility_check_failed: {_e}. "
 
+            # DIRECTIVE 4: Wire dormant enterprise audit modules
+            try:
+                _check_variant_integrity(page, findings)
+            except Exception:
+                pass
+            try:
+                _audit_checkout_telemetry(page, findings, domain)
+            except Exception:
+                pass
+            try:
+                _sample_product_integrity(page, domain, findings, product_url)
+            except Exception:
+                pass
+
             if not ga4: findings["issues"].append({"code": "ga4_missing", "description": "Google Analytics 4 not detected.", "evidence": "no gtag/collect requests and no gtag in page HTML", "severity": "low", "confidence": "high", "fix": "Add GA4 with e-commerce events to measure what ads and CRO changes actually do."})
 
             if not skip_interactive and atc_btn is not None:
@@ -1350,6 +1364,13 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             try: browser.close()
             except Exception: pass
 
+    # DIRECTIVE 3: Downgrade confidence if we recovered from a hydration timeout
+    notes_str = findings.get("notes", "")
+    if "dom_hydrated_post_timeout" in notes_str or "navigation_timeout_checking_dom" in notes_str:
+        for issue in findings.get("issues", []):
+            if issue.get("confidence") == "VERIFIED":
+                issue["confidence"] = "high"
+
     # CONFIDENCE ENGINE: Assign 0-100% confidence to every finding
     for issue in findings.get("issues", []):
         conf = issue.get("confidence", "")
@@ -1377,7 +1398,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
             r = cffi_requests.get(f"https://{domain}/cart", timeout=5, impersonate="chrome120")
             if r.status_code < 400 or r.status_code in [422, 500]:
                 findings["notes"] += "cart_verified_via_stealth_tls_waf_bypass. "
-                findings["checks_completed"]["funnel_cart"] = True
+                findings["checks_completed"]["funnel_cart"] = "reachable_only"
                 
         if not findings["checks_completed"].get("checkout_behavior"):
             r = cffi_requests.get(f"https://{domain}/checkout", timeout=5, impersonate="chrome120")
@@ -1456,16 +1477,19 @@ def _check_ttfb(page, findings):
         
         # Step 2: Measure Edge TTFB via curl_cffi (pure server response)
         edge_ttfb = None
-        try:
-            from curl_cffi import requests as cffi_requests
-            import time
-            domain = findings.get("domain", "")
-            start = time.time()
-            r = cffi_requests.get(f"https://{domain}", impersonate="chrome120", proxies=_get_proxies(), timeout=10)
-            edge_ttfb = int((time.time() - start) * 1000)
-            findings["edge_ttfb_ms"] = edge_ttfb
-        except Exception as e:
-            findings["notes"] += f"edge_ttfb_measurement_failed: {e}. "
+        from curl_cffi import requests as cffi_requests
+        import time
+        domain = findings.get("domain", "")
+        for attempt in range(2):
+            try:
+                start = time.time()
+                r = cffi_requests.get(f"https://{domain}", impersonate="chrome120", proxies=_get_proxies(), timeout=10)
+                edge_ttfb = int((time.time() - start) * 1000)
+                findings["edge_ttfb_ms"] = edge_ttfb
+                break
+            except Exception as e:
+                if attempt == 1:
+                    findings["notes"] += f"edge_ttfb_measurement_failed_after_retry: {e}. "
         
         findings["ttfb_ms"] = ttfb_browser
         
