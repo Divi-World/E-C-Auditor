@@ -1,139 +1,69 @@
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ grep -n "wait_for_selector" src/revenue_leak_engine/audit/site_audit.py
-292:            page.wait_for_selector("footer", timeout=6000, state="attached")
-992:                page.wait_for_selector("[class*='price'], [data-price], button[name='add'], [data-add-to-cart], [class*='product']", state="visible", timeout=6000)
-1172:                        page.wait_for_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]", state="attached", timeout=3000)
-1573:            page.wait_for_selector("form, [data-action], [aria-label*='add' i], [class*='add' i], [class*='bag' i]", timeout=1500)
+$ {i+1}: hash={r[\"findings_hash\"]}, diff_from_baseline={diff if diff else \"NONE\"}')
+# 1. Pinpoint the EXACT issue-code difference between a stable run and an unstable one
+    if diff:
+        print(f'   -> notes for this run: {r.get(\"notes\", \"\")}')
+"
+
+# 2. Directly check: does the notes field contain a hydration/timeout st((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ r export PYTHONPATH=src && python -c "
+> ={from revenue_leak_engine.audit.site_audit import audit_site
+> y baseline = audit_site('gymshark.com')
+> baseline_codes = set(i['code'] for i in baseline.get('issues', []))
+> print('Baseline hash:', baseline['findings_hash'], '| codes:', sorted(baseline_codes))
+> print()
+> for i in range(5):
+>     r = audit_site('gymshark.com')
+>     codes = set(i2['code'] for i2 in r.get('issues', []))
+>     diff = baseline_codes.symmetric_difference(codes)
+>     print(f'Run {i+1}: hash={r[\"findings_hash\"]}, diff_from_baseline={diff if diff else \"NONE\"}')
+>     if diff:
+>         print(f'   -> notes for this run: {r.get(\"notes\", \"\")}')
+> "
+Baseline hash: 569d0f90b8aa7c31 | codes: ['atc_detection_inconclusive', 'cart_no_shipping_estimator', 'headless_checkout_flow', 'missing_ab_testing', 'missing_breadcrumbs', 'missing_delivery_urgency', 'missing_global_trust_signals', 'missing_sticky_atc', 'no_review_widget', 'no_trust_signals', 'poor_title_tag', 'slow_ttfb_server_health', 'tiktok_pixel_missing']
+
+Run 1: hash=22fbab551a64f71a, diff_from_baseline={'collection_grid_missing_prices'}
+   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], backdrop_click. network_idle_wait_timeout. buy_box_hydration_wait_timeout. white_screen_hydration_wait_timeout. screenshot_suppressed_blank_or_unhydrated. ultimate_atc_hydration_wait_timeout. ghost_click_coordinate_strike_executed. cart_api_detected_but_atc_not_found.
+Run 2: hash=22fbab551a64f71a, diff_from_baseline={'collection_grid_missing_prices'}
+   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], backdrop_click. network_idle_wait_timeout. buy_box_hydration_wait_timeout. white_screen_hydration_wait_timeout. screenshot_suppressed_blank_or_unhydrated. ultimate_atc_hydration_wait_timeout. ghost_click_coordinate_strike_executed. cart_api_detected_but_atc_not_found.
+Run 3: hash=569d0f90b8aa7c31, diff_from_baseline=NONE
+Run 4: hash=e8d2e700374a2690, diff_from_baseline={'slow_ttfb_server_health'}
+   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], backdrop_click. network_idle_wait_timeout. buy_box_hydration_wait_timeout. white_screen_hydration_wait_timeout. screenshot_suppressed_blank_or_unhydrated. ttfb_healthy: edge=1842ms, browser=240ms. ultimate_atc_hydration_wait_timeout. ghost_click_coordinate_strike_executed. cart_api_detected_but_atc_not_found.
+Run 5: hash=569d0f90b8aa7c31, diff_from_baseline=NONE
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ grep -n "wait_for_function" src/revenue_leak_engine/audit/site_audit.py
-309:                page.wait_for_function(
-998:                page.wait_for_function("""() => {
+$
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ grep -n "if not hp_data.get('has_free_shipping')" src/revenue_leak_engine/audit/site_audit.py
-307:        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
-327:        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
-((.venv) )
-USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ grep -A 12 "time.sleep(1.0)" src/revenue_leak_engine/audit/site_audit.py
-            time.sleep(1.0)
-            hp_data = page.evaluate("""
-                () => {
-                    const html = document.body ? document.body.innerText.toLowerCase() : '';
-                    const footer = document.querySelector('footer') ? document.querySelector('footer').innerText.toLowerCase() : html;
-                    const has_free_shipping = html.includes('free shipping') || html.includes('free delivery');
-                    const has_returns = html.includes('return') || html.includes('refund') || html.includes('guarantee');
-                    const payment_icons = document.querySelectorAll('img[alt*="visa" i], img[alt*="mastercard" i], img[alt*="paypal" i], img[alt*="amex" i], [class*="payment-icon"], svg[aria-label*="payment" i]');
-                    const has_payment_trust = payment_icons.length > 0 || footer.includes('secure checkout') || footer.includes('ssl');
-                    return { has_free_shipping, has_returns, has_payment_trust };
-                }
-            """)
-        if not hp_data.get('has_free_shipping') and not hp_data.get('has_returns'):
---
-        time.sleep(1.0) # Wait for challenge iframe to inject
-        for frame in page.frames:
-            frame_url = frame.url.lower()
-            if any(sig in frame_url for sig in ['challenges.cloudflare.com', 'hcaptcha.com', 'recaptcha']):
-                checkbox_selectors = [
-                    'input[type="checkbox"]', '.mark', '#challenge-stage input[type="checkbox"]',
-                    'label.ctp-checkbox-label', '[aria-label*="verify" i]', '[aria-label*="human" i]',
-                    'button:has-text("Verify")', 'button:has-text("I am human")',
-                ]
-                for sel in checkbox_selectors:
-                    try:
-                        el = frame.query_selector(sel)
-                        if el and el.is_visible():
---
-            time.sleep(1.0)
-
-            # Human-like behavior to help bypass WAF behavioral analysis
-            try:
-                import random
-                page.mouse.move(100 + random.randint(-20, 20), 200 + random.randint(-20, 20))
-                page.mouse.wheel(0, 300)
-                page.wait_for_timeout(600)
-                page.mouse.wheel(0, -150)
-            except Exception:
-                pass
-
-            # POST-LOAD WAF VERIFICATION
---
-                time.sleep(1.0)
-                page.screenshot(path=str(shot_path), full_page=False)
-            _ctx = f"{profile_name.capitalize()} Viewport: Clean page load. Primary CTA verified."
-            if "unclosable_overlay" in findings.get("notes", ""): _ctx = f"{profile_name.capitalize()} Viewport: Unclosable overlay detected. Interactive checks skipped."
-            elif "overlay" in findings.get("notes", "").lower() and "dismissed" in findings.get("notes", "").lower(): _ctx = f"{profile_name.capitalize()} Viewport: Overlay dismissed. Buy box verified visible."
-            findings["screenshot_context"] = _ctx
-            findings["screenshot_path"] = str(shot_path)
-
-            cwv = _extract_cwv_and_friction(page)
-            findings["checks_completed"]["cwv"] = True
-            findings["cwv"] = cwv
-            try:
-                _check_ttfb(page, findings)
---
-                    time.sleep(1.0)
-                    break
-        except: pass
-
-        ultimate_atc = None
-        try:
-            ultimate_atc = page.evaluate('''() => {
-                const forms = document.querySelectorAll('form');
-                for(const f of forms) {
-                    const action = (f.getAttribute('action') || '').toLowerCase();
-                    const hasPrice = f.querySelector('[class*="price" i], [data-price]') !== null;
-                    if(action.includes('cart') || action.includes('add') || action.includes('bag') || hasPrice) {
-                        const btn = f.querySelector('button[type="submit"], input[type="submit"], button:not([type]), [role="button"]');
-((.venv) )
-USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$  grep -A 5 "wait_for_selector" src/revenue_leak_engine/audit/site_audit.py
-            page.wait_for_selector("footer", timeout=6000, state="attached")
-        except Exception:
-            pass
-        time.sleep(0.8)
-        hp_data = page.evaluate("""
-            () => {
---
-                page.wait_for_selector("[class*='price'], [data-price], button[name='add'], [data-add-to-cart], [class*='product']", state="visible", timeout=6000)
-            except Exception:
-                pass
-
-            # ENTERPRISE PROTOCOL: WHITE-SCREEN PREVENTION (React/Hydrogen/Next.js Hydration Wait)
-            try:
---
-                        page.wait_for_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]", state="attached", timeout=3000)
-                        drawer = page.query_selector("[id*='cart-drawer' i], [class*='cart-drawer' i], cart-drawer, [class*='drawer' i][class*='cart' i]")
-                    except Exception: pass
-
-                page.remove_listener("response", _intercept_cart_api)
-
---
-            page.wait_for_selector("form, [data-action], [aria-label*='add' i], [class*='add' i], [class*='bag' i]", timeout=1500)
-        except: pass
-
-        try:
-            page.evaluate('''() => {
-                const els = document.querySelectorAll('[class*="swatch" i], [class*="variant" i], [class*="option" i], [role="radio"], [role="option"], select');
+$ # 2. Directly check: does the notes field contain a hydration/timeout string on the SAME run where the issue count differs?
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $ export PYTHONPATH=src && python -c "
 > from revenue_leak_engine.audit.site_audit import audit_site
-> hashes = set()
-> for i in range(5):
+> for i in range(8):
 >     r = audit_site('gymshark.com')
->     hashes.add(r.get('findings_hash'))
->     print(f'Run {i+1}: hash={r[\"findings_hash\"]}')
-> print('IDENTICAL ACROSS ALL RUNS:', len(hashes) == 1)
+>     timeout_flags = [n for n in ['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout'] if n in r.get('notes', '')]
+>     print(f'Run {i+1}: issues={len(r.get(\"issues\", []))}, hash={r[\"findings_hash\"][:8]}, timeout_flags_present={timeout_flags}')
 > "
-Run 1: hash=59c18b30d3820911
-Run 2: hash=1348ff90cc8ea559
-Run 3: hash=216df08fd0dca067
-Run 4: hash=8475cb96455ee264
-Run 5: hash=59c18b30d3820911
-IDENTICAL ACROSS ALL RUNS: False
+Run 1: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+Run 2: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+Run 3: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+Run 4: issues=12, hash=e8d2e700, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+Run 5: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+Run 6: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+Run 7: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+Run 8: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ # 3. If both of the above show a clean correlation (timeout flag present exactly when hash/issue-count differs), this closes the question with certainty.
+((.venv) )
+USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
+$ # If they DON'T correlate, that's real evidence I'm wrong about the cause — and equally important to know.
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $
