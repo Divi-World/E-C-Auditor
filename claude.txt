@@ -1,16 +1,16 @@
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ {i+1}: hash={r[\"findings_hash\"]}, diff_from_baseline={diff if diff else \"NONE\"}')
+$ hark.com')
 # 1. Pinpoint the EXACT issue-code difference between a stable run and an unstable one
+    codes = set(i2['code'] for i2 in r.get('issues', []))
+    diff = baseline_codes.symmetric_difference(codes)
+    print(f'Run {i+1}: hash={r[\"findings_hash\"]}, diff_from_baseline={diff if diff else \"NONE\"}')
     if diff:
-        print(f'   -> notes for this run: {r.get(\"notes\", \"\")}')
-"
-
-# 2. Directly check: does the notes field contain a hydration/timeout st((.venv) )
+        print(f'   -> notes((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
-$ r export PYTHONPATH=src && python -c "
-> ={from revenue_leak_engine.audit.site_audit import audit_site
-> y baseline = audit_site('gymshark.com')
+$ =srexport PYTHONPATH=src && python -c "
+> r.gfrom revenue_leak_engine.audit.site_audit import audit_site
+> baseline = audit_site('gymshark.com')
 > baseline_codes = set(i['code'] for i in baseline.get('issues', []))
 > print('Baseline hash:', baseline['findings_hash'], '| codes:', sorted(baseline_codes))
 > print()
@@ -22,16 +22,17 @@ $ r export PYTHONPATH=src && python -c "
 >     if diff:
 >         print(f'   -> notes for this run: {r.get(\"notes\", \"\")}')
 > "
-Baseline hash: 569d0f90b8aa7c31 | codes: ['atc_detection_inconclusive', 'cart_no_shipping_estimator', 'headless_checkout_flow', 'missing_ab_testing', 'missing_breadcrumbs', 'missing_delivery_urgency', 'missing_global_trust_signals', 'missing_sticky_atc', 'no_review_widget', 'no_trust_signals', 'poor_title_tag', 'slow_ttfb_server_health', 'tiktok_pixel_missing']
+Baseline hash: 1fca48148c991f1e | codes: ['add_to_cart_below_fold', 'cart_no_express_checkout', 'cart_no_shipping_estimator', 'missing_ab_testing', 'missing_breadcrumbs', 'missing_delivery_urgency', 'missing_global_trust_signals', 'missing_sticky_atc', 'no_trust_signals', 'poor_lcp', 'poor_title_tag', 'slow_ttfb_server_health', 'small_touch_target', 'tiktok_pixel_missing']
 
-Run 1: hash=22fbab551a64f71a, diff_from_baseline={'collection_grid_missing_prices'}
-   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], backdrop_click. network_idle_wait_timeout. buy_box_hydration_wait_timeout. white_screen_hydration_wait_timeout. screenshot_suppressed_blank_or_unhydrated. ultimate_atc_hydration_wait_timeout. ghost_click_coordinate_strike_executed. cart_api_detected_but_atc_not_found.
-Run 2: hash=22fbab551a64f71a, diff_from_baseline={'collection_grid_missing_prices'}
-   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], backdrop_click. network_idle_wait_timeout. buy_box_hydration_wait_timeout. white_screen_hydration_wait_timeout. screenshot_suppressed_blank_or_unhydrated. ultimate_atc_hydration_wait_timeout. ghost_click_coordinate_strike_executed. cart_api_detected_but_atc_not_found.
-Run 3: hash=569d0f90b8aa7c31, diff_from_baseline=NONE
-Run 4: hash=e8d2e700374a2690, diff_from_baseline={'slow_ttfb_server_health'}
-   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], backdrop_click. network_idle_wait_timeout. buy_box_hydration_wait_timeout. white_screen_hydration_wait_timeout. screenshot_suppressed_blank_or_unhydrated. ttfb_healthy: edge=1842ms, browser=240ms. ultimate_atc_hydration_wait_timeout. ghost_click_coordinate_strike_executed. cart_api_detected_but_atc_not_found.
-Run 5: hash=569d0f90b8aa7c31, diff_from_baseline=NONE
+Run 1: hash=029d84073f7cccfa, diff_from_baseline={'cart_no_shipping_estimator', 'collection_grid_missing_prices'}
+   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], close:button:has-text("X"). network_idle_wait_timeout. cart_drawer_wait_timeout_inconclusive. funnel_cart_probe_failed: Page.evaluate: Execution context was destroyed, most likely because of a navigation.
+Run 2: hash=badc24de2a82318e, diff_from_baseline={'poor_lcp', 'missing_global_trust_signals'}
+   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], close:button:has-text("X"). network_idle_wait_timeout. cart_drawer_wait_timeout_inconclusive.
+Run 3: hash=9bf24a6ca7f74d71, diff_from_baseline=NONE
+Run 4: hash=2baeb4dc5f99258a, diff_from_baseline={'cart_no_express_checkout', 'poor_lcp', 'cart_no_shipping_estimator'}
+   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], close:button:has-text("X"). network_idle_wait_timeout. cart_drawer_wait_timeout_inconclusive. funnel_cart_probe_failed: Page.evaluate: Execution context was destroyed, most likely because of a navigation.
+Run 5: hash=32ea36accfb47cdd, diff_from_baseline={'cart_no_express_checkout', 'poor_lcp', 'atc_detection_inconclusive', 'add_to_cart_below_fold', 'missing_image_alt', 'small_touch_target', 'headless_checkout_flow', 'missing_global_trust_signals'}
+   -> notes for this run: waf_detected_preflight_will_attempt_interactive_solve. pdp_navigation_timeout_checking_dom. pdp_navigation_dom_hydrated_post_timeout. Overlay on load (generic_overlay) dismissed; not counted as a leak. Overlay dismissed via: close:button[class*="close" i], backdrop_click. network_idle_wait_timeout. buy_box_hydration_wait_timeout. white_screen_hydration_wait_timeout. screenshot_suppressed_blank_or_unhydrated. ultimate_atc_hydration_wait_timeout. ghost_click_coordinate_strike_executed. cart_api_detected_but_atc_not_found.
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $
@@ -47,14 +48,10 @@ $ export PYTHONPATH=src && python -c "
 >     timeout_flags = [n for n in ['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout'] if n in r.get('notes', '')]
 >     print(f'Run {i+1}: issues={len(r.get(\"issues\", []))}, hash={r[\"findings_hash\"][:8]}, timeout_flags_present={timeout_flags}')
 > "
-Run 1: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
-Run 2: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
-Run 3: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
-Run 4: issues=12, hash=e8d2e700, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
-Run 5: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
-Run 6: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
-Run 7: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
-Run 8: issues=13, hash=569d0f90, timeout_flags_present=['buy_box_hydration_wait_timeout', 'white_screen_hydration_wait_timeout', 'network_idle_wait_timeout', 'ultimate_atc_hydration_wait_timeout']
+Traceback (most recent call last):
+  File "<string>", line 6, in <module>
+KeyError: 'findings_hash'
+Run 1: issues=15, hash=6fbcc5f1, timeout_flags_present=['network_idle_wait_timeout']
 ((.venv) )
 USER@DESKTOP-HT764P6 MINGW64 ~/Documents/Projects/Revenue-Leak-Engine (master)
 $

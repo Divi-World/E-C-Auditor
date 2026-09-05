@@ -438,7 +438,7 @@ def _check_advanced_ux_seo(page, findings):
                     if (txt.includes('"@type"') && txt.includes('product')) hasProductSchema = true;
                     if (txt.includes('aggregaterating') || txt.includes('review')) hasReviewSchema = true;
                 });
-                return { hasVariants, hasShippingInfo, hasReturnsInfo, imgCount: finalImgCount, img_hidden_flag: img_hidden_flag, hasVideo, hasSizing, hasFAQ, hasIngredients, hasProductSchema, hasReviewSchema };
+                return { hasVariants, hasShippingInfo, hasReturnsInfo, imgCount: imgsCount, img_hidden_flag: (imgsCount === 0 && (ogImg || schemaImgCount > 0)), hasVideo, hasSizing, hasFAQ, hasIngredients, hasProductSchema, hasReviewSchema };
             }
         """)
     except Exception: return
