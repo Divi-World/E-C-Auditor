@@ -1,0 +1,3 @@
+python -c "from revenue_leak_engine.audit.site_audit import audit_site; import json; print(json.dumps(audit_site('gymshark.com'), indent=2))"
+
+rm -rf data/reports/*.html && export PYTHONPATH=src && python -m revenue_leak_engine.pipeline --niche beauty --limit 8 --seed-csv test_seeds.csv

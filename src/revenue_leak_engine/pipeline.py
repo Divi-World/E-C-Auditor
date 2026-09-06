@@ -134,6 +134,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         lead_result["platform_detected"] = geo_findings.get("platform_detected", "unknown")
 
         # Process CRO findings if any
+        lead_result["estimated_monthly_leak_usd"] = cro_findings.get("estimated_monthly_leak_usd", 0)
         lead_result["cro_status"] = "complete" if cro_ok else ("error" if cro_findings.get("error") else "healthy")
         if cro_ok:
             cro_findings["niche"] = niche
@@ -283,7 +284,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
     fieldnames = [
         "lead_status", "opportunity_score", "total_score", "cro_score", "geo_score", "primary_leak", "fix_effort", "cro_status", "domain", "page_name",
         "platform_detected", "matched_keyword", "cro_report_path", "geo_report_path"
-    , "outreach_draft"]
+    , "estimated_monthly_leak_usd", "outreach_draft"]
     with open(ranked_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
