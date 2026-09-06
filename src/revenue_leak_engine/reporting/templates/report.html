@@ -247,6 +247,14 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     {% endif %}
 
     <div class="footer">
+        <!-- ENTERPRISE EXECUTIVE SUMMARY -->
+        <div style="margin: 20px 0; padding: 24px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; border-left: 5px solid #10b981;">
+            <h2 style="color: #10b981; margin-top: 0; font-size: 1.6rem; letter-spacing: -0.02em;">💰 Estimated Revenue Recovery: <span style="color: #fff;">${{ estimated_monthly_leak_usd | default('0') }}/mo</span></h2>
+            <p style="color: #cbd5e1; margin-bottom: 0; font-size: 1.05rem; line-height: 1.6;">
+                Our <strong>Synthetic User Journey Telemetry</strong> identified <strong>{{ (high_issues|length) + (med_issues|length) + (low_issues|length) }}</strong> critical friction points 
+                impacting conversion velocity. Implementing the directives below is projected to recover lost market share and improve customer lifetime value.
+            </p>
+        </div>
         <div style="margin-top: 16px; padding: 12px 16px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 11px; color: var(--text-muted); line-height: 1.8; text-align: left;">
             <strong style="color: #fff;">Audit Provenance</strong><br>
             Run ID: {{ run_id }} &nbsp;|&nbsp; Engine: {{ engine_version }} &nbsp;|&nbsp; Viewport: {{ viewport }}<br>
