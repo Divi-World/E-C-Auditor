@@ -1278,7 +1278,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                             findings["notes"] += "navigated_to_checkout_via_drawer_button. "
                     except Exception: pass
 
-                # ENTERPRISE UPGRADE: Ghost Checkout Hunter (Catches custom headless portals)
+                # ENTERPRISE UPGRADE: Ghost Checkout Hunter (Catches custom-built checkout portals)
                 if not cart_loaded:
                     try:
                         checkout_link = page.query_selector("a[href*='/checkout'], a[href*='/cart'], a[href*='/bag'], a[href*='/basket'], button:has-text('Checkout'), button:has-text('Cart'), button:has-text('Bag'), [data-testid*='checkout' i]")
@@ -1298,7 +1298,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                     cart_loaded = True
 
 
-                    findings["notes"] += "headless_portal_verified_via_network. "
+                    findings["notes"] += "automated_portal_verified_via_network. "
 
 
 
@@ -1407,7 +1407,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
                 findings["checks_completed"]["checkout_behavior"] = True
     except Exception: pass
 
-    if "headless_portal_verified_via_network" in findings.get("notes", ""):
+    if "automated_portal_verified_via_network" in findings.get("notes", ""):
         findings["checks_completed"]["funnel_cart"] = True
         findings["checks_completed"]["checkout_behavior"] = True
 
@@ -1431,7 +1431,7 @@ def audit_site(domain: str, profile: dict = None) -> dict:
     findings.update(calculate_revenue_risk(findings))
 
     # === ENTERPRISE NUCLEAR DEDUP (CONTRADICTION ERADICATOR) ===
-    cart_codes = ["atc_detection_inconclusive", "headless_checkout_flow", "cart_no_express_checkout", "cart_no_shipping_estimator"]
+    cart_codes = ["atc_detection_inconclusive", "automated_checkout_flow", "cart_no_express_checkout", "cart_no_shipping_estimator"]
     has_cart_truth = any(i.get("code") in cart_codes or "Cart API activity" in str(i.get("description", "")) for i in findings.get("issues", []))
     cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u or '/api/cart' in u) for u in seen_urls)
     if has_cart_truth or cart_network:
@@ -1820,13 +1820,13 @@ def _check_add_to_cart(page, findings, viewport_h: int, seen_urls: list = None, 
                     atc_data["found"] = True
             except Exception: pass
 
-        # NETWORK TRUTH: If cart API fired, the button exists in a headless portal.
+        # NETWORK TRUTH: If cart API fired, the button exists in a custom-built checkout portal.
         _seen = seen_urls or []
         cart_network = any(('/cart' in u or '/checkout' in u or '/add-to-cart' in u or '/basket' in u or '/add' in u) for u in _seen)
         if not cart_network:
             findings["issues"].append({"code": "no_add_to_cart_found", "description": "No Add to Cart button detected on the product page.", "evidence": "Deep DOM, Shadow Root, and Ultimate Hunter returned no match.", "severity": "high", "confidence": "high", "fix": "Ensure a visible, clearly labelled Add to Cart button exists on the mobile PDP."})
         else:
-            findings["issues"].append({"code": "headless_checkout_flow", "description": "Add-to-Cart handled via custom headless portal (Network verified).", "evidence": "DOM search returned no standard match, but network interceptor confirmed cart API activity.", "severity": "medium", "confidence": "VERIFIED", "business_impact": "Silent headless cart adds lack visual feedback, causing users to double-click and generate duplicate cart lines or abandon out of confusion.", "fix": "Implement a visual toast notification or slide-out drawer to confirm the item was added to the cart."})
+            findings["issues"].append({"code": "automated_checkout_flow", "description": "Add-to-Cart handled via custom-built checkout portal (Network verified).", "evidence": "DOM search returned no standard match, but network interceptor confirmed cart API activity.", "severity": "medium", "confidence": "VERIFIED", "business_impact": "Silent automated cart adds lack visual feedback, causing users to double-click and generate duplicate cart lines or abandon out of confusion.", "fix": "Implement a visual toast notification or slide-out drawer to confirm the item was added to the cart."})
         return None
 
     if not atc_data.get("visible"):
@@ -1952,7 +1952,7 @@ def _check_atc_visual_fallback(page, findings):
                 "confidence": "PARTIAL",
                 "description": "Cart API activity detected but Add-to-Cart button could not be located.",
                 "evidence": "Network requests to cart endpoints observed, but no clickable ATC element found in DOM or visual analysis.",
-                "business_impact": "This may indicate a custom implementation (headless commerce, app-based checkout) rather than a missing button.",
+                "business_impact": "This may indicate a custom implementation (automated commerce, app-based checkout) rather than a missing button.",
                 "fix": "Manual verification recommended. Check if checkout is handled via a custom flow or third-party service."
             })
             return None

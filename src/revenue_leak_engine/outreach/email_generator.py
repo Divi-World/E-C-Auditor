@@ -14,7 +14,7 @@ def generate_outreach_email(findings: dict) -> str:
     if leak_monthly >= 10000:
         subject = f"checkout friction on {domain} (~${leak_monthly:,}/mo leak)"
     elif leak_monthly > 0:
-        subject = f"telemetry data on {domain} checkout"
+        subject = f"conversion friction on {domain} checkout"
     else:
         subject = f"mobile conversion bottlenecks on {domain}"
         
@@ -27,15 +27,33 @@ def generate_outreach_email(findings: dict) -> str:
     lines.append("")
     
     if leak_monthly > 0:
-        lines.append(f"Our telemetry engine was crawling {platform} checkout flows today and flagged a structural friction point on {domain} that is likely costing you ~${leak_monthly:,}/mo in abandoned carts.")
+        lines.append(f"Our automated conversion analysis evaluated {platform} shopping experience today and identified a critical friction point on {domain} that is likely costing you ~${leak_monthly:,}/mo in abandoned carts.")
     else:
-        lines.append(f"Our telemetry engine was crawling {platform} checkout flows today and flagged a few structural bottlenecks on {domain} that are killing mobile conversions.")
+        lines.append(f"Our automated conversion analysis evaluated {platform} checkout flows today and flagged a few structural bottlenecks on {domain} that are killing mobile conversions.")
     lines.append("")
     
     if highlights:
-        lines.append("Specifically, our headless browser verified:")
+        lines.append("Specifically, our analysis identified the following revenue leaks:")
         for idx, issue in enumerate(highlights, 1):
             desc = issue.get("description", "").strip()
+            
+            # EXECUTIVE TRANSLATION LAYER (Technical -> Business Impact)
+            code = issue.get("code", "")
+            if "TTFB" in desc or code == "slow_ttfb_server_health":
+                desc = "Your hosting server is healthy, but heavy website code is delaying page loads for actual customers by over 1.5 seconds."
+            elif "Largest Contentful Paint" in desc or code == "poor_lcp":
+                desc = "Your main visual elements take too long to load on mobile (industry standard is under 2.5s), causing impatient shoppers to bounce."
+            elif code == "unclosable_overlay":
+                desc = "An aggressive marketing popup is blocking the screen and cannot be easily closed by mobile users, trapping them."
+            elif "Canonical tag" in desc:
+                desc = "Core SEO tags are misconfigured, which can split your search engine rankings and reduce organic traffic."
+            elif code == "small_touch_target":
+                desc = "The 'Add to Cart' button is too small for mobile users to tap accurately, leading to mis-clicks and frustration."
+            elif "custom-built checkout portal" in desc or "custom JavaScript" in desc or "Network verified" in desc:
+                desc = "Your checkout process relies on a custom-built portal rather than a native cart drawer, introducing hidden friction points."
+            
+            desc = desc.replace("telemetry", "analysis").replace("headless", "automated")
+            
             if len(desc) > 140:
                 desc = desc[:137] + "..."
             lines.append(f"{idx}. {desc}")
@@ -46,7 +64,7 @@ def generate_outreach_email(findings: dict) -> str:
         lines.append(f"I also noticed you are paying for enterprise data tools like {stack_str}, but lack an A/B testing layer (like VWO or Optimizely) to statistically validate your CRO changes.")
         lines.append("")
         
-    lines.append("I put together a 2-minute technical teardown showing exactly where the leak is happening, including the exact file paths and code snippets your dev team needs to patch it.")
+    lines.append("I put together a brief executive teardown showing exactly where the leak is happening, including the exact file paths and code snippets your dev team needs to patch it.")
     lines.append("")
     lines.append("Mind if I send the teardown over?")
     lines.append("")
