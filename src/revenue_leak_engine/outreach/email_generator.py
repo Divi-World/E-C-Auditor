@@ -28,6 +28,7 @@ def generate_outreach_email(findings: dict) -> str:
     
     if leak_monthly > 0:
         lines.append(f"Our automated conversion analysis evaluated {platform} shopping experience today and identified a critical friction point on {domain} that is likely costing you ~${leak_monthly:,}/mo in abandoned carts.")
+        lines.append(f"(Estimate based on your traffic tier and severity-weighted findings, benchmarked against Baymard Institute cart-abandonment research.)")
     else:
         lines.append(f"Our automated conversion analysis evaluated {platform} checkout flows today and flagged a few structural bottlenecks on {domain} that are killing mobile conversions.")
     lines.append("")
@@ -37,26 +38,12 @@ def generate_outreach_email(findings: dict) -> str:
         for idx, issue in enumerate(highlights, 1):
             desc = issue.get("description", "").strip()
             
-            # EXECUTIVE TRANSLATION LAYER (Technical -> Business Impact)
-            code = issue.get("code", "")
-            if "TTFB" in desc or code == "slow_ttfb_server_health":
-                desc = "Your hosting server is healthy, but heavy website code is delaying page loads for actual customers by over 1.5 seconds."
-            elif "Largest Contentful Paint" in desc or code == "poor_lcp":
-                desc = "Your main visual elements take too long to load on mobile (industry standard is under 2.5s), causing impatient shoppers to bounce."
-            elif code == "unclosable_overlay":
-                desc = "An aggressive marketing popup is blocking the screen and cannot be easily closed by mobile users, trapping them."
-            elif "Canonical tag" in desc:
-                desc = "Core SEO tags are misconfigured, which can split your search engine rankings and reduce organic traffic."
-            elif code == "small_touch_target":
-                desc = "The 'Add to Cart' button is too small for mobile users to tap accurately, leading to mis-clicks and frustration."
-            elif "custom-built checkout portal" in desc or "custom JavaScript" in desc or "Network verified" in desc:
-                desc = "Your checkout process relies on a custom-built portal rather than a native cart drawer, introducing hidden friction points."
-            
-            desc = desc.replace("telemetry", "analysis").replace("headless", "automated")
-            
-            if len(desc) > 140:
-                desc = desc[:137] + "..."
-            lines.append(f"{idx}. {desc}")
+            # Prefer the fields that already carry Baymard/evidence-backed language
+            evidence_text = issue.get("business_impact") or issue.get("interpretation") or issue.get("description", "").strip()
+            evidence_text = evidence_text.replace("telemetry", "analysis").replace("headless", "automated")
+            if len(evidence_text) > 160:
+                evidence_text = evidence_text[:157] + "..."
+            lines.append(f"{idx}. {evidence_text}")
         lines.append("")
         
     if has_ab_gap and tech_stack:

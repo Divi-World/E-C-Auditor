@@ -113,15 +113,15 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
     <div class="vitals-grid">
         <div class="vital-card">
             <div class="vital-label">Load Time (Mobile)</div>
-            <div class="vital-value {% if load_time != 'N/A' and load_time > 3500 %}bad{% elif load_time != 'N/A' and load_time > 2500 %}warn{% else %}good{% endif %}">{% if load_time != 'N/A' %}{{ load_time }}ms{% else %}N/A{% endif %}</div>
+            <div class="vital-value {% if load_time is number and load_time > 3500 %}bad{% elif load_time is number and load_time > 2500 %}warn{% else %}good{% endif %}">{% if load_time != 'N/A' %}{{ load_time }}ms{% else %}N/A{% endif %}</div>
         </div>
         <div class="vital-card">
             <div class="vital-label">LCP (Largest Contentful Paint)</div>
-            <div class="vital-value {% if lcp > 2500 %}bad{% elif lcp >= 0 %}good{% else %}warn{% endif %}">{% if lcp is number and lcp >= 0 %}{{ lcp }}ms{% else %}N/A{% endif %}</div>
+            <div class="vital-value {% if lcp is number and lcp > 2500 %}bad{% elif lcp is number and lcp >= 0 %}good{% else %}warn{% endif %}">{% if lcp is number and lcp >= 0 %}{{ lcp }}ms{% else %}N/A{% endif %}</div>
         </div>
         <div class="vital-card">
             <div class="vital-label">CLS (Cumulative Layout Shift)</div>
-            <div class="vital-value {% if cls > 0.1 %}bad{% elif cls >= 0 %}good{% else %}warn{% endif %}">{% if cls is number and cls >= 0 %}{{ cls }}{% else %}N/A{% endif %}</div>
+            <div class="vital-value {% if lcp is number and lcp > 2500 %}bad{% elif lcp is number and lcp >= 0 %}good{% else %}warn{% endif %}">{% if cls is number and cls >= 0 %}{{ cls }}{% else %}N/A{% endif %}</div>
         </div>
         <div class="vital-card">
             <div class="vital-label">TTFB (Server Health)</div>
