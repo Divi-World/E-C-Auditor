@@ -7,7 +7,21 @@ def generate_outreach_email(findings: dict) -> str:
     
     high_impact = [i for i in issues if i.get("severity") == "high"]
     med_impact = [i for i in issues if i.get("severity") == "medium"]
-    highlights = (high_impact[:2] + med_impact[:2])[:2]
+    # CITATION-PRIORITY HIGHLIGHTING
+    def _priority_score(issue):
+        score = 0
+        sev = issue.get("severity", "low")
+        if sev == "high": score += 10
+        elif sev == "medium": score += 5
+        else: score += 1
+        biz = issue.get("business_impact", "")
+        interp = issue.get("interpretation", "")
+        if "Baymard" in biz or "Baymard" in interp or bool(interp):
+            score += 20  # Citation bonus
+        return score
+
+    sorted_issues = sorted(issues, key=_priority_score, reverse=True)
+    highlights = sorted_issues[:2]
     
     has_ab_gap = any(i.get("code") == "missing_ab_testing" for i in issues)
     
