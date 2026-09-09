@@ -39,7 +39,18 @@ def generate_outreach_email(findings: dict) -> str:
             desc = issue.get("description", "").strip()
             
             # Prefer the fields that already carry Baymard/evidence-backed language
-            evidence_text = issue.get("business_impact") or issue.get("interpretation") or issue.get("description", "").strip()
+            generic_placeholder = "Directly impacts conversion velocity or shopper trust."
+            biz_impact = issue.get("business_impact", "")
+            interp = issue.get("interpretation", "")
+            desc = issue.get("description", "").strip()
+            
+            if biz_impact and biz_impact != generic_placeholder:
+                evidence_text = biz_impact
+            elif interp and interp != generic_placeholder:
+                evidence_text = interp
+            else:
+                evidence_text = desc
+                
             evidence_text = evidence_text.replace("telemetry", "analysis").replace("headless", "automated")
             if len(evidence_text) > 160:
                 evidence_text = evidence_text[:157] + "..."
