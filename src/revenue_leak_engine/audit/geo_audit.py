@@ -965,11 +965,27 @@ def _check_agentic_commerce(domain, findings):
                 score += 2.0  # Awarded ONLY after successful handshake
                 capabilities["MCP"] = "PASS"
                 data = json.loads(r.text)
-                tools = {t.get("name", "").lower() for t in data.get("result", {}).get("tools", [])}
-                if any("search" in t or "catalog" in t or "product" in t for t in tools):
+                raw_tools = data.get("result", {}).get("tools", [])
+                tool_names = {t.get("name", "").lower() for t in raw_tools}
+                
+                # AGENTIC SCHEMA VALIDATION (Patch 3)
+                valid_schema_tools = sum(1 for t in raw_tools if isinstance(t.get("inputSchema"), dict))
+                if len(raw_tools) > 0 and valid_schema_tools == 0:
+                    findings["issues"].append({
+                        "code": "mcp_missing_input_schema",
+                        "description": "MCP tools are exposed but lack valid inputSchema definitions.",
+                        "evidence": f"Found {len(raw_tools)} tools, but 0 have a valid JSON Schema for parameters.",
+                        "affected_urls": [mcp_endpoint],
+                        "severity": "medium", "confidence": "VERIFIED",
+                        "business_impact": "AI agents cannot determine required parameters for these tools, causing transaction failures.",
+                        "difficulty": "Medium",
+                        "fix": "Ensure every MCP tool definition includes a valid JSON Schema `inputSchema` object."
+                    })
+
+                if any("search" in t or "catalog" in t or "product" in t for t in tool_names):
                     capabilities["Catalog"] = "PASS"
                     score += 2.0
-                if any("cart" in t or "checkout" in t for t in tools):
+                if any("cart" in t or "checkout" in t for t in tool_names):
                     capabilities["Cart/Checkout"] = "PASS"
                     score += 2.0
             else:
