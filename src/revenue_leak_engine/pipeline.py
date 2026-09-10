@@ -230,10 +230,38 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 code = issue.get("code", "")
                 sop_text = issue_sops.get(code, {}).get(platform, "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history.")
                 inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {sop_text}</div>'
+                issue["fix"] = issue.get("fix", "") + inst_html
                 if "fix_snippet" in issue:
                     safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                    snippet_html = f'{inst_html}<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
+                    snippet_html = f'<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
                     issue["fix"] = issue.get("fix", "") + snippet_html
+                if code == "missing_answerability_content" and platform == "shopify":
+                    faq = """<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [{
+    "@type": "Question",
+    "name": "{{ question.title }}",
+    "acceptedAnswer": { "@type": "Answer", "text": "{{ question.answer | strip_html }}" }
+  }]
+}
+&lt;/script&gt;</code></pre>"""
+                    issue["fix"] += "<br><strong>FAQPage JSON-LD Template:</strong><br>" + faq
+                if code == "ai_crawlers_blocked":
+                    rob = """<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>User-agent: GPTBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Applebot-Extended
+Allow: /
+User-agent: Bytespider
+Allow: /</code></pre>"""
+                    issue["fix"] += "<br><strong>Exact robots.txt Append Block:</strong><br>" + rob
 # DETERMINISTIC OPPORTUNITY TIER (Calculated BEFORE report generation)
             geo_score_val = float(geo_findings.get("overall_geo_score", 0) or 0)
             issue_count = len(geo_findings.get("issues", []))
