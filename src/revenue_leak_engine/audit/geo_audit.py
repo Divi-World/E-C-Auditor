@@ -250,16 +250,29 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
   "name": "{{ product.title | escape }}",
   "image": "{{ product.featured_image | img_url: 'master' }}",
   "description": "{{ product.description | strip_html | truncate: 200 | escape }}",
-  "sku": "{{ product.selected_or_first_available_variant.sku | escape }}",
-  "gtin13": "{{ product.selected_or_first_available_variant.barcode | escape }}",
   "brand": { "@type": "Brand", "name": "{{ product.vendor | escape }}" },
-  "offers": {
-    "@type": "Offer",
-    "url": "{{ shop.url }}{{ product.url }}",
-    "priceCurrency": "{{ shop.currency }}",
-    "price": "{{ product.price | money_without_currency }}",
-    "availability": "{% if product.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}"
-  }
+  "offers": [
+    {% for variant in product.variants %}
+    {
+      "@type": "Offer",
+      "url": "{{ shop.url }}{{ product.url }}?variant={{ variant.id }}",
+      "priceCurrency": "{{ shop.currency }}",
+      "price": "{{ variant.price | money_without_currency }}",
+      "availability": "{% if variant.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}",
+      "sku": "{{ variant.sku | escape }}",
+      {% if variant.barcode %}"gtin13": "{{ variant.barcode | escape }}",{% endif %}
+      "itemCondition": "https://schema.org/NewCondition",
+      "hasMerchantReturnPolicy": {
+        "@type": "MerchantReturnPolicy",
+        "applicableCountry": "US",
+        "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+        "merchantReturnDays": 30,
+        "returnMethod": "https://schema.org/ReturnByMail",
+        "returnFees": "https://schema.org/FreeReturn"
+      }
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ]
 }
 </script>"""
         elif "woocommerce" in platform or "wordpress" in platform:
@@ -1120,7 +1133,7 @@ def audit_geo(domain: str) -> dict:
         findings["score_confidence"] = "unreachable"
         findings["issues"] = [{
             "code": "domain_unreachable",
-            "description": f"{domain} did not respond to any request - ikely wrong domain, DNS failure, or site offline.",
+            "description": f"{domain} did not respond to any request - likely wrong domain, DNS failure, or site offline.",
             "evidence": findings["notes"],
             "affected_urls": [],
             "severity": "high", "confidence": "VERIFIED",
@@ -1346,6 +1359,13 @@ def audit_geo(domain: str) -> dict:
             findings["dimensions"]["answerability"] = min(findings["dimensions"].get("answerability", 10.0), 7.0)
     except Exception:
         pass
+    # ENTERPRISE STATE MACHINE: Zero out scores if unreachable
+    if not findings.get("checks_completed", {}).get("reachability", True) or "Domain unreachable" in findings.get("notes", "") or "Timeout" in findings.get("notes", ""):
+        findings["dimensions"] = {k: 0.0 for k in findings.get("dimensions", {})}
+        findings["overall_geo_score"] = 0.0
+        findings["score_confidence"] = "INCOMPLETE"
+        findings["opp_tier"] = "INCOMPLETE"
+        
     return findings
 
 

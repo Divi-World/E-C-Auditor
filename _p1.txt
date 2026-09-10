@@ -1,0 +1,32 @@
+import pathlib, ast
+
+p = pathlib.Path("src/revenue_leak_engine/pipeline.py")
+t = p.read_text("utf-8")
+
+SM = "# ENTERPRISE SNIPPET INJECTION: Force JSON-LD into the HTML report"
+EM = "# DETERMINISTIC OPPORTUNITY TIER"
+si = t.find(SM)
+ei = t.find(EM)
+
+if si == -1 or ei == -1:
+    print("[!] Markers not found"); exit(1)
+
+# Build the new block as a list of lines
+B = []
+B.append("# ENTERPRISE SNIPPET INJECTION: Issue-Specific Platform-Native SOPs")
+B.append('            platform = geo_findings.get("platform_detected", "unknown")')
+B.append("            issue_sops = {")
+B.append('                "missing_organization_entity": {')
+B.append('                    "shopify": "<strong>Exact Path:</strong> <code>layout/theme.liquid</code> (paste in &lt;head&gt;).<br><strong>Validation:</strong> Test Homepage via Schema Markup Validator.<br><strong>Rollback:</strong> Revert via Theme History.",')
+B.append('                    "woocommerce": "<strong>Exact Path:</strong> <code>header.php</code> or Yoast/RankMath Global Schema.<br><strong>Validation:</strong> Test Homepage via Schema Markup Validator.<br><strong>Rollback:</strong> Restore via FTP.",')
+B.append('                    "bigcommerce": "<strong>Exact Path:</strong> <code>Storefront &gt; Script Manager</code>.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Delete script.",')
+B.append('                    "magento": "<strong>Exact Path:</strong> <code>header.phtml</code> or XML layout.<br><strong>Validation:</strong> Rich Results Test + cache flush.<br><strong>Rollback:</strong> Git revert."')
+B.append("                },")
+B.append('                "incomplete_product_schema": {')
+B.append('                    "shopify": "<strong>Exact Path:</strong> <code>sections/main-product.liquid</code>.<br><strong>Validation:</strong> Rich Results Test + Schema Validator.<br><strong>Rollback:</strong> Theme History.",')
+B.append('                    "woocommerce": "<strong>Exact Path:</strong> <code>single-product.php</code> or Yoast/RankMath.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> FTP restore.",')
+B.append('                    "bigcommerce": "<strong>Exact Path:</strong> <code>templates/components/products/product-view.html</code>.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Revert theme.",')
+B.append('                    "magento": "<strong>Exact Path:</strong> <code>catalog_product_view.xml</code> layout.<br><strong>Validation:</strong> Rich Results Test + cache flush.<br><strong>Rollback:</strong> Remove XML update."')
+B.append("                },")
+B.append('                "missing_answerability_content": {')
+B.append('                    "shopify": "<strong>Admin Path:</strong> <code>Settings &gt; Policies</code>. Expand to &gt;200 words. Create FAQ Pa
