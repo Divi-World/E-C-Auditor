@@ -251,6 +251,7 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
   "image": "{{ product.featured_image | img_url: 'master' }}",
   "description": "{{ product.description | strip_html | truncate: 200 | escape }}",
   "sku": "{{ product.selected_or_first_available_variant.sku | escape }}",
+  "gtin13": "{{ product.selected_or_first_available_variant.barcode | escape }}",
   "brand": { "@type": "Brand", "name": "{{ product.vendor | escape }}" },
   "offers": {
     "@type": "Offer",
@@ -273,6 +274,7 @@ add_action('wp_head', function() {
             'name' => $product->get_name(),
             'image' => wp_get_attachment_url($product->get_image_id()),
             'sku' => $product->get_sku(),
+            'gtin13' => $product->get_global_unique_id(),
             'brand' => ['@type' => 'Brand', 'name' => get_bloginfo('name')],
             'offers' => [
                 '@type' => 'Offer',

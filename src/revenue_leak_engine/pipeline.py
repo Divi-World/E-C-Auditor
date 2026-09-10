@@ -201,15 +201,64 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             # ENTERPRISE SNIPPET INJECTION: Force JSON-LD into the HTML report
             platform = geo_findings.get("platform_detected", "unknown")
             instructions = {
-                "shopify": "For Shopify: Paste this snippet into your <code>theme.liquid</code> file just before the closing <code>&lt;/head&gt;</code> tag, or use a JSON-LD injection app.",
-                "woocommerce": "For WooCommerce: Add this to your <code>header.php</code> or use an SEO plugin (like Yoast/RankMath) to inject custom schema.",
-                "magento": "For Magento: Inject this via your layout XML (<code>default.xml</code>) or a custom block template.",
-                "bigcommerce": "For BigCommerce: Paste this into your <code>HTMLHead.html</code> or use the Script Manager.",
-                "unknown": "Implementation: Paste this snippet into the <code>&lt;head&gt;</code> section of your website's global template."
+                "shopify": """<strong>🛠️ 10-Point Enterprise SOP (Shopify):</strong><br>
+<strong>1. Prerequisites:</strong> Ensure every product has Title, Price, SKU, and Barcode (GTIN) filled in <code>Shopify Admin > Products</code>.<br>
+<strong>2. Exact File Path:</strong> <code>Online Store > Themes > Edit Code > sections/main-product.liquid</code> (or <code>theme.liquid</code> before <code>&lt;/head&gt;</code>).<br>
+<strong>3. Admin Steps:</strong> Paste the Liquid snippet at the top of the file. Save.<br>
+<strong>4. Validation:</strong> Test a live product URL via <a href='https://search.google.com/test/rich-results' target='_blank' style='color:#93c5fd;'>Google Rich Results Test</a>.<br>
+<strong>5. Rollback:</strong> Revert via <code>Theme History</code> in the Shopify theme editor if errors occur.<br>
+<strong>6. Non-Code (Policies):</strong> Go to <code>Settings > Policies</code> and expand Shipping/Refund templates to >100 words.<br>
+<strong>7. Non-Code (Robots.txt):</strong> Create <code>templates/robots.txt.liquid</code> and append AI bot allowances.""",
+                "woocommerce": """<strong>🛠️ 10-Point Enterprise SOP (WooCommerce):</strong><br>
+<strong>1. Prerequisites:</strong> Populate SKU and GTIN fields in the Product Data meta box.<br>
+<strong>2. Exact File Path:</strong> <code>Appearance > Theme File Editor > functions.php</code> (Child Theme recommended).<br>
+<strong>3. Admin Steps:</strong> Paste the PHP snippet at the bottom of <code>functions.php</code>. Save.<br>
+<strong>4. Validation:</strong> Test via Google Rich Results Test or Schema.org Validator.<br>
+<strong>5. Rollback:</strong> Restore <code>functions.php</code> via FTP if a white screen occurs.<br>
+<strong>6. Non-Code (Policies):</strong> Create standard Pages for Shipping/Returns and link in <code>Appearance > Menus</code>.<br>
+<strong>7. Non-Code (Robots.txt):</strong> Use Yoast SEO > Tools > File Editor to append AI rules.""",
+                "bigcommerce": """<strong>🛠️ 10-Point Enterprise SOP (BigCommerce):</strong><br>
+<strong>1. Prerequisites:</strong> Populate GTIN/MPN fields in the Product Details tab.<br>
+<strong>2. Exact File Path:</strong> <code>Storefront > Script Manager</code> or <code>Edit Theme > templates/components/products/product-view.html</code>.<br>
+<strong>3. Admin Steps:</strong> Inject the Handlebars snippet into the script manager or theme file.<br>
+<strong>4. Validation:</strong> Verify via Google Rich Results Test.<br>
+<strong>5. Rollback:</strong> Delete script from Script Manager or revert theme file.<br>
+<strong>6. Non-Code (Policies):</strong> Navigate to <code>Storefront > Web Pages</code> to build policy hubs.<br>
+<strong>7. Non-Code (Robots.txt):</strong> Edit server root <code>robots.txt</code> via SSH/FTP.""",
+                "magento": """<strong>🛠️ 10-Point Enterprise SOP (Magento):</strong><br>
+<strong>1. Prerequisites:</strong> Map Product Attributes for GTIN/Barcode in the Admin Panel.<br>
+<strong>2. Exact File Path:</strong> <code>app/design/frontend/[Vendor]/[Theme]/Magento_Catalog/templates/product/view/</code>.<br>
+<strong>3. Admin Steps:</strong> Create a custom PHTML block and inject via XML layout (<code>catalog_product_view.xml</code>).<br>
+<strong>4. Validation:</strong> Run Rich Results Test and clear cache (<code>bin/magento cache:flush</code>).<br>
+<strong>5. Rollback:</strong> Remove XML layout update and flush cache.<br>
+<strong>6. Non-Code (Policies):</strong> Use <code>Content > Pages</code> to build policy hubs.<br>
+<strong>7. Non-Code (Robots.txt):</strong> Edit <code>pub/robots.txt</code> directly via SSH/FTP.""",
+                "unknown": """<strong>🛠️ 10-Point Enterprise SOP (Custom/Headless):</strong><br>
+<strong>1. Prerequisites:</strong> Ensure CMS database exposes SKU, Price, and GTIN to frontend.<br>
+<strong>2. Exact File Path:</strong> Global <code>&lt;head&gt;</code> layout template (e.g., Next.js <code>_app.js</code>).<br>
+<strong>3. Admin Steps:</strong> Inject JSON-LD and map backend variables.<br>
+<strong>4. Validation:</strong> Test via Google Rich Results Test.<br>
+<strong>5. Rollback:</strong> Revert via Git.<br>
+<strong>6. Non-Code (Policies):</strong> Ensure policy routes return >100 words.<br>
+<strong>7. Non-Code (Robots.txt):</strong> Update server root <code>robots.txt</code>."""
             }
             inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">💡 <strong>Platform Guide:</strong> {instructions.get(platform, instructions["unknown"])}</div>'
             
             for issue in geo_findings.get("issues", []):
+                # NON-CODE FIX INJECTION (Robots.txt & Policies)
+                if issue.get("code") == "ai_crawlers_blocked":
+                    issue["fix"] = issue.get("fix", "") + """<br><strong>📋 Exact robots.txt Append Block:</strong><br>
+<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>User-agent: GPTBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Applebot-Extended
+Allow: /</code></pre>"""
+                if issue.get("code") == "missing_answerability_content":
+                    issue["fix"] = issue.get("fix", "") + """<br><strong>📋 Admin UI Path:</strong> Navigate to your CMS Pages editor. Create dedicated pages for <code>/policies/shipping</code>, <code>/policies/returns</code>, and <code>/pages/faq</code>. Ensure each contains >100 words of substantive text."""
+                
                 if "fix_snippet" in issue:
                     safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     snippet_html = f'{inst_html}<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
