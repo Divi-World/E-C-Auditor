@@ -241,7 +241,6 @@ def _sanitize_product_name(name, domain, brand):
     return name
 def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
     platform = (platform or "unknown").lower()
-    
     if code_type == "product":
         if "shopify" in platform:
             return """<script type="application/ld+json">
@@ -289,10 +288,8 @@ add_action('wp_head', function() {
 ?>"""
         else:
             return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "NOT_DETECTED",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "NOT_DETECTED",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
-            
     elif code_type == "organization":
         return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "name": "REPLACE_WITH_BRAND_NAME",\n  "url": "https://' + domain + '",\n  "logo": "REPLACE_WITH_LOGO_URL",\n  "sameAs": [ "REPLACE_WITH_SOCIAL_URLS" ]\n}\n</script>'
-        
     return ""
 
 
@@ -499,7 +496,17 @@ def _check_crawlability(domain, findings):
                         "fix": "Host AI discovery files on the primary brand CDN."
                     })
             if name == "robots.txt":
-                ai_bots = ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]
+                ai_bots = [
+                    "GPTBot", "ChatGPT-User", "OAI-SearchBot", # OpenAI
+                    "ClaudeBot", "Claude-Web", # Anthropic
+                    "PerplexityBot", "Perplexity-User", # Perplexity
+                    "Google-Extended", "GoogleCloudVertex-Can", # Google/Gemini
+                    "FacebookBot", "meta-externalagent", # Meta AI
+                    "Applebot-Extended", # Apple Intelligence
+                    "cohere-ai", # Cohere
+                    "CCBot", # Common Crawl
+                    "Bytespider" # TikTok
+                ]
                 blocked = []
                 current_agent = None
                 for line in text.splitlines():
