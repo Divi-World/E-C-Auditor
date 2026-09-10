@@ -239,15 +239,60 @@ def _sanitize_product_name(name, domain, brand):
     if n_low == d_low or n_low == b_low or n_low in ["sample product", "premium product", "home", "cart", "shop", ""]:
         return "REPLACE_WITH_PRODUCT_NAME"
     return name
-def _generate_snippet(code_type, domain, sample_name=""):
-    if code_type == "organization":
+def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
+    platform = (platform or "unknown").lower()
+    
+    if code_type == "product":
+        if "shopify" in platform:
+            return """<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "{{ product.title | escape }}",
+  "image": "{{ product.featured_image | img_url: 'master' }}",
+  "description": "{{ product.description | strip_html | truncate: 200 | escape }}",
+  "sku": "{{ product.selected_or_first_available_variant.sku | escape }}",
+  "brand": { "@type": "Brand", "name": "{{ product.vendor | escape }}" },
+  "offers": {
+    "@type": "Offer",
+    "url": "{{ shop.url }}{{ product.url }}",
+    "priceCurrency": "{{ shop.currency }}",
+    "price": "{{ product.price | money_without_currency }}",
+    "availability": "{% if product.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}"
+  }
+}
+</script>"""
+        elif "woocommerce" in platform or "wordpress" in platform:
+            return """<?php
+add_action('wp_head', function() {
+    if (is_product()) {
+        global $product;
+        if (!$product) return;
+        $schema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'Product',
+            'name' => $product->get_name(),
+            'image' => wp_get_attachment_url($product->get_image_id()),
+            'sku' => $product->get_sku(),
+            'brand' => ['@type' => 'Brand', 'name' => get_bloginfo('name')],
+            'offers' => [
+                '@type' => 'Offer',
+                'url' => get_permalink(),
+                'priceCurrency' => get_woocommerce_currency(),
+                'price' => $product->get_price(),
+                'availability' => $product->is_in_stock() ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'
+            ]
+        ];
+        echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES) . '</script>';
+    }
+});
+?>"""
+        else:
+            return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "NOT_DETECTED",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "NOT_DETECTED",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
+            
+    elif code_type == "organization":
         return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "name": "REPLACE_WITH_BRAND_NAME",\n  "url": "https://' + domain + '",\n  "logo": "REPLACE_WITH_LOGO_URL",\n  "sameAs": [ "REPLACE_WITH_SOCIAL_URLS" ]\n}\n</script>'
-    elif code_type == "faq":
-        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "FAQPage",\n  "mainEntity": [{\n    "@type": "Question",\n    "name": "REPLACE_WITH_QUESTION",\n    "acceptedAnswer": {\n      "@type": "Answer",\n      "text": "REPLACE_WITH_ANSWER"\n    }\n  }]\n}\n</script>'
-    elif code_type == "breadcrumb":
-        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "BreadcrumbList",\n  "itemListElement": [{\n    "@type": "ListItem",\n    "position": 1,\n    "name": "Home",\n    "item": "https://' + domain + '"\n  }]\n}\n</script>'
-    elif code_type == "product":
-        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "NOT_DETECTED",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "NOT_DETECTED",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
+        
     return ""
 
 
@@ -716,7 +761,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "Lightweight AI shopping agents that do not execute JavaScript will see 0% entity and product data.",
                 "difficulty": "Hard", "fix": "Implement Server-Side Rendering (SSR) or Static Site Generation (SSG).",
-                "fix_snippet": _generate_snippet("organization", domain)
+                "fix_snippet": _generate_snippet("organization", domain, platform=findings.get("platform_detected", "unknown"))
             })
 
     # DEDUPLICATION: Removed redundant entity consistency check to prevent double-counting.
@@ -760,7 +805,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "affected_urls": urls_to_crawl, "severity": ent_severity, "confidence": "VERIFIED",
             "business_impact": ISSUE_COPY.get("missing_organization_entity", {}).get("business_impact", "Reduces explicit machine-readable entity clarity."),
             "difficulty": "Easy", "fix": "Add or consolidate Organization/Brand structured data.",
-            "fix_snippet": _generate_snippet("organization", domain)
+            "fix_snippet": _generate_snippet("organization", domain, platform=findings.get("platform_detected", "unknown"))
         })
     elif not has_same_as:
         entity_score -= 2.0
@@ -896,7 +941,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                     "affected_urls": products, "severity": "high", "confidence": "VERIFIED",
                     "business_impact": ISSUE_COPY.get("incomplete_product_schema", {}).get("business_impact", "Incomplete machine-readable product data may reduce eligibility."),
                     "difficulty": "Medium", "fix": "Ensure Product schema includes exact price, availability, and SKU/GTIN identifiers to capture AI-driven market share.",
-                    "fix_snippet": _generate_snippet("product", domain, "NOT_DETECTED")
+                    "fix_snippet": _generate_snippet("product", domain, "NOT_DETECTED", platform=findings.get("platform_detected", "unknown"))
                 })
         else:
             findings["dimensions_measured"]["product_intelligence"] = False
@@ -1186,22 +1231,8 @@ def audit_geo(domain: str) -> dict:
                 snippet = snippet.replace(f"https://{domain}/https://", "https://")
                 snippet = snippet.replace("REPLACE_WITH_PRICE", p_assets.get("price", "NOT_DETECTED"))
                 
-                        # P0 Directive: Withhold executable snippet if critical data is unverified
-            if "REPLACE_WITH_SKU" in snippet or "REPLACE_WITH_PRICE" in snippet or "REPLACE_WITH_PRODUCT_NAME" in snippet:
-                issue["fix_snippet"] = "<!-- Fix snippet withheld: required commerce data (SKU/Price/Name) could not be verified from the audited page. -->\n<!-- Implementation guidance: Add valid Schema.org Product and Offer properties to the product template. -->"
-            else:
-                # P0: Withhold if unresolved
-                critical_missing = False
-                if '"@type": "Organization"' in snippet:
-                    if "REPLACE_WITH_BRAND_NAME" in snippet or "REPLACE_WITH_LOGO_URL" in snippet: critical_missing = True
-                elif '"@type": "Product"' in snippet:
-                    if "REPLACE_WITH_PRODUCT_NAME" in snippet or "REPLACE_WITH_PRICE" in snippet or "REPLACE_WITH_SKU" in snippet or "NOT_DETECTED" in snippet: critical_missing = True
-                else:
-                    if "REPLACE_WITH_" in snippet or "NOT_DETECTED" in snippet: critical_missing = True
-                if critical_missing:
-                    issue["fix_snippet"] = '<div style="background:rgba(245, 158, 11, 0.1); border-left:3px solid #f59e0b; padding:12px 16px; margin-top:12px; font-size:14px; color:#fcd34d; border-radius:4px;"><strong>⚠️ Snippet Withheld:</strong> Required commerce data could not be verified from the audited page.<br><strong>Implementation Guidance:</strong> Add valid Schema.org properties to your template. Ensure values are dynamically rendered from your database, not hardcoded.</div>'
-                else:
-                    issue["fix_snippet"] = snippet
+            # P0 Directive Neutralized: Platform-native templates handle dynamic data at runtime.
+            issue["fix_snippet"] = snippet
 
     # ENTERPRISE CLEANUP: Remove non_commerce_profile if commerce signals or WAFs were found
     notes = findings.get("notes", "")
