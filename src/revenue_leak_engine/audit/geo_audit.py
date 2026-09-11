@@ -220,7 +220,7 @@ def _detect_platform(html, headers):
     if any(sig in html_lower or sig in headers_str for sig in ["demandware", "dw.__version__", "salesforce commerce cloud", "sfcc"]): return "salesforce"
     if any(sig in html_lower or sig in headers_str for sig in ["vtex", "vtexcommercestable", "vtex.local", "vteximg"]): return "vtex"
     if any(sig in html_lower or sig in headers_str for sig in ["x-magento-init", "mage/cookies", "mage/"]): return "magento"
-    if "next" in headers_str or "__next" in html_lower or "_next/static" in html_lower: return "custom_headless"
+    if "next" in headers_str or "__next" in html_lower or "_next/static" in html_lower: return "custom_Enterprise Architecture"
     
     # TIER 3: STRICT CMS (Avoid generic text mentions)
     if any(sig in html_lower for sig in ["/wp-content/plugins/woocommerce/", "wc-block", "woocommerce-json-ld"]): return "woocommerce"
@@ -252,12 +252,15 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
   "name": "{{ product.title | escape }}",
   "image": "{{ product.featured_image | img_url: 'master' }}",
   "description": "{{ product.description | strip_html | truncate: 200 | escape }}",
-  "brand": { "@type": "Brand", "name": "{{ product.vendor | escape }}" },
+  "@id": "{{ shop.url }}{{ product.url }}#product",
+  "brand": { "@type": "Brand", "name": "{{ product.vendor | escape }}", "@id": "{{ shop.url }}#brand" },
+  {% if product.metafields.reviews.rating.value %}
   "aggregateRating": {
     "@type": "AggregateRating",
-    "ratingValue": "{{ product.metafields.reviews.rating.value | default: '4.8' }}",
-    "reviewCount": "{{ product.metafields.reviews.rating_count | default: '12' }}"
+    "ratingValue": "{{ product.metafields.reviews.rating.value }}",
+    "reviewCount": "{{ product.metafields.reviews.rating_count }}"
   },
+  {% endif %}
   "offers": [
     {% for variant in product.variants %}
     {
@@ -723,7 +726,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                     is_commerce = True
                     findings["notes"] += f"commerce_detected_via_link_scrape ({len(commerce_urls)} URLs). "
                 else:
-                    # ROBOTS.TXT COMMERCE FALLBACK (Catches CSR sites where links are JS-injected)
+                    # ROBOTS.TXT COMMERCE FALLBACK (Catches Dynamic Storefront sites where links are JS-injected)
                     robots_st, robots_txt, _, _ = _fetch(f"https://{domain}/robots.txt", "robots_commerce", findings)
                     if robots_st == 200 and robots_txt:
                         robots_lower = robots_txt.lower()
@@ -798,13 +801,13 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "AI agents are routed to payment/external domains and blocked before seeing catalog data.",
-                "difficulty": "Medium", "fix": "Headless/Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting WAF-blocked checkout shells."
+                "difficulty": "Medium", "fix": "Enterprise Architecture/Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting WAF-blocked checkout shells."
             })
         elif (csr_pages / total_pages_crawled) > 0.5:
             issues.append({
                 "code": "csr_schema_leak",
-            "finding_id": "GEO-CSR-001",
-                "description": "Client-Side Rendering (CSR) is preventing raw HTML schema extraction.",
+            "finding_id": "GEO-Dynamic Storefront-001",
+                "description": "Dynamic Storefront (Dynamic Storefront) is preventing raw HTML schema extraction.",
                 "evidence": f"{csr_pages}/{total_pages_crawled} sampled pages return 0 JSON-LD blocks in raw HTML.",
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "Lightweight AI shopping agents that do not execute JavaScript will see 0% entity and product data.",
@@ -1098,7 +1101,7 @@ def _check_agentic_commerce(domain, findings):
 
     # Sanitize Agentic Matrix & Fix Contradiction (Partner Fix #18)
     plat = findings.get("platform_detected", "unknown")
-    if plat not in ["custom_headless", "api_first"]:
+    if plat not in ["custom_Enterprise Architecture", "api_first"]:
         capabilities = {k: ("NOT_DETECTED" if v == "FAIL" else v) for k, v in capabilities.items()}
         # If standard platform and no agentic protocols found, cap score at baseline 5.0
         if score == 0.0:
@@ -1108,6 +1111,10 @@ def _check_agentic_commerce(domain, findings):
     # P0: Agentic Cap - MCP/Catalog/Checkout rules enforced
     if capabilities.get("MCP") in ["NOT_DETECTED", "FAIL"]: score = min(score, 8.0)
     if capabilities.get("Catalog") in ["NOT_DETECTED", "FAIL"] or capabilities.get("Cart/Checkout") in ["NOT_DETECTED", "FAIL"]: score = min(score, 6.0)
+    # PARTNER DIRECTIVE: Cap agentic score if core capabilities are NOT_DETECTED
+    caps = capabilities
+    if caps.get("MCP") in ["NOT_DETECTED", "FAIL"] or caps.get("Catalog") in ["NOT_DETECTED", "FAIL"]:
+        score = min(score, 4.0)
     findings["dimensions"]["agentic_commerce"] = score
     findings["agentic_capabilities"] = capabilities
     
@@ -1300,7 +1307,7 @@ def audit_geo(domain: str) -> dict:
         commerce_confirmed = True
         
     platform = findings.get("platform_detected", "unknown")
-    if platform not in ["unknown", "custom_headless"]:
+    if platform not in ["unknown", "custom_Enterprise Architecture"]:
         commerce_confirmed = True
 
     if commerce_confirmed or findings.get("dimensions_measured", {}).get("product_intelligence") == True:
@@ -1359,7 +1366,7 @@ def audit_geo(domain: str) -> dict:
     # REMOVED: Blanket WAF answerability suppression (Partner Fix #4)
         
     if findings.get("platform_detected") == "unknown" and is_waf_blocked:
-        findings["platform_detected"] = "enterprise_waf_protected"
+        findings["platform_detected"] = "Unknown (Enterprise Architecture)"
 
     # ENTITY GUARD: If massive timeouts/blocks occurred, entity score cannot be 10.0
     entity_notes = findings.get("notes", "")

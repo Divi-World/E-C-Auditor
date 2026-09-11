@@ -59,7 +59,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         seen.add(domain)
         
         # OG FIX: We no longer discard non-Shopify stores. 
-        # The v7.5 GEO Auditor is platform-agnostic (WooCommerce, BigCommerce, Headless).
+        # The v7.5 GEO Auditor is platform-agnostic (WooCommerce, BigCommerce, Enterprise Architecture).
         # We still tag Shopify if detected, but we keep ALL e-commerce leads.
         try:
             result = is_shopify(domain)
@@ -232,7 +232,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "magento": "<strong>WAF Allowlist:</strong> Update your CDN/WAF rules to allow AI bot user-agents to bypass bot-protection."
                 },
                 "redirect_shell_detected": {
-                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a headless checkout, configure reverse proxy or Shopify Markets so AI agents don't hit WAF-blocked checkout shells.",
+                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a Enterprise Architecture checkout, configure reverse proxy or Shopify Markets so AI agents don't hit WAF-blocked checkout shells.",
                     "woocommerce": "<strong>Domain Routing:</strong> Ensure cart/checkout pages are on the same root domain or properly cross-linked with canonical tags.",
                     "bigcommerce": "<strong>Domain Routing:</strong> Verify checkout domain settings in BigCommerce Admin > Settings > DNS.",
                     "magento": "<strong>Domain Routing:</strong> Check Magento Admin > Stores > Configuration > Web to ensure base URLs are consistent."
@@ -251,7 +251,21 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 issue["fix"] = issue.get("fix", "") + inst_html
                 if "fix_snippet" in issue:
                     safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                    snippet_html = f'<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
+                    if "REPLACE_WITH_" in safe_snippet:
+                        # PARTNER DIRECTIVE: Output Data Collection Checklist instead of broken code
+                        checklist = """<div style="background:rgba(245, 158, 11, 0.1); border-left:4px solid #f59e0b; padding:15px; margin:10px 0; border-radius:4px; color:#fcd34d;">
+<strong>📋 Enterprise Data Collection Checklist:</strong><br>
+To complete this implementation, please gather the following brand assets from your internal guidelines or CMS:<br>
+<ul style="margin:5px 0; padding-left:20px;">
+<li>City / Headquarters Location</li>
+<li>Official Social Media URLs (Facebook, Instagram, LinkedIn)</li>
+<li>Wikipedia Entity URL (if applicable)</li>
+</ul>
+<em>Once gathered, insert these values into the schema template to unlock full AI entity corroboration.</em>
+</div>"""
+                        snippet_html = checklist
+                    else:
+                        snippet_html = f'<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
                     issue["fix"] = issue.get("fix", "") + snippet_html
 
                 # ENTERPRISE DIRECTIVE: Force BreadcrumbList for Product Schema Issues
