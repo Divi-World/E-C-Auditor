@@ -224,6 +224,24 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "woocommerce": "<strong>Exact Path:</strong> Yoast SEO &gt; Tools &gt; File Editor OR edit root <code>robots.txt</code> via FTP. Append AI bot allow rules.",
                     "bigcommerce": "<strong>Exact Path:</strong> Edit root <code>robots.txt</code> via FTP/SSH. Append AI bot allow rules.",
                     "magento": "<strong>Exact Path:</strong> Edit <code>pub/robots.txt</code> via SSH/FTP. Append AI bot allow rules."
+                },
+                "waf_blocking": {
+                    "shopify": "<strong>WAF Allowlist:</strong> Contact Shopify Plus Support or your CDN (Cloudflare/Fastly) to whitelist AI bot user-agents (GPTBot, ClaudeBot) from bot-protection challenges.",
+                    "woocommerce": "<strong>WAF Allowlist:</strong> Add AI bot user-agents to your WAF/CDN whitelist (Cloudflare Page Rules, Wordfence, or Sucuri).",
+                    "bigcommerce": "<strong>WAF Allowlist:</strong> Contact BigCommerce Support or your CDN to whitelist AI bot user-agents.",
+                    "magento": "<strong>WAF Allowlist:</strong> Update your CDN/WAF rules to allow AI bot user-agents to bypass bot-protection."
+                },
+                "redirect_shell_detected": {
+                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a headless checkout, configure reverse proxy or Shopify Markets so AI agents don't hit WAF-blocked checkout shells.",
+                    "woocommerce": "<strong>Domain Routing:</strong> Ensure cart/checkout pages are on the same root domain or properly cross-linked with canonical tags.",
+                    "bigcommerce": "<strong>Domain Routing:</strong> Verify checkout domain settings in BigCommerce Admin > Settings > DNS.",
+                    "magento": "<strong>Domain Routing:</strong> Check Magento Admin > Stores > Configuration > Web to ensure base URLs are consistent."
+                },
+                "llms_txt_checkout_routing": {
+                    "shopify": "<strong>CDN/Routing:</strong> Host llms.txt on the primary brand domain via Shopify Markets, Cloudflare Page Rules, or a reverse proxy. Do not host on checkout subdomains.",
+                    "woocommerce": "<strong>Server Config:</strong> Ensure llms.txt is served from the root domain via Nginx/Apache config, not a subdomain.",
+                    "bigcommerce": "<strong>File Hosting:</strong> Upload llms.txt to the root directory via FTP/WebDAV.",
+                    "magento": "<strong>File Hosting:</strong> Place llms.txt in the pub/ directory and ensure routing serves it from the primary domain."
                 }
             }
             for issue in geo_findings.get("issues", []):
@@ -242,18 +260,32 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     bc += '&lt;script type="application/ld+json"&gt;\n{\n  "@context": "https://schema.org",\n  "@type": "BreadcrumbList",\n  "itemListElement": [{\n    "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ shop.url }}"\n  },{\n    "@type": "ListItem", "position": 2, "name": "{{ product.type | escape }}", "item": "{{ shop.url }}/collections/{{ product.type | handleize }}"\n  },{\n    "@type": "ListItem", "position": 3, "name": "{{ product.title | escape }}", "item": "{{ shop.url }}{{ product.url }}"\n  }]\n}\n&lt;/script&gt;</code></pre>'
                     issue["fix"] = issue.get("fix", "") + "<br><strong>BreadcrumbList JSON-LD Template:</strong><br>" + bc
                 if code == "missing_answerability_content" and platform == "shopify":
-                    faq = """<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
+                    faq = """<div style="background:rgba(16, 185, 129, 0.1); padding:15px; border-radius:6px; border:1px solid rgba(16,185,129,0.3); color:#a7f3d0; font-size:13px;">
+<strong>🛠️ Shopify Metaobject Setup Guide:</strong><br>
+1. Go to <strong>Shopify Admin &gt; Settings &gt; Custom Data &gt; Metaobjects</strong>.<br>
+2. Create a new Metaobject definition named <code>FAQ</code> with fields: <code>Question</code> (Single line text) and <code>Answer</code> (Multi-line text).<br>
+3. Add entries for Shipping, Returns, and Sizing.<br>
+4. Paste this Liquid loop into <code>templates/page.faq.json</code> or <code>sections/main-page.liquid</code>:<br>
+<pre style="background:#020617;color:#e2e8f0;padding:10px;border-radius:4px;overflow-x:auto;margin-top:8px;"><code>&lt;script type="application/ld+json"&gt;
 {
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  "mainEntity": [{
-    "@type": "Question",
-    "name": "REPLACE_WITH_METAOBJECT_QUESTION_TITLE",
-    "acceptedAnswer": { "@type": "Answer", "text": "REPLACE_WITH_METAOBJECT_ANSWER" }
-  }]
+  "mainEntity": [
+    {% for faq in shop.metaobjects.faq.values %}
+    {
+      "@type": "Question",
+      "name": "{{ faq.question.value | escape }}",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "{{ faq.answer.value | strip_html | escape }}"
+      }
+    }{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  ]
 }
-&lt;/script&gt;</code></pre>"""
-                    issue["fix"] += "<br><strong>FAQPage JSON-LD Template:</strong><br>" + faq
+&lt;/script&gt;</code></pre>
+</div>"""
+                    issue["fix"] += "<br><strong>FAQPage Metaobject Implementation:</strong><br>" + faq
                 if code == "ai_crawlers_blocked":
                     rob = """<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>User-agent: GPTBot
 Allow: /

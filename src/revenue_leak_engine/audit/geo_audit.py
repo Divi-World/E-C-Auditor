@@ -237,7 +237,9 @@ def _sanitize_product_name(name, domain, brand):
     d_low = domain.lower().strip().replace("www.", "")
     b_low = brand.lower().strip() if brand else ""
     if n_low == d_low or n_low == b_low or n_low in ["sample product", "premium product", "home", "cart", "shop", ""]:
-        return "REPLACE_WITH_PRODUCT_NAME"
+        # Enterprise Fallback: Clean domain to Brand Name (e.g., gymshark.com -> Gymshark)
+        clean_domain = domain.split('.')[0].replace("www.", "").replace("-", " ").replace("_", " ").title()
+        return clean_domain
     return name
 def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
     platform = (platform or "unknown").lower()
@@ -514,7 +516,7 @@ def _check_crawlability(domain, findings):
                         "severity": "medium", "confidence": "VERIFIED",
                         "business_impact": "AI agents hitting payment domains may encounter strict bot-protection before catalog discovery.",
                         "difficulty": "Medium",
-                        "fix": "Host AI discovery files on the primary brand CDN."
+                        "fix": "DNS/CDN Routing Fix: Ensure llms.txt is hosted on the primary brand domain (e.g., via Shopify Markets, Cloudflare Page Rules, or reverse proxy), not a checkout subdomain."
                     })
             if name == "robots.txt":
                 ai_bots = [
@@ -674,6 +676,24 @@ def _extract_real_assets(html, url, domain):
     
     sku_meta = soup.find("meta", property="product:retailer_item_id") or soup.find("meta", attrs={"itemprop": "sku"})
     assets["sku"] = (sku_meta["content"] if sku_meta else "REPLACE_WITH_SKU")
+
+    # Enterprise Data Resolver: Scrape Footer for Phone and Address
+    footer_text = ""
+    footer_el = soup.find("footer")
+    if footer_el:
+        footer_text = footer_el.get_text(" ", strip=True)
+    else:
+        footer_text = soup.get_text(" ", strip=True)[:2000]
+    
+    phone_match = re.search(r'(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', footer_text)
+    assets["phone"] = phone_match.group(0) if phone_match else "REPLACE_WITH_PHONE"
+    
+    country_match = re.search(r'\b(USA|United States|UK|United Kingdom|Canada|Australia)\b', footer_text, re.I)
+    assets["country"] = country_match.group(0) if country_match else "REPLACE_WITH_COUNTRY"
+    
+    city_match = re.search(r',\s*([A-Z][a-z]+),\s*[A-Z]{2}\s*\d{5}', footer_text)
+    assets["city"] = city_match.group(1) if city_match else "REPLACE_WITH_CITY"
+
     
     return assets
 
@@ -778,7 +798,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "AI agents are routed to payment/external domains and blocked before seeing catalog data.",
-                "difficulty": "Medium", "fix": "Ensure core merchandising URLs resolve on the primary domain."
+                "difficulty": "Medium", "fix": "Headless/Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting WAF-blocked checkout shells."
             })
         elif (csr_pages / total_pages_crawled) > 0.5:
             issues.append({
@@ -1240,7 +1260,14 @@ def audit_geo(domain: str) -> dict:
     for issue in findings.get("issues", []):
         if "fix_snippet" in issue and "REPLACE_WITH" in issue["fix_snippet"]:
             snippet = issue["fix_snippet"]
-            snippet = snippet.replace("REPLACE_WITH_BRAND_NAME", real_assets.get("brand_name", domain).replace('"', '\\"'))
+            # Enterprise Brand Sanitization (gymshark.com -> Gymshark)
+            raw_brand = real_assets.get("brand_name", domain)
+            if raw_brand.lower() == domain.lower() or raw_brand.lower().startswith("http"):
+                raw_brand = domain.split('.')[0].replace("www.", "").replace("-", " ").replace("_", " ").title()
+            snippet = snippet.replace("REPLACE_WITH_BRAND_NAME", raw_brand.replace('"', '\\"'))
+            snippet = snippet.replace("REPLACE_WITH_PHONE", real_assets.get("phone", "REPLACE_WITH_PHONE"))
+            snippet = snippet.replace("REPLACE_WITH_CITY", real_assets.get("city", "REPLACE_WITH_CITY"))
+            snippet = snippet.replace("REPLACE_WITH_COUNTRY", real_assets.get("country", "REPLACE_WITH_COUNTRY"))
             snippet = snippet.replace("REPLACE_WITH_LOGO_URL", real_assets.get("logo_url", f"https://{domain}/favicon.ico"))
             socials_list = [s for s in real_assets.get("socials", []) if s and s.startswith("http")]
             snippet = snippet.replace("REPLACE_WITH_SOCIAL_URLS", '", "'.join(socials_list) if socials_list else "https://www.linkedin.com/company/brand")
