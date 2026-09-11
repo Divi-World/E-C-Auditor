@@ -108,7 +108,7 @@ def _fetch(url, notes_key, findings):
             browser = random.choice(_BROWSERS)
             r = cffi_requests.get(url, timeout=TIMEOUT, impersonate=browser, allow_redirects=True)
         else:
-            r = requests.get(url, timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
+            r = std_requests.get(url, timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
         return r.status_code, r.text, str(r.url), r.headers
     except Exception as e:
         findings["notes"] += f"{notes_key}: {type(e).__name__}. "
@@ -121,7 +121,7 @@ def _fetch_with_retry(url, notes_key, findings, retries=1, base_timeout=TIMEOUT)
             if USE_STEALTH:
                 r = cffi_requests.get(url, timeout=tout, impersonate="chrome120", allow_redirects=True)
             else:
-                r = requests.get(url, timeout=tout, headers=HEADERS, allow_redirects=True)
+                r = std_requests.get(url, timeout=tout, headers=HEADERS, allow_redirects=True)
             return r.status_code, r.text, str(r.url), r.headers
         except Exception as e:
             findings["notes"] += f"{notes_key} attempt {idx+1} ({tout}s): {type(e).__name__}. "
@@ -251,13 +251,19 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
   "image": "{{ product.featured_image | img_url: 'master' }}",
   "description": "{{ product.description | strip_html | truncate: 200 | escape }}",
   "brand": { "@type": "Brand", "name": "{{ product.vendor | escape }}" },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "{{ product.metafields.reviews.rating.value | default: '4.8' }}",
+    "reviewCount": "{{ product.metafields.reviews.rating_count | default: '12' }}"
+  },
   "offers": [
     {% for variant in product.variants %}
     {
       "@type": "Offer",
       "url": "{{ shop.url }}{{ product.url }}?variant={{ variant.id }}",
       "priceCurrency": "{{ shop.currency }}",
-      "price": "{{ variant.price | money_without_currency }}",
+      "price": "{{ variant.price | divided_by: 100.0 }}",
+      "priceValidUntil": "{{ 'now' | date: '%s' | plus: 2592000 | date: '%Y-%m-%d' }}",
       "availability": "{% if variant.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}",
       "sku": "{{ variant.sku | escape }}",
       {% if variant.barcode %}"gtin13": "{{ variant.barcode | escape }}",{% endif %}
@@ -304,7 +310,7 @@ add_action('wp_head', function() {
         else:
             return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "NOT_DETECTED",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "NOT_DETECTED",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
     elif code_type == "organization":
-        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "name": "REPLACE_WITH_BRAND_NAME",\n  "url": "https://' + domain + '",\n  "logo": "REPLACE_WITH_LOGO_URL",\n  "sameAs": [ "REPLACE_WITH_SOCIAL_URLS" ]\n}\n</script>'
+        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "name": "REPLACE_WITH_BRAND_NAME",\n  "url": "https://' + domain + '",\n  "logo": "REPLACE_WITH_LOGO_URL",\n  "address": {\n    "@type": "PostalAddress",\n    "addressLocality": "REPLACE_WITH_CITY",\n    "addressCountry": "REPLACE_WITH_COUNTRY"\n  },\n  "contactPoint": {\n    "@type": "ContactPoint",\n    "telephone": "REPLACE_WITH_PHONE",\n    "contactType": "customer service",\n    "email": "support@' + domain + '"\n  },\n  "sameAs": [\n    "REPLACE_WITH_FACEBOOK_URL",\n    "REPLACE_WITH_INSTAGRAM_URL",\n    "REPLACE_WITH_TWITTER_URL",\n    "REPLACE_WITH_LINKEDIN_URL",\n    "https://en.wikipedia.org/wiki/REPLACE_WITH_BRAND"\n  ]\n}\n</script>'
     return ""
 
 
@@ -364,7 +370,7 @@ def _sample_urls(domain, findings):
                 if USE_STEALTH:
                     raw_r = cffi_requests.get(final_url or f"https://{domain}/sitemap.xml", timeout=TIMEOUT, impersonate="chrome120", allow_redirects=True)
                 else:
-                    raw_r = requests.get(final_url or f"https://{domain}/sitemap.xml", timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
+                    raw_r = std_requests.get(final_url or f"https://{domain}/sitemap.xml", timeout=TIMEOUT, headers=HEADERS, allow_redirects=True)
                 raw_bytes = raw_r.content
                 if raw_bytes[:2] == b'\x1f\x8b':
                     import gzip
@@ -837,7 +843,8 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "evidence": "sameAs array missing or empty.",
             "affected_urls": urls_to_crawl, "severity": "medium", "confidence": "VERIFIED",
             "business_impact": "Entity corroboration is incomplete.",
-            "difficulty": "Easy", "fix": "Add Wikipedia and social URLs to sameAs."
+            "difficulty": "Easy", "fix": "Add Wikipedia and social URLs to sameAs.",
+            "fix_snippet": _generate_snippet("organization", domain, platform=findings.get("platform_detected", "unknown"))
         })
 
     findings["dimensions"]["entity_intelligence"] = max(0, entity_score)

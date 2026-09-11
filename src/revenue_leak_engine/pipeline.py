@@ -235,6 +235,12 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     snippet_html = f'<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;border:1px solid #334155;"><code>{safe_snippet}</code></pre>'
                     issue["fix"] = issue.get("fix", "") + snippet_html
+
+                # ENTERPRISE DIRECTIVE: Force BreadcrumbList for Product Schema Issues
+                if code in ["incomplete_product_schema", "missing_product_schema", "product_intelligence_unknown"] and platform == "shopify":
+                    bc = '<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>'
+                    bc += '&lt;script type="application/ld+json"&gt;\n{\n  "@context": "https://schema.org",\n  "@type": "BreadcrumbList",\n  "itemListElement": [{\n    "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ shop.url }}"\n  },{\n    "@type": "ListItem", "position": 2, "name": "{{ product.type | escape }}", "item": "{{ shop.url }}/collections/{{ product.type | handleize }}"\n  },{\n    "@type": "ListItem", "position": 3, "name": "{{ product.title | escape }}", "item": "{{ shop.url }}{{ product.url }}"\n  }]\n}\n&lt;/script&gt;</code></pre>'
+                    issue["fix"] = issue.get("fix", "") + "<br><strong>BreadcrumbList JSON-LD Template:</strong><br>" + bc
                 if code == "missing_answerability_content" and platform == "shopify":
                     faq = """<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
 {
@@ -242,8 +248,8 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
   "@type": "FAQPage",
   "mainEntity": [{
     "@type": "Question",
-    "name": "{{ question.title }}",
-    "acceptedAnswer": { "@type": "Answer", "text": "{{ question.answer | strip_html }}" }
+    "name": "REPLACE_WITH_METAOBJECT_QUESTION_TITLE",
+    "acceptedAnswer": { "@type": "Answer", "text": "REPLACE_WITH_METAOBJECT_ANSWER" }
   }]
 }
 &lt;/script&gt;</code></pre>"""
