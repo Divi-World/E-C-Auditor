@@ -276,6 +276,8 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
       "sku": "{{ variant.sku | escape }}",
       {% if variant.barcode %}"gtin13": "{{ variant.barcode | escape }}",{% endif %}
       "itemCondition": "https://schema.org/NewCondition",
+      "material": "{{ product.type | escape }}",
+      "sustainability_certifications": "REPLACE_WITH_ECO_CERTIFICATIONS",
       "shippingDetails": {
           "@type": "OfferShippingDetails",
           "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "{{ shop.currency }}" },
