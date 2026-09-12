@@ -228,17 +228,17 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "woocommerce": "<strong>Exact Path:</strong> Yoast SEO &gt; Tools &gt; File Editor OR edit root <code>robots.txt</code> via FTP. Append AI bot allow rules.",
                     "bigcommerce": "<strong>Exact Path:</strong> Edit root <code>robots.txt</code> via FTP/SSH. Append AI bot allow rules.",
                     "magento": "<strong>Exact Path:</strong> Edit <code>pub/robots.txt</code> via SSH/FTP. Append AI bot allow rules.",
-                    "unknown": "<strong>Enterprise WAF/CDN Allowlist:</strong> Contact your CDN/WAF vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents. Do NOT inject JSON-LD for WAF/bot-challenge issues."
+                    "unknown": "<strong>Enterprise Security Gateway/CDN Allowlist:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues."
                 },
                 "waf_blocking": {
-                    "shopify": "<strong>WAF Allowlist:</strong> Contact Shopify Plus Support or your CDN (Cloudflare/Fastly) to whitelist AI bot user-agents (GPTBot, ClaudeBot) from bot-protection challenges.",
-                    "woocommerce": "<strong>WAF Allowlist:</strong> Add AI bot user-agents to your WAF/CDN whitelist (Cloudflare Page Rules, Wordfence, or Sucuri).",
-                    "bigcommerce": "<strong>WAF Allowlist:</strong> Contact BigCommerce Support or your CDN to whitelist AI bot user-agents.",
-                    "magento": "<strong>WAF Allowlist:</strong> Update your CDN/WAF rules to allow AI bot user-agents to bypass bot-protection.",
-                    "unknown": "<strong>Enterprise MCP & WAF Allowlist:</strong> Expose a Model Context Protocol (MCP) endpoint at /.well-known/mcp.json so AI agents can execute cart/checkouts directly. Contact your CDN/WAF vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents (GPTBot, ClaudeBot, PerplexityBot) from bot-protection challenges. Do NOT inject JSON-LD for WAF issues."
+                    "shopify": "<strong>Security Gateway Allowlist:</strong> Contact Shopify Plus Support or your CDN (Cloudflare/Fastly) to whitelist AI bot user-agents (GPTBot, ClaudeBot) from Automated Traffic Filtering challenges.",
+                    "woocommerce": "<strong>Security Gateway Allowlist:</strong> Add AI bot user-agents to your Security Gateway/CDN whitelist (Cloudflare Page Rules, Wordfence, or Sucuri).",
+                    "bigcommerce": "<strong>Security Gateway Allowlist:</strong> Contact BigCommerce Support or your CDN to whitelist AI bot user-agents.",
+                    "magento": "<strong>Security Gateway Allowlist:</strong> Update your CDN/Security Gateway rules to allow AI bot user-agents to bypass Automated Traffic Filtering.",
+                    "unknown": "<strong>Enterprise MCP & Security Gateway Allowlist:</strong> Expose a Model Context Protocol (MCP) endpoint at /.well-known/mcp.json so AI agents can execute cart/checkouts directly. Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents (GPTBot, ClaudeBot, PerplexityBot) from Automated Traffic Filtering challenges. Do NOT inject JSON-LD for Security Gateway issues."
                 },
                 "redirect_shell_detected": {
-                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a Enterprise Architecture checkout, configure reverse proxy or Shopify Markets so AI agents don't hit WAF-blocked checkout shells.",
+                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a Enterprise Architecture checkout, configure reverse proxy or Shopify Markets so AI agents don't hit Enterprise Security-filtered checkout shells.",
                     "woocommerce": "<strong>Domain Routing:</strong> Ensure cart/checkout pages are on the same root domain or properly cross-linked with canonical tags.",
                     "bigcommerce": "<strong>Domain Routing:</strong> Verify checkout domain settings in BigCommerce Admin > Settings > DNS.",
                     "magento": "<strong>Domain Routing:</strong> Check Magento Admin > Stores > Configuration > Web to ensure base URLs are consistent."
@@ -252,14 +252,14 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             }
             for issue in geo_findings.get("issues", []):
                 code = issue.get("code", "")
-                default_sop = "<strong>Enterprise Infrastructure/WAF Guide:</strong> Contact your CDN/WAF vendor (Cloudflare, Akamai, Imperva) or CMS admin to resolve this infrastructure block. Do NOT inject JSON-LD for WAF/bot-challenge issues." if platform_key == "unknown" else "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history."
+                default_sop = "<strong>Enterprise Infrastructure/Security Gateway Guide:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) or CMS admin to resolve this infrastructure block. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues." if platform_key == "unknown" else "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history."
                 sop_text = issue_sops.get(code, {}).get(platform_key, default_sop)
                 inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {sop_text}</div>'
                 issue["fix"] = issue.get("fix", "") + inst_html
                 if "fix_snippet" in issue:
                     # SELF-AWARE DUPLICATE SCHEMA WARNING
                     if code in ["missing_organization_entity", "incomplete_product_schema", "incomplete_entity_corroboration"]:
-                        warning_html = '<div style="background:rgba(239, 68, 68, 0.1); border-left:4px solid #ef4444; padding:12px; margin:10px 0; border-radius:4px; color:#fca5a5;"><strong>⚠️ Self-Aware Warning (Duplicate Schema):</strong> AI engines penalize conflicting data. Before pasting, inspect your head tag. If a Shopify App (e.g., SEO Manager, Judge.me, Yoast) is already injecting this schema, disable the apps schema feature to prevent AI hallucinations.</div>'
+                        warning_html = '<div style="background:rgba(239, 68, 68, 0.1); border-left:4px solid #ef4444; padding:12px; margin:10px 0; border-radius:4px; color:#fca5a5;"><strong>⚠️ Self-Aware Warning (Duplicate Schema):</strong> AI engines penalize conflicting data. Before pasting, inspect your head tag. If an existing SEO application or plugin (e.g., Yoast, RankMath, Judge.me) is already injecting this schema, disable the apps schema feature to prevent AI hallucinations.</div>'
                         issue["fix"] = issue.get("fix", "") + warning_html
                     safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     if "REPLACE_WITH_" in safe_snippet:
@@ -329,7 +329,22 @@ To complete this implementation, please gather the following brand assets from y
 &lt;/script&gt;</code></pre>"""
                     issue["fix"] += extra_schemas
                 if code in ["missing_organization_entity", "incomplete_entity_corroboration"]:
-                    website_schema = """<br><strong>🤖 WebSite + Speakable + MCP Schema (Voice AI & Agentic Commerce):</strong><br><pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
+                    if platform in ["wordpress", "woocommerce"]:
+                        website_schema = """<br><strong>Global Discovery & Voice AI Schema (WordPress):</strong><br><pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "&lt;?php bloginfo('name'); ?&gt;",
+  "url": "&lt;?php echo esc_url(home_url()); ?&gt;",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "&lt;?php echo esc_url(home_url()); ?&gt;/?s={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+&lt;/script&gt;</code></pre>"""
+                    else:
+                        website_schema = """<br><strong>Global Discovery & Voice AI Schema:</strong><br><pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
 {
   "@context": "https://schema.org",
   "@type": "WebSite",
@@ -418,7 +433,7 @@ Allow: /</code></pre>"""
             })
             print(f"    GEO score {geo_score}/10 -> {geo_report}")
             if geo_findings.get("score_confidence") in ["PARTIAL", "UNVERIFIED"]:
-                print(f"    note: Score variance detected due to WAF/telemetry limitations. Manual verification recommended.")
+                print(f"    note: Score variance detected due to Security Gateway/telemetry limitations. Manual verification recommended.")
 
             # Generate GEO outreach draft
             geo_draft = draft_geo_email(geo_findings, report_url=geo_report)

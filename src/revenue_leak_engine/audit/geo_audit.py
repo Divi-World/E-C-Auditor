@@ -104,7 +104,7 @@ _BROWSERS = ["chrome120", "chrome110", "safari15_5", "edge101"]
 def _fetch(url, notes_key, findings):
     try:
         if USE_STEALTH:
-            # Industrial WAF Bypass: Rotate TLS fingerprints on every request
+            # Industrial Security Gateway Bypass: Rotate TLS fingerprints on every request
             browser = random.choice(_BROWSERS)
             r = cffi_requests.get(url, timeout=TIMEOUT, impersonate=browser, allow_redirects=True)
         else:
@@ -223,7 +223,7 @@ def _detect_platform(html, headers):
     if any(sig in html_lower or sig in headers_str for sig in ["demandware", "dw.__version__", "salesforce commerce cloud", "sfcc"]): return "salesforce"
     if 'wp-content' not in html_lower and 'woocommerce' not in html_lower and any(sig in html_lower or sig in headers_str for sig in ["vtex", "vtexcommercestable", "vtex.local", "vteximg"]): return "vtex"
     if any(sig in html_lower or sig in headers_str for sig in ["x-magento-init", "mage/cookies", "mage/"]): return "magento"
-    if "next" in headers_str or "__next" in html_lower or "_next/static" in html_lower: return "custom_Enterprise Architecture"
+    if "next" in headers_str or "__next" in html_lower or "_next/static" in html_lower: return "Enterprise Commerce Platform"
     
     # TIER 3: STRICT CMS (Avoid generic text mentions)
         
@@ -276,11 +276,10 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
       "sku": "{{ variant.sku | escape }}",
       {% if variant.barcode %}"gtin13": "{{ variant.barcode | escape }}",{% endif %}
       "itemCondition": "https://schema.org/NewCondition",
-      "material": "{{ product.type | escape }}",
-      "sustainability_certifications": "REPLACE_WITH_ECO_CERTIFICATIONS",
+      "material": "REPLACE_WITH_MATERIAL_COMPOSITION",
       "shippingDetails": {
           "@type": "OfferShippingDetails",
-          "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "{{ shop.currency }}" },
+          "shippingRate": { "@type": "MonetaryAmount", "value": "REPLACE_WITH_SHIPPING_RATE", "currency": "{{ shop.currency }}" },
           "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "{{ shop.country | default: 'US' }}" },
           "deliveryTime": { "@type": "ShippingDeliveryTime", "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY" }, "transitTime": { "@type": "QuantitativeValue", "minValue": 3, "maxValue": 5, "unitCode": "DAY" } }
         },
@@ -288,9 +287,9 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
         "@type": "MerchantReturnPolicy",
         "applicableCountry": "{{ shop.country | default: 'US' }}",
         "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-        "merchantReturnDays": 30,
+        "merchantReturnDays": "REPLACE_WITH_RETURN_DAYS",
         "returnMethod": "https://schema.org/ReturnByMail",
-        "returnFees": "https://schema.org/FreeReturn"
+        "returnFees": "REPLACE_WITH_RETURN_FEES"
       }
     }{% if not forloop.last %},{% endif %}
     {% endfor %}
@@ -349,7 +348,7 @@ def _sample_urls(domain, findings):
     if status in [404, None]:
         status, xml, final_url, _ = _fetch_with_retry(f"https://{domain}/sitemap_index.xml", "sitemap_index", findings, retries=0)
     
-    # WAF BYPASS: If default sitemap is blocked (403/429) or missing (404), check robots.txt for alternate sitemaps
+    # Security Gateway BYPASS: If default sitemap is blocked (403/429) or missing (404), check robots.txt for alternate sitemaps
     if status in [403, 404, 429, None]:
         robots_st, robots_txt, _, _ = _fetch_with_retry(f"https://{domain}/robots.txt", "robots_fallback", findings, retries=0)
         if robots_st == 200 and robots_txt:
@@ -429,7 +428,7 @@ def _sample_urls(domain, findings):
             except ET.ParseError as e:
                 findings["notes"] += f"sitemap_parse_error: {str(e)[:100]}. "
         else:
-            # WAF/BINARY DETECTION: Catch placeholder images (JPEG/Exif) or binary garbage
+            # Security Gateway/BINARY DETECTION: Catch placeholder images (JPEG/Exif) or binary garbage
             if "Exif" in xml or "JFIF" in xml or (not xml.strip().startswith("<") and len(xml) > 1000):
                 findings["notes"] += "sitemap_returned_non_xml_binary: server returned an image file instead of XML — likely a misconfigured route. "
             else:
@@ -508,7 +507,7 @@ def _check_crawlability(domain, findings):
         if is_blocked:
             results[name] = "BLOCKED" if st == 200 else st
             blocked_resources.append(name)
-            status_note = "WAF/bot-challenge" if st in [200, 403] else "Rate-Limited (429)"
+            status_note = "Security Gateway/Security Access Verification" if st in [200, 403] else "Rate-Limited (429)"
             findings["notes"] += f"{name}: {status_note} (status {st}), treated as unreadable. "
             if name in ["llms.txt", "agents.md", "robots.txt"]:
                 score -= 1.0
@@ -528,7 +527,7 @@ def _check_crawlability(domain, findings):
                         "evidence": f"Final URL: {final_url}",
                         "affected_urls": [final_url],
                         "severity": "medium", "confidence": "VERIFIED",
-                        "business_impact": "AI agents hitting payment domains may encounter strict bot-protection before catalog discovery.",
+                        "business_impact": "AI agents hitting payment domains may encounter strict Automated Traffic Filtering before catalog discovery.",
                         "difficulty": "Medium",
                         "fix": "DNS/CDN Routing Fix: Ensure llms.txt is hosted on the primary brand domain (e.g., via Shopify Markets, Cloudflare Page Rules, or reverse proxy), not a checkout subdomain."
                     })
@@ -573,13 +572,13 @@ def _check_crawlability(domain, findings):
         findings["dimensions_measured"]["crawlability"] = False
         issues.append({
             "code": "crawlability_unmeasured",
-            "description": "All crawlability resources returned bot-challenge pages instead of real content.",
+            "description": "All crawlability resources returned Security Access Verification pages instead of real content.",
             "evidence": f"Blocked: {', '.join(blocked_resources)}.",
             "affected_urls": list(resources.values()),
             "severity": "medium", "confidence": "UNVERIFIED",
-            "business_impact": "Crawlability is unknown. The site's WAF may also be blocking legitimate AI crawlers (e.g. GPTBot).",
+            "business_impact": "Crawlability is unknown. The site's Security Gateway may also be blocking legitimate AI Discovery Agents (e.g. GPTBot).",
             "difficulty": "Medium",
-            "fix": "Manually verify robots.txt/llms.txt accessibility, and check WAF bot-protection rules.",
+            "fix": "Infrastructure-Level Only: Platform could not be determined due to Security Gateway. Manually verify accessibility and check Automated Traffic Filtering rules. Re-run audit after allowlisting AI Discovery Agents.",
         })
 
     findings["dimensions"]["crawlability"] = max(0, score)
@@ -642,7 +641,7 @@ def _check_answerability(domain, sample_urls, findings):
 
 def _extract_real_assets(html, url, domain):
     if not html: return {}
-    # WAF GUARD: If this is a challenge page, do not scrape it for brand data
+    # Security Gateway GUARD: If this is a challenge page, do not scrape it for brand data
     html_lower = html[:2000].lower() if html else ""
     if any(sig in html_lower for sig in ["just a moment", "window._cf_chl_opt", "captcha", "challenge-platform", "enable javascript and cookies"]):
         return {"brand_name": domain.split('.')[0].capitalize(), "logo_url": f"https://{domain}/favicon.ico", "socials": [], "product_name": "REPLACE_WITH_PRODUCT_NAME", "product_desc": "REPLACE_WITH_PRODUCT_DESCRIPTION", "price": "NOT_DETECTED", "sku": "NOT_DETECTED", "product_url": url}
@@ -812,7 +811,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "AI agents are routed to payment/external domains and blocked before seeing catalog data.",
-                "difficulty": "Medium", "fix": "Enterprise Architecture/Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting WAF-blocked checkout shells."
+                "difficulty": "Medium", "fix": "Enterprise Architecture/Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting Enterprise Security-filtered checkout shells."
             })
         elif (csr_pages / total_pages_crawled) > 0.5:
             issues.append({
@@ -1112,7 +1111,7 @@ def _check_agentic_commerce(domain, findings):
 
     # Sanitize Agentic Matrix & Fix Contradiction (Partner Fix #18)
     plat = findings.get("platform_detected", "unknown")
-    if plat not in ["custom_Enterprise Architecture", "api_first"]:
+    if plat not in ["Enterprise Commerce Platform", "api_first"]:
         capabilities = {k: ("NOT_DETECTED" if v == "FAIL" else v) for k, v in capabilities.items()}
         # If standard platform and no agentic protocols found, cap score at baseline 5.0
         if score == 0.0:
@@ -1312,17 +1311,17 @@ def audit_geo(domain: str) -> dict:
             # P0 Directive Neutralized: Platform-native templates handle dynamic data at runtime.
             issue["fix_snippet"] = snippet
 
-    # ENTERPRISE CLEANUP: Remove non_commerce_profile if commerce signals or WAFs were found
+    # ENTERPRISE CLEANUP: Remove non_commerce_profile if commerce signals or Security Gateways were found
     notes = findings.get("notes", "")
     crawl_matrix = str(findings.get("crawlability_matrix", {}))
     commerce_confirmed = "commerce_detected_via" in notes
     
-    # WAF HEURISTIC: Sites with aggressive 403/WAF blocks are high-traffic enterprise commerce, not blogs
-    if "403" in crawl_matrix or "WAF" in notes or "bot-challenge" in notes:
+    # Security Gateway HEURISTIC: Sites with aggressive 403/Security Gateway blocks are high-traffic enterprise commerce, not blogs
+    if "403" in crawl_matrix or "Security Gateway" in notes or "Security Access Verification" in notes:
         commerce_confirmed = True
         
     platform = findings.get("platform_detected", "unknown")
-    if platform not in ["unknown", "custom_Enterprise Architecture"]:
+    if platform not in ["unknown", "Enterprise Commerce Platform"]:
         commerce_confirmed = True
 
     if commerce_confirmed or findings.get("dimensions_measured", {}).get("product_intelligence") == True:
@@ -1373,12 +1372,12 @@ def audit_geo(domain: str) -> dict:
         if not (i.get("code") in ["mcp_handshake_failed", "ucp_handshake_failed"] and any(x in i.get("evidence", "") for x in ["403", "404", "Timeout"]))
     ]
 
-    # WAF GUARDS: Suppress answerability hallucinations and infer enterprise platform
+    # Security Gateway GUARDS: Suppress answerability hallucinations and infer enterprise platform
     notes = findings.get("notes", "")
     crawl_matrix = str(findings.get("crawlability_matrix", {}))
-    is_waf_blocked = "403" in crawl_matrix or "WAF" in notes or "bot-challenge" in notes
+    is_waf_blocked = "403" in crawl_matrix or "Security Gateway" in notes or "Security Access Verification" in notes
     
-    # REMOVED: Blanket WAF answerability suppression (Partner Fix #4)
+    # REMOVED: Blanket Security Gateway answerability suppression (Partner Fix #4)
         
     if findings.get("platform_detected") == "unknown" and is_waf_blocked:
         findings["platform_detected"] = "Unknown (Enterprise Architecture)"
@@ -1397,7 +1396,7 @@ def audit_geo(domain: str) -> dict:
     
     # Evidence-Driven Confidence Calculation (Partner Directive #5)
     notes = findings.get("notes", "")
-    if "timeout" in notes or "WAF" in notes or "bot-challenge" in notes or "binary_image" in notes or "unrecognized_format" in notes or "unknown" in findings.get("platform_detected", "").lower():
+    if "timeout" in notes or "Security Gateway" in notes or "Security Access Verification" in notes or "binary_image" in notes or "unrecognized_format" in notes or "unknown" in findings.get("platform_detected", "").lower():
         findings["score_confidence"] = "PARTIAL"
     elif not findings.get("dimensions_measured", {}).get("product_intelligence", True):
         findings["score_confidence"] = "UNVERIFIED"
