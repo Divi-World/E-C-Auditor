@@ -209,7 +209,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "magento": "<strong>Exact Path:</strong> <code>header.phtml</code> or XML layout.<br><strong>Validation:</strong> Rich Results Test + cache flush.<br><strong>Rollback:</strong> Git revert."
                 },
                 "incomplete_product_schema": {
-                    "shopify": "<strong>Exact Path:</strong> <code>sections/main-product.liquid</code>.<br><strong>Validation:</strong> 1. Run Google Rich Results Test. 2. Check Schema Markup Validator for duplicate IDs. 3. Run Liquid lint in Shopify Theme Check app.<br><strong>Rollback:</strong> 1. Backup current theme. 2. Use Theme History to revert specific file. 3. Verify no JSON-LD app conflicts (e.g., SEO Manager).<br><strong>Theme Check:</strong> Verify compatibility with Dawn v2.0+ or your custom theme version.",
+                    "shopify": "<strong>1. Prerequisites:</strong> Ensure every product has Title, Price, SKU, and Barcode (GTIN). <strong>Bulk Edit:</strong> Shopify Admin &gt; Products &gt; Select All &gt; Bulk Edit. <strong>CSV Import:</strong> Use Product CSV template to map GTINs. <strong>Metafield Fallback:</strong> Map to <code>product.metafields.custom.gtin</code> if native fields are empty.<br><strong>2. Exact Path:</strong> <code>sections/main-product.liquid</code>.<br><strong>3. Validation:</strong> 1. Run Google Rich Results Test. 2. Check Schema Markup Validator for duplicate IDs. 3. Run Liquid lint in Shopify Theme Check app.<br><strong>4. Rollback:</strong> 1. Backup current theme. 2. Use Theme History to revert specific file. 3. Verify no JSON-LD app conflicts (e.g., SEO Manager).<br><strong>5. Theme Check:</strong> Verify compatibility with Dawn v2.0+ or your custom theme version.",
                     "woocommerce": "<strong>Exact Path:</strong> <code>single-product.php</code> or Yoast/RankMath.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> FTP restore.",
                     "bigcommerce": "<strong>Exact Path:</strong> <code>templates/components/products/product-view.html</code>.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Revert theme.",
                     "magento": "<strong>Exact Path:</strong> <code>catalog_product_view.xml</code> layout.<br><strong>Validation:</strong> Rich Results Test + cache flush.<br><strong>Rollback:</strong> Remove XML update."
@@ -274,9 +274,43 @@ To complete this implementation, please gather the following brand assets from y
 
                 # ENTERPRISE DIRECTIVE: Force BreadcrumbList for Product Schema Issues
                 if code in ["incomplete_product_schema", "missing_product_schema", "product_intelligence_unknown"] and platform == "shopify":
+                    pg_schema = """<br><strong>ProductGroup Schema (Variant-Heavy Catalogs):</strong><br><pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@type": "ProductGroup",
+  "name": "{{ product.title | escape }}",
+  "variesBy": ["size", "color"],
+  "hasVariant": [
+    {% for variant in product.variants %}
+    {
+      "@type": "Product",
+      "sku": "{{ variant.sku | escape }}",
+      "name": "{{ variant.title | escape }}"
+    }{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  ]
+}
+&lt;/script&gt;</code></pre>"""
+                    issue["fix"] += pg_schema
+                if code in ["incomplete_product_schema", "missing_product_schema", "product_intelligence_unknown"] and platform == "shopify":
                     bc = '<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>'
                     bc += '&lt;script type="application/ld+json"&gt;\n{\n  "@context": "https://schema.org",\n  "@type": "BreadcrumbList",\n  "itemListElement": [{\n    "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ shop.url }}"\n  },{\n    "@type": "ListItem", "position": 2, "name": "{{ product.type | escape }}", "item": "{{ shop.url }}/collections/{{ product.type | handleize }}"\n  },{\n    "@type": "ListItem", "position": 3, "name": "{{ product.title | escape }}", "item": "{{ shop.url }}{{ product.url }}"\n  }]\n}\n&lt;/script&gt;</code></pre>'
                     issue["fix"] = issue.get("fix", "") + "<br><strong>BreadcrumbList JSON-LD Template:</strong><br>" + bc
+                if code == "missing_organization_entity" and platform == "shopify":
+                    website_schema = """<br><strong>WebSite + SearchAction Schema (Homepage):</strong><br><pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "{{ shop.name }}",
+  "url": "{{ shop.url }}",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "{{ shop.url }}/search?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+&lt;/script&gt;</code></pre>"""
+                    issue["fix"] += website_schema
                 if code == "missing_answerability_content" and platform == "shopify":
                     faq = """<div style="background:rgba(16, 185, 129, 0.1); padding:15px; border-radius:6px; border:1px solid rgba(16,185,129,0.3); color:#a7f3d0; font-size:13px;">
 <strong>🛠️ Shopify Metaobject Setup Guide:</strong><br>
