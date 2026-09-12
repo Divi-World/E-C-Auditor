@@ -255,11 +255,13 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
   "description": "{{ product.description | strip_html | truncate: 200 | escape }}",
   "@id": "{{ shop.url }}{{ product.url }}#product",
   "brand": { "@type": "Brand", "name": "{{ product.vendor | escape }}", "@id": "{{ shop.url }}#brand" },
-  {% if product.metafields.reviews.rating.value %}
+  {% assign r_val = product.metafields.reviews.rating.value | default: product.metafields.judgeme.rating.value | default: product.metafields.loox.rating.value | default: product.metafields.yotpo.rating.value %}
+  {% assign r_cnt = product.metafields.reviews.rating_count | default: product.metafields.judgeme.count.value | default: product.metafields.loox.count.value | default: product.metafields.yotpo.count.value %}
+  {% if r_val %}
   "aggregateRating": {
     "@type": "AggregateRating",
-    "ratingValue": "{{ product.metafields.reviews.rating.value }}",
-    "reviewCount": "{{ product.metafields.reviews.rating_count }}"
+    "ratingValue": "{{ r_val }}",
+    "reviewCount": "{{ r_cnt }}"
   },
   {% endif %}
   "offers": [
@@ -322,7 +324,7 @@ add_action('wp_head', function() {
         else:
             return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "' + (sample_name if sample_name and sample_name != domain else 'REPLACE_WITH_PRODUCT_NAME') + '",\n  "image": "REPLACE_WITH_IMAGE_URL",\n  "description": "REPLACE_WITH_DESCRIPTION",\n  "sku": "NOT_DETECTED",\n  "offers": {\n    "@type": "Offer",\n    "url": "https://' + domain + '/REPLACE_WITH_PRODUCT_URL",\n    "priceCurrency": "USD",\n    "price": "NOT_DETECTED",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>'
     elif code_type == "organization":
-        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "name": "REPLACE_WITH_BRAND_NAME",\n  "url": "https://' + domain + '",\n  "logo": "REPLACE_WITH_LOGO_URL",\n  "address": {\n    "@type": "PostalAddress",\n    "addressLocality": "REPLACE_WITH_CITY",\n    "addressCountry": "REPLACE_WITH_COUNTRY"\n  },\n  "contactPoint": {\n    "@type": "ContactPoint",\n    "telephone": "REPLACE_WITH_PHONE",\n    "contactType": "customer service",\n    "email": "support@' + domain + '"\n  },\n  "sameAs": [\n    "REPLACE_WITH_FACEBOOK_URL",\n    "REPLACE_WITH_INSTAGRAM_URL",\n    "REPLACE_WITH_TWITTER_URL",\n    "REPLACE_WITH_LINKEDIN_URL",\n    "https://en.wikipedia.org/wiki/REPLACE_WITH_BRAND"\n  ]\n}\n</script>'
+        return '<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "@id": "https://' + domain + '#brand",\n  "name": "REPLACE_WITH_BRAND_NAME",\n  "url": "https://' + domain + '",\n  "logo": "REPLACE_WITH_LOGO_URL",\n  "address": {\n    "@type": "PostalAddress",\n    "addressLocality": "REPLACE_WITH_CITY",\n    "addressCountry": "REPLACE_WITH_COUNTRY"\n  },\n  "contactPoint": {\n    "@type": "ContactPoint",\n    "telephone": "REPLACE_WITH_PHONE",\n    "contactType": "customer service",\n    "email": "support@' + domain + '"\n  },\n  "sameAs": [\n    "REPLACE_WITH_FACEBOOK_URL",\n    "REPLACE_WITH_INSTAGRAM_URL",\n    "REPLACE_WITH_TWITTER_URL",\n    "REPLACE_WITH_LINKEDIN_URL",\n    "https://en.wikipedia.org/wiki/REPLACE_WITH_BRAND"\n  ]\n}\n</script>'
     return ""
 
 
@@ -1393,7 +1395,7 @@ def audit_geo(domain: str) -> dict:
     
     # Evidence-Driven Confidence Calculation (Partner Directive #5)
     notes = findings.get("notes", "")
-    if "timeout" in notes or "WAF" in notes or "bot-challenge" in notes or "binary_image" in notes or "unrecognized_format" in notes:
+    if "timeout" in notes or "WAF" in notes or "bot-challenge" in notes or "binary_image" in notes or "unrecognized_format" in notes or "unknown" in findings.get("platform_detected", "").lower():
         findings["score_confidence"] = "PARTIAL"
     elif not findings.get("dimensions_measured", {}).get("product_intelligence", True):
         findings["score_confidence"] = "UNVERIFIED"
