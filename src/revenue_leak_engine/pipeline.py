@@ -200,6 +200,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             
             # ENTERPRISE SNIPPET INJECTION: Issue-Specific Platform-Native SOPs
             platform = geo_findings.get("platform_detected", "unknown")
+            platform_key = "unknown" if "unknown" in platform.lower() or "enterprise" in platform.lower() or "waf" in platform.lower() else platform
             issue_sops = {
                 "missing_organization_entity": {
                     "shopify": "<strong>Exact Path:</strong> <code>layout/theme.liquid</code> (paste in &lt;head&gt;).<br><strong>Validation:</strong> Test Homepage via Schema Markup Validator.<br><strong>Rollback:</strong> Revert via Theme History.",
@@ -208,7 +209,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "magento": "<strong>Exact Path:</strong> <code>header.phtml</code> or XML layout.<br><strong>Validation:</strong> Rich Results Test + cache flush.<br><strong>Rollback:</strong> Git revert."
                 },
                 "incomplete_product_schema": {
-                    "shopify": "<strong>Exact Path:</strong> <code>sections/main-product.liquid</code>.<br><strong>Validation:</strong> Rich Results Test + Schema Validator.<br><strong>Rollback:</strong> Theme History.",
+                    "shopify": "<strong>Exact Path:</strong> <code>sections/main-product.liquid</code>.<br><strong>Validation:</strong> 1. Run Google Rich Results Test. 2. Check Schema Markup Validator for duplicate IDs. 3. Run Liquid lint in Shopify Theme Check app.<br><strong>Rollback:</strong> 1. Backup current theme. 2. Use Theme History to revert specific file. 3. Verify no JSON-LD app conflicts (e.g., SEO Manager).<br><strong>Theme Check:</strong> Verify compatibility with Dawn v2.0+ or your custom theme version.",
                     "woocommerce": "<strong>Exact Path:</strong> <code>single-product.php</code> or Yoast/RankMath.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> FTP restore.",
                     "bigcommerce": "<strong>Exact Path:</strong> <code>templates/components/products/product-view.html</code>.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Revert theme.",
                     "magento": "<strong>Exact Path:</strong> <code>catalog_product_view.xml</code> layout.<br><strong>Validation:</strong> Rich Results Test + cache flush.<br><strong>Rollback:</strong> Remove XML update."
@@ -217,7 +218,8 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "shopify": "<strong>Admin Path:</strong> <code>Settings &gt; Policies</code>. Expand to &gt;200 words. Create FAQ Page via <code>Online Store &gt; Pages</code>.",
                     "woocommerce": "<strong>Admin Path:</strong> <code>Pages &gt; Add New</code>. Create Shipping, Returns, FAQ pages (&gt;200 words). Link in Footer Menu.",
                     "bigcommerce": "<strong>Admin Path:</strong> <code>Storefront &gt; Web Pages</code>. Create policy and FAQ pages.",
-                    "magento": "<strong>Admin Path:</strong> <code>Content &gt; Pages</code>. Create policy and FAQ CMS blocks."
+                    "magento": "<strong>Admin Path:</strong> <code>Content &gt; Pages</code>. Create policy and FAQ CMS blocks.",
+                    "unknown": "<strong>Enterprise CMS Admin Path:</strong> Access your CMS backend to create comprehensive Shipping, Returns, and FAQ pages (>200 words). Link them in the global footer. Do NOT inject JSON-LD until pages are created."
                 },
                 "ai_crawlers_blocked": {
                     "shopify": "<strong>Exact Path:</strong> Create <code>templates/robots.txt.liquid</code>. Append AI bot allow rules (GPTBot, ClaudeBot, PerplexityBot, Applebot-Extended).",
@@ -229,7 +231,8 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "shopify": "<strong>WAF Allowlist:</strong> Contact Shopify Plus Support or your CDN (Cloudflare/Fastly) to whitelist AI bot user-agents (GPTBot, ClaudeBot) from bot-protection challenges.",
                     "woocommerce": "<strong>WAF Allowlist:</strong> Add AI bot user-agents to your WAF/CDN whitelist (Cloudflare Page Rules, Wordfence, or Sucuri).",
                     "bigcommerce": "<strong>WAF Allowlist:</strong> Contact BigCommerce Support or your CDN to whitelist AI bot user-agents.",
-                    "magento": "<strong>WAF Allowlist:</strong> Update your CDN/WAF rules to allow AI bot user-agents to bypass bot-protection."
+                    "magento": "<strong>WAF Allowlist:</strong> Update your CDN/WAF rules to allow AI bot user-agents to bypass bot-protection.",
+                    "unknown": "<strong>Enterprise WAF Allowlist:</strong> Contact your hosting provider or CDN vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents (GPTBot, ClaudeBot, PerplexityBot) from bot-protection challenges. Do NOT inject JSON-LD for WAF issues."
                 },
                 "redirect_shell_detected": {
                     "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a Enterprise Architecture checkout, configure reverse proxy or Shopify Markets so AI agents don't hit WAF-blocked checkout shells.",
@@ -246,7 +249,8 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             }
             for issue in geo_findings.get("issues", []):
                 code = issue.get("code", "")
-                sop_text = issue_sops.get(code, {}).get(platform, "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history.")
+                default_sop = "<strong>Enterprise Infrastructure/WAF Guide:</strong> Contact your CDN/WAF vendor (Cloudflare, Akamai, Imperva) or CMS admin to resolve this infrastructure block. Do NOT inject JSON-LD for WAF/bot-challenge issues." if platform_key == "unknown" else "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history."
+                sop_text = issue_sops.get(code, {}).get(platform_key, default_sop)
                 inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {sop_text}</div>'
                 issue["fix"] = issue.get("fix", "") + inst_html
                 if "fix_snippet" in issue:
@@ -343,6 +347,8 @@ Allow: /</code></pre>"""
                 "geo_report_path": geo_report
             })
             print(f"    GEO score {geo_score}/10 -> {geo_report}")
+            if geo_findings.get("score_confidence") in ["PARTIAL", "UNVERIFIED"]:
+                print(f"    note: Score variance detected due to WAF/telemetry limitations. Manual verification recommended.")
 
             # Generate GEO outreach draft
             geo_draft = draft_geo_email(geo_findings, report_url=geo_report)

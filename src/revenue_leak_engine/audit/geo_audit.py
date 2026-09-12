@@ -216,15 +216,16 @@ def _detect_platform(html, headers):
     if "squarespace-cdn.com" in html_lower or "squarespace" in html_lower: return "squarespace"
     if "wixstatic.com" in html_lower or "wix.com" in html_lower: return "wix"
     
+    # TIER 1.5: STRICT CMS (Moved up to prevent false positives from enterprise scripts)
+    if any(sig in html_lower for sig in ["/wp-content/", "/wp-includes/", "wp-emoji-release.min.js"]): return "wordpress"
+
     # TIER 2: ENTERPRISE PLATFORMS (Strict JS/Header signatures)
     if any(sig in html_lower or sig in headers_str for sig in ["demandware", "dw.__version__", "salesforce commerce cloud", "sfcc"]): return "salesforce"
-    if any(sig in html_lower or sig in headers_str for sig in ["vtex", "vtexcommercestable", "vtex.local", "vteximg"]): return "vtex"
+    if 'wp-content' not in html_lower and 'woocommerce' not in html_lower and any(sig in html_lower or sig in headers_str for sig in ["vtex", "vtexcommercestable", "vtex.local", "vteximg"]): return "vtex"
     if any(sig in html_lower or sig in headers_str for sig in ["x-magento-init", "mage/cookies", "mage/"]): return "magento"
     if "next" in headers_str or "__next" in html_lower or "_next/static" in html_lower: return "custom_Enterprise Architecture"
     
     # TIER 3: STRICT CMS (Avoid generic text mentions)
-    if any(sig in html_lower for sig in ["/wp-content/plugins/woocommerce/", "wc-block", "woocommerce-json-ld"]): return "woocommerce"
-    if any(sig in html_lower for sig in ["/wp-content/themes/", "/wp-includes/", "wp-emoji-release.min.js"]): return "wordpress"
         
     return 'unknown'
 
@@ -273,9 +274,15 @@ def _generate_snippet(code_type, domain, sample_name="", platform="unknown"):
       "sku": "{{ variant.sku | escape }}",
       {% if variant.barcode %}"gtin13": "{{ variant.barcode | escape }}",{% endif %}
       "itemCondition": "https://schema.org/NewCondition",
-      "hasMerchantReturnPolicy": {
+      "shippingDetails": {
+          "@type": "OfferShippingDetails",
+          "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "{{ shop.currency }}" },
+          "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "{{ shop.country | default: 'US' }}" },
+          "deliveryTime": { "@type": "ShippingDeliveryTime", "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY" }, "transitTime": { "@type": "QuantitativeValue", "minValue": 3, "maxValue": 5, "unitCode": "DAY" } }
+        },
+        "hasMerchantReturnPolicy": {
         "@type": "MerchantReturnPolicy",
-        "applicableCountry": "US",
+        "applicableCountry": "{{ shop.country | default: 'US' }}",
         "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
         "merchantReturnDays": 30,
         "returnMethod": "https://schema.org/ReturnByMail",
@@ -1277,6 +1284,10 @@ def audit_geo(domain: str) -> dict:
             snippet = snippet.replace("REPLACE_WITH_COUNTRY", real_assets.get("country", "REPLACE_WITH_COUNTRY"))
             snippet = snippet.replace("REPLACE_WITH_LOGO_URL", real_assets.get("logo_url", f"https://{domain}/favicon.ico"))
             socials_list = [s for s in real_assets.get("socials", []) if s and s.startswith("http")]
+            snippet = snippet.replace("REPLACE_WITH_FACEBOOK_URL", next((s for s in socials_list if "facebook" in s), "https://facebook.com/brand"))
+            snippet = snippet.replace("REPLACE_WITH_INSTAGRAM_URL", next((s for s in socials_list if "instagram" in s), "https://instagram.com/brand"))
+            snippet = snippet.replace("REPLACE_WITH_TWITTER_URL", next((s for s in socials_list if "twitter" in s or "x.com" in s), "https://twitter.com/brand"))
+            snippet = snippet.replace("REPLACE_WITH_LINKEDIN_URL", next((s for s in socials_list if "linkedin" in s), "https://linkedin.com/company/brand"))
             snippet = snippet.replace("REPLACE_WITH_SOCIAL_URLS", '", "'.join(socials_list) if socials_list else "https://www.linkedin.com/company/brand")
             
             # Product specific replacements
