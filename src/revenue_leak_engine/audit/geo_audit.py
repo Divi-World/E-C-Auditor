@@ -165,9 +165,13 @@ def _extract_json_ld(html):
         if not raw: continue
         try:
             clean = raw.replace('&quot;', '"').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+            original_clean = clean
             clean = re.sub(r',(\s*[}\]])', r'\1', clean)
             clean = re.sub(r'//.*', '', clean)
             data = json.loads(clean)
+            if original_clean != clean and not getattr(data, '_syntax_warned', False):
+                findings["notes"] += "json_syntax_error_auto_fixed: trailing commas. "
+                data['_syntax_warned'] = True
             if isinstance(data, list): nodes.extend(data)
             else: nodes.append(data)
         except Exception:
@@ -881,6 +885,36 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         })
 
     findings["dimensions"]["entity_intelligence"] = max(0, entity_score)
+
+    # INDUSTRIAL GUARDS: Vision AI, NoIndex, Syntax
+    notes = findings.get("notes", "")
+    if "vision_ai_blindspot" in notes:
+        issues.append({
+            "code": "vision_ai_blindspot",
+            "description": "Product images lack descriptive alt-text, rendering them invisible to Vision AI (GPT-4V, Gemini).",
+            "evidence": "Multiple <img> tags found with empty or missing alt attributes.",
+            "affected_urls": products[:3], "severity": "medium", "confidence": "VERIFIED",
+            "business_impact": "Multimodal AI engines cannot understand or recommend your products visually.",
+            "difficulty": "Easy", "fix": "Add descriptive, keyword-rich alt text to all product images via CMS bulk edit."
+        })
+    if "schema_on_noindex_page" in notes:
+        issues.append({
+            "code": "schema_on_noindex_page",
+            "description": "Critical: Machine-readable schema detected on pages hidden from AI crawlers (noindex).",
+            "evidence": "<meta name='robots' content='noindex'> found alongside JSON-LD.",
+            "affected_urls": products[:3], "severity": "high", "confidence": "VERIFIED",
+            "business_impact": "AI engines will completely ignore your structured data. Revenue leak is 100% on these pages.",
+            "difficulty": "Easy", "fix": "Remove the noindex directive from commercial product pages via SEO settings."
+        })
+    if "json_syntax_error_auto_fixed" in notes:
+        issues.append({
+            "code": "silent_json_syntax_failure",
+            "description": "Existing JSON-LD contains syntax errors (trailing commas) that break native AI parsers.",
+            "evidence": "Engine auto-corrected malformed JSON to read the data. Native AI crawlers will fail.",
+            "affected_urls": [f"https://{domain}/"], "severity": "high", "confidence": "VERIFIED",
+            "business_impact": "AI engines silently discard your schema. Your brand is invisible to LLM shopping graphs.",
+            "difficulty": "Medium", "fix": "Validate existing schema via Schema Markup Validator and remove trailing commas or conflicting app outputs."
+        })
     
     # PRODUCT "MONEY LEAK" DETECTOR
     products = sample_urls.get("products", [])
@@ -904,6 +938,17 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                             has_prod = True
                             if node.get("name"): has_name = True
                             if node.get("image"): has_image = True
+                            # VISION AI READINESS: Check for empty alt text in HTML
+                            if "vision_ai_checked" not in findings["notes"]:
+                                img_tags = re.findall(r'<img[^>]+>', html[:50000].lower())
+                                empty_alts = sum(1 for img in img_tags if 'alt=""' in img or 'alt=" "' in img or 'alt=' not in img)
+                                if empty_alts > 3:
+                                    findings["notes"] += "vision_ai_blindspot: empty alt tags. "
+                                findings["notes"] += "vision_ai_checked. "
+                            # INDEXATION GUARD: Check for noindex
+                            if "noindex_checked" not in findings["notes"] and ('<meta name="robots" content="noindex' in html[:5000].lower() or '<meta content="noindex' in html[:5000].lower()):
+                                findings["notes"] += "schema_on_noindex_page. "
+                                findings["notes"] += "noindex_checked. "
                             if node.get("sku") or node.get("gtin") or node.get("mpn"): has_sku = True
                             if node.get("brand"): has_brand = True
                             if node.get("review") or node.get("aggregateRating"): has_review = True

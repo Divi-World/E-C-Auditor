@@ -219,6 +219,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 "missing_answerability_content": {
                     "shopify": "<strong>Admin Path:</strong> <code>Settings &gt; Policies</code>. Expand to &gt;200 words. Create FAQ Page via <code>Online Store &gt; Pages</code>.",
                     "woocommerce": "<strong>Admin Path:</strong> <code>Pages &gt; Add New</code>. Create Shipping, Returns, FAQ pages (&gt;200 words). Link in Footer Menu.",
+                    "wordpress": "<strong>Admin Path:</strong> <code>Pages &gt; Add New</code>. Create Shipping, Returns, FAQ pages (&gt;200 words). Link in <code>Appearance &gt; Menus</code> (Footer).",
                     "bigcommerce": "<strong>Admin Path:</strong> <code>Storefront &gt; Web Pages</code>. Create policy and FAQ pages.",
                     "magento": "<strong>Admin Path:</strong> <code>Content &gt; Pages</code>. Create policy and FAQ CMS blocks.",
                     "unknown": "<strong>Enterprise CMS Admin Path:</strong> Access your CMS backend to create comprehensive Shipping, Returns, and FAQ pages (>200 words). Link them in the global footer. Do NOT inject JSON-LD until pages are created."
@@ -242,6 +243,24 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "woocommerce": "<strong>Domain Routing:</strong> Ensure cart/checkout pages are on the same root domain or properly cross-linked with canonical tags.",
                     "bigcommerce": "<strong>Domain Routing:</strong> Verify checkout domain settings in BigCommerce Admin > Settings > DNS.",
                     "magento": "<strong>Domain Routing:</strong> Check Magento Admin > Stores > Configuration > Web to ensure base URLs are consistent."
+                },
+                "vision_ai_blindspot": {
+                    "shopify": "<strong>Bulk Edit:</strong> Shopify Admin &gt; Products &gt; Select All &gt; Bulk Edit. Map descriptive text to the Image Alt Text field.",
+                    "woocommerce": "<strong>Bulk Edit:</strong> WooCommerce &gt; Products. Update the 'Alt Text' field in the Product Image settings.",
+                    "wordpress": "<strong>Media Library:</strong> WordPress Admin &gt; Media. Select product images and add descriptive Alt Text.",
+                    "unknown": "<strong>CMS Admin:</strong> Access your CMS Media Library or Product Bulk Editor to add descriptive Alt Text to all commercial images."
+                },
+                "schema_on_noindex_page": {
+                    "shopify": "<strong>Admin Path:</strong> Online Store &gt; Preferences OR SEO Manager App. Remove 'Hide from search engines' checkbox.",
+                    "woocommerce": "<strong>Admin Path:</strong> Yoast SEO / RankMath &gt; Advanced tab. Set 'Allow search engines to show this Product in search results?' to Yes.",
+                    "wordpress": "<strong>Admin Path:</strong> Yoast SEO / RankMath &gt; Advanced tab. Set 'Allow search engines to show this Page in search results?' to Yes.",
+                    "unknown": "<strong>CMS Admin:</strong> Check your SEO plugin or page-level settings to ensure the 'noindex' robots directive is removed from commercial pages."
+                },
+                "silent_json_syntax_failure": {
+                    "shopify": "<strong>Validation:</strong> Run the Schema Markup Validator on the live URL. Check for conflicting JSON-LD outputs from SEO apps.",
+                    "woocommerce": "<strong>Validation:</strong> Run the Schema Markup Validator. Check Yoast/RankMath global schema settings for syntax errors.",
+                    "wordpress": "<strong>Validation:</strong> Run the Schema Markup Validator. Check SEO plugin outputs.",
+                    "unknown": "<strong>Validation:</strong> Run the Schema Markup Validator on the live URL to identify the exact line causing the JSON parse failure."
                 },
                 "llms_txt_checkout_routing": {
                     "shopify": "<strong>CDN/Routing:</strong> Host llms.txt on the primary brand domain via Shopify Markets, Cloudflare Page Rules, or a reverse proxy. Do not host on checkout subdomains.",
