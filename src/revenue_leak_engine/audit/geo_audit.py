@@ -229,7 +229,7 @@ def _detect_platform(html, headers):
     if any(sig in html_lower or sig in headers_str for sig in ["demandware", "dw.__version__", "salesforce commerce cloud", "sfcc"]): return "salesforce"
     if 'wp-content' not in html_lower and 'woocommerce' not in html_lower and any(sig in html_lower or sig in headers_str for sig in ["vtex", "vtexcommercestable", "vtex.local", "vteximg"]): return "vtex"
     if any(sig in html_lower or sig in headers_str for sig in ["x-magento-init", "mage/cookies", "mage/"]): return "magento"
-    if "next" in headers_str or "__next" in html_lower or "_next/static" in html_lower: return "Enterprise Commerce Platform"
+    if "next" in headers_str or "__next" in html_lower or "_next/static" in html_lower: return "Custom Commerce Stack"
     
     # TIER 3: STRICT CMS (Avoid generic text mentions)
         
@@ -1279,7 +1279,7 @@ def _check_agentic_commerce(domain, findings):
 
     # Sanitize Agentic Matrix & Fix Contradiction (Partner Fix #18)
     plat = findings.get("platform_detected", "unknown")
-    if plat not in ["Enterprise Commerce Platform", "api_first"]:
+    if plat not in ["Custom Commerce Stack", "api_first"]:
         capabilities = {k: ("NOT_DETECTED" if v == "FAIL" else v) for k, v in capabilities.items()}
         # If standard platform and no agentic protocols found, cap score at baseline 5.0
         if score == 0.0:
@@ -1494,7 +1494,7 @@ def audit_geo(domain: str) -> dict:
         commerce_confirmed = True
         
     platform = findings.get("platform_detected", "unknown")
-    if platform not in ["unknown", "Enterprise Commerce Platform"]:
+    if platform not in ["unknown", "Custom Commerce Stack"]:
         commerce_confirmed = True
 
     if commerce_confirmed or findings.get("dimensions_measured", {}).get("product_intelligence") == True:
@@ -1553,7 +1553,7 @@ def audit_geo(domain: str) -> dict:
     # REMOVED: Blanket Security Gateway answerability suppression (Partner Fix #4)
         
     if findings.get("platform_detected") == "unknown" and is_waf_blocked:
-        findings["platform_detected"] = "Unknown (Enterprise Architecture)"
+        findings["platform_detected"] = "Unknown (Headless Commerce)"
 
     # ENTITY GUARD: If massive timeouts/blocks occurred, entity score cannot be 10.0
     entity_notes = findings.get("notes", "")

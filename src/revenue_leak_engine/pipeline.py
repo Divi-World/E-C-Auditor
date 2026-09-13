@@ -59,7 +59,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         seen.add(domain)
         
         # OG FIX: We no longer discard non-Shopify stores. 
-        # The v7.5 GEO Auditor is platform-agnostic (WooCommerce, BigCommerce, Enterprise Architecture).
+        # The v7.5 GEO Auditor is platform-agnostic (WooCommerce, BigCommerce, Headless Commerce).
         # We still tag Shopify if detected, but we keep ALL e-commerce leads.
         try:
             result = is_shopify(domain)
@@ -229,14 +229,14 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "woocommerce": "<strong>Exact Path:</strong> Yoast SEO &gt; Tools &gt; File Editor OR edit root <code>robots.txt</code> via FTP. Append AI bot allow rules.",
                     "bigcommerce": "<strong>Exact Path:</strong> Edit root <code>robots.txt</code> via FTP/SSH. Append AI bot allow rules.",
                     "magento": "<strong>Exact Path:</strong> Edit <code>pub/robots.txt</code> via SSH/FTP. Append AI bot allow rules.",
-                    "unknown": "<strong>Enterprise Security Gateway/CDN Allowlist:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues."
+                    "unknown": "<strong>Security Gateway Gateway/CDN Allowlist:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues."
                 },
                 "waf_blocking": {
                     "shopify": "<strong>Security Gateway Allowlist:</strong> Contact Shopify Plus Support or your CDN (Cloudflare/Fastly) to whitelist AI bot user-agents (GPTBot, ClaudeBot) from Automated Traffic Filtering challenges.",
                     "woocommerce": "<strong>Security Gateway Allowlist:</strong> Add AI bot user-agents to your Security Gateway/CDN whitelist (Cloudflare Page Rules, Wordfence, or Sucuri).",
                     "bigcommerce": "<strong>Security Gateway Allowlist:</strong> Contact BigCommerce Support or your CDN to whitelist AI bot user-agents.",
                     "magento": "<strong>Security Gateway Allowlist:</strong> Update your CDN/Security Gateway rules to allow AI bot user-agents to bypass Automated Traffic Filtering.",
-                    "unknown": "<strong>Enterprise MCP & Security Gateway Allowlist:</strong> Expose a Model Context Protocol (MCP) endpoint at /.well-known/mcp.json so AI agents can execute cart/checkouts directly. Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents (GPTBot, ClaudeBot, PerplexityBot) from Automated Traffic Filtering challenges. Do NOT inject JSON-LD for Security Gateway issues."
+                    "unknown": "<strong>MCP & Security Gateway Allowlist:</strong> Expose a Model Context Protocol (MCP) endpoint at /.well-known/mcp.json so AI agents can execute cart/checkouts directly. Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents (GPTBot, ClaudeBot, PerplexityBot) from Automated Traffic Filtering challenges. Do NOT inject JSON-LD for Security Gateway issues."
                 },
                 "redirect_shell_detected": {
                     "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a Headless / Custom Storefront checkout, configure reverse proxy or Shopify Markets so AI agents don't hit Security Gateway-filtered checkout shells.",
@@ -315,7 +315,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             }
             for issue in geo_findings.get("issues", []):
                 code = issue.get("code", "")
-                default_sop = "<strong>Enterprise Infrastructure/Security Gateway Guide:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) or CMS admin to resolve this infrastructure block. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues." if platform_key == "unknown" else "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history."
+                default_sop = "<strong>Infrastructure/Security Gateway Guide:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) or CMS admin to resolve this infrastructure block. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues." if platform_key == "unknown" else "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history."
                 sop_text = issue_sops.get(code, {}).get(platform_key.lower(), default_sop)
                 # ANTI-GENERIC GUARD: Eradicate "Inject JSON-LD" for known CMS platforms
                 if "Inject JSON-LD into global" in sop_text and platform_key.lower() not in ["unknown", "enterprise commerce platform", "api_first", "enterprise architecture"]:
@@ -334,7 +334,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     if "REPLACE_WITH_" in safe_snippet:
                         # PARTNER DIRECTIVE: Output Data Collection Checklist instead of broken code
                         checklist = """<div style="background:rgba(245, 158, 11, 0.1); border-left:4px solid #f59e0b; padding:15px; margin:10px 0; border-radius:4px; color:#fcd34d;">
-<strong>📋 Enterprise Data Collection Checklist:</strong><br>
+<strong>📋 Data Collection Checklist:</strong><br>
 To complete this implementation, please gather the following brand assets from your internal guidelines or CMS:<br>
 <ul style="margin:5px 0; padding-left:20px;">
 <li>City / Headquarters Location</li>
@@ -488,6 +488,9 @@ Allow: /</code></pre>"""
                 geo_findings["opp_tier"] = "HIGH"
                 geo_findings["opp_color"] = "#ef4444"
 
+            # PHASE 3: COMMERCIAL INTELLIGENCE HOOK
+            if geo_findings.get("geo_revenue_exposure") == "HIGH":
+                geo_findings["business_interpretation"].append(f"Commercial Intelligence: {domain} is actively funding paid media campaigns while core machine-readable commerce data remains incomplete, creating a measurable ROI leak in automated discovery channels.")
             geo_report = generate_geo_report(geo_findings)
             try:
                 with open(geo_report, 'r', encoding='utf-8') as f: html = f.read()
@@ -505,10 +508,12 @@ Allow: /</code></pre>"""
             # PHASE 2: SAVE GEO HISTORY TO SQLITE (Zero CRO impact, fails silently if locked)
             try:
                 import sqlite3
+                import time as _geo_time
                 from revenue_leak_engine.audit.geo_audit import CACHE_DB
                 conn = sqlite3.connect(CACHE_DB)
+                conn.execute("CREATE TABLE IF NOT EXISTS geo_history (domain TEXT, timestamp REAL, geo_score REAL, issue_count INTEGER, exposure_tier TEXT)")
                 conn.execute("INSERT INTO geo_history (domain, timestamp, geo_score, issue_count, exposure_tier) VALUES (?, ?, ?, ?, ?)",
-                             (domain, time.time(), geo_score, len(geo_findings.get("issues", [])), geo_findings.get("geo_revenue_exposure", "UNKNOWN")))
+                             (domain, _geo_time.time(), geo_score, len(geo_findings.get("issues", [])), geo_findings.get("geo_revenue_exposure", "UNKNOWN")))
                 conn.commit()
                 conn.close()
             except Exception: pass
