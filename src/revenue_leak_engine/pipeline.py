@@ -200,7 +200,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             
             # ENTERPRISE SNIPPET INJECTION: Issue-Specific Platform-Native SOPs
             platform = geo_findings.get("platform_detected", "unknown")
-            platform_key = "unknown" if "unknown" in platform.lower() or "enterprise" in platform.lower() or "waf" in platform.lower() else platform
+            platform_key = "unknown" if "unknown" in platform.lower() or "enterprise" in platform.lower() or "waf" in platform.lower() or "security gateway" in platform.lower() else platform
             issue_sops = {
                 "missing_organization_entity": {
                     "shopify": "<strong>Exact Path:</strong> <code>layout/theme.liquid</code> (paste in &lt;head&gt;).<br><strong>Validation:</strong> Test Homepage via Schema Markup Validator.<br><strong>Rollback:</strong> Revert via Theme History.",
@@ -239,7 +239,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "unknown": "<strong>Enterprise MCP & Security Gateway Allowlist:</strong> Expose a Model Context Protocol (MCP) endpoint at /.well-known/mcp.json so AI agents can execute cart/checkouts directly. Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents (GPTBot, ClaudeBot, PerplexityBot) from Automated Traffic Filtering challenges. Do NOT inject JSON-LD for Security Gateway issues."
                 },
                 "redirect_shell_detected": {
-                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a Enterprise Architecture checkout, configure reverse proxy or Shopify Markets so AI agents don't hit Enterprise Security-filtered checkout shells.",
+                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a Headless / Custom Storefront checkout, configure reverse proxy or Shopify Markets so AI agents don't hit Security Gateway-filtered checkout shells.",
                     "woocommerce": "<strong>Domain Routing:</strong> Ensure cart/checkout pages are on the same root domain or properly cross-linked with canonical tags.",
                     "bigcommerce": "<strong>Domain Routing:</strong> Verify checkout domain settings in BigCommerce Admin > Settings > DNS.",
                     "magento": "<strong>Domain Routing:</strong> Check Magento Admin > Stores > Configuration > Web to ensure base URLs are consistent."
@@ -262,6 +262,50 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "wordpress": "<strong>Validation:</strong> Run the Schema Markup Validator. Check SEO plugin outputs.",
                     "unknown": "<strong>Validation:</strong> Run the Schema Markup Validator on the live URL to identify the exact line causing the JSON parse failure."
                 },
+                "orphaned_knowledge_graph": {
+                    "shopify": "<strong>Fix:</strong> Ensure your Organization schema in <code>theme.liquid</code> has an <code>@id</code> (e.g., <code>#brand</code>), and your Product schema references it.",
+                    "woocommerce": "<strong>Fix:</strong> Use Yoast/RankMath global schema settings to define the Organization @id, and ensure product schema references it.",
+                    "wordpress": "<strong>Fix:</strong> Define a global Organization @id in your SEO plugin, and link product schemas to it.",
+                    "unknown": "<strong>Fix:</strong> Ensure all Product schemas contain a brand object with an @id pointing to your global Organization schema."
+                },
+                "semantic_html_blindspot": {
+                    "shopify": "<strong>Fix:</strong> Wrap product details in semantic tags in <code>sections/main-product.liquid</code>.",
+                    "woocommerce": "<strong>Fix:</strong> Update <code>single-product.php</code> to use semantic HTML5 tags.",
+                    "wordpress": "<strong>Fix:</strong> Update your theme templates to use semantic tags.",
+                    "unknown": "<strong>Fix:</strong> Refactor frontend templates to use semantic HTML5 tags for better AI extraction."
+                },
+                "llm_definition_blindspot": {
+                    "shopify": "<strong>Fix:</strong> Add an 'About the Brand' section on your homepage using definition list tags.",
+                    "woocommerce": "<strong>Fix:</strong> Add explicit brand definitions using semantic tags.",
+                    "wordpress": "<strong>Fix:</strong> Use semantic definition tags in your page builder or theme templates.",
+                    "unknown": "<strong>Fix:</strong> Implement semantic definition tags to provide explicit context to LLMs."
+                },
+                "incomplete_entity_corroboration": {
+                    "shopify": "<strong>Admin Path:</strong> Shopify Admin &gt; Online Store &gt; Preferences (or Social Links in theme settings). Add all official social and Wikipedia URLs.",
+                    "woocommerce": "<strong>Admin Path:</strong> Yoast SEO / RankMath &gt; Search Appearance &gt; General. Add social profiles and sameAs links.",
+                    "wordpress": "<strong>Admin Path:</strong> Yoast SEO / RankMath &gt; Search Appearance. Add social profiles.",
+                    "bigcommerce": "<strong>Admin Path:</strong> Storefront &gt; Social Media Links. Add all official URLs.",
+                    "magento": "<strong>Admin Path:</strong> Content &gt; Configuration &gt; Edit Theme. Add social URLs.",
+                    "wix": "<strong>Admin Path:</strong> Marketing &amp; SEO &gt; Social &amp; Google. Add social links.",
+                    "squarespace": "<strong>Admin Path:</strong> Settings &gt; Social Links. Add all URLs.",
+                    "unknown": "<strong>Admin Path:</strong> Access your CMS Social/SEO settings to unify all brand URLs."
+                },
+                "product_intelligence_unknown": {
+                    "shopify": "<strong>Sitemap Debug:</strong> Check Shopify Admin &gt; Settings &gt; Sitemaps. Ensure products are not hidden from SEO.",
+                    "woocommerce": "<strong>Sitemap Debug:</strong> Yoast SEO &gt; General &gt; Features &gt; XML sitemaps. Visit <code>/sitemap_index.xml</code>. Flush permalinks: <code>Settings &gt; Permalinks &gt; Save</code>. Deactivate plugins to isolate 500 errors.",
+                    "wordpress": "<strong>Sitemap Debug:</strong> Check Yoast/RankMath XML sitemap settings. Flush permalinks. Deactivate plugins to isolate 500 errors. Ensure WooCommerce is active if it's a store.",
+                    "bigcommerce": "<strong>Sitemap Debug:</strong> Check BigCommerce Admin &gt; Settings &gt; SEO &gt; Sitemaps. Ensure products are visible.",
+                    "magento": "<strong>Sitemap Debug:</strong> Marketing &gt; SEO &gt; Site Map. Generate and verify XML.",
+                    "wix": "<strong>Sitemap Debug:</strong> Marketing &amp; SEO &gt; SEO Setup &gt; Sitemap. Ensure products are indexed.",
+                    "squarespace": "<strong>Sitemap Debug:</strong> Settings &gt; SEO &gt; Sitemap. Ensure products are visible.",
+                    "unknown": "<strong>Sitemap Debug:</strong> Access your CMS XML sitemap settings. Flush permalinks/caches. Check server error logs for 500 errors."
+                },
+                "low_entity_density": {
+                    "shopify": "<strong>Fix:</strong> Add an 'About the Brand' or 'Glossary' section to your homepage using definition list tags. Ensure your theme.liquid contains a robust sameAs array.",
+                    "woocommerce": "<strong>Fix:</strong> Use Yoast/RankMath to enforce strong sameAs links. Add definitional content to your homepage via Gutenberg blocks.",
+                    "wordpress": "<strong>Fix:</strong> Increase definitional content on your homepage. Use semantic HTML5 tags to explicitly define your brand entity.",
+                    "unknown": "<strong>Fix:</strong> Increase the ratio of explicit entity definitions to total page content to improve LLM citation probability."
+                },
                 "llms_txt_checkout_routing": {
                     "shopify": "<strong>CDN/Routing:</strong> Host llms.txt on the primary brand domain via Shopify Markets, Cloudflare Page Rules, or a reverse proxy. Do not host on checkout subdomains.",
                     "woocommerce": "<strong>Server Config:</strong> Ensure llms.txt is served from the root domain via Nginx/Apache config, not a subdomain.",
@@ -272,13 +316,19 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
             for issue in geo_findings.get("issues", []):
                 code = issue.get("code", "")
                 default_sop = "<strong>Enterprise Infrastructure/Security Gateway Guide:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) or CMS admin to resolve this infrastructure block. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues." if platform_key == "unknown" else "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history."
-                sop_text = issue_sops.get(code, {}).get(platform_key, default_sop)
+                sop_text = issue_sops.get(code, {}).get(platform_key.lower(), default_sop)
+                # ANTI-GENERIC GUARD: Eradicate "Inject JSON-LD" for known CMS platforms
+                if "Inject JSON-LD into global" in sop_text and platform_key.lower() not in ["unknown", "enterprise commerce platform", "api_first", "enterprise architecture"]:
+                    sop_text = "<strong>Native CMS Admin Path:</strong> Access your " + platform.title() + " admin dashboard (Pages/Products/Settings) to update this content natively. Use the developer snippet below only if you have direct code access."
                 inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {sop_text}</div>'
                 issue["fix"] = issue.get("fix", "") + inst_html
                 if "fix_snippet" in issue:
                     # SELF-AWARE DUPLICATE SCHEMA WARNING
                     if code in ["missing_organization_entity", "incomplete_product_schema", "incomplete_entity_corroboration"]:
-                        warning_html = '<div style="background:rgba(239, 68, 68, 0.1); border-left:4px solid #ef4444; padding:12px; margin:10px 0; border-radius:4px; color:#fca5a5;"><strong>⚠️ Self-Aware Warning (Duplicate Schema):</strong> AI engines penalize conflicting data. Before pasting, inspect your head tag. If an existing SEO application or plugin (e.g., Yoast, RankMath, Judge.me) is already injecting this schema, disable the apps schema feature to prevent AI hallucinations.</div>'
+                        if platform_key == "shopify": apps_text = "a Shopify app (e.g., SEO Manager, TinyIMG, JSON-LD for SEO)"
+                        elif platform_key in ["wordpress", "woocommerce"]: apps_text = "a WP plugin (e.g., Yoast, RankMath, WooCommerce)"
+                        else: apps_text = "an existing SEO application or plugin"
+                        warning_html = f'<div style="background:rgba(239, 68, 68, 0.1); border-left:4px solid #ef4444; padding:12px; margin:10px 0; border-radius:4px; color:#fca5a5;"><strong>⚠️ Self-Aware Warning (Duplicate Schema):</strong> AI engines penalize conflicting data. Before pasting, inspect your head tag. If {apps_text} is already injecting this schema, disable its schema feature to prevent AI hallucinations.</div>'
                         issue["fix"] = issue.get("fix", "") + warning_html
                     safe_snippet = issue["fix_snippet"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     if "REPLACE_WITH_" in safe_snippet:

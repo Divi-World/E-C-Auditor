@@ -490,6 +490,20 @@ def _sample_urls(domain, findings):
     # P0: Final Blacklist Filter to eradicate Gift Card bypass
     if "products" in urls:
         urls["products"] = [p for p in urls["products"] if not any(b in p.lower() for b in ["gift-card", "gift_card", "/search", "/policies/", "/cart", "/checkout", "/blogs/", "/account"])]
+
+    # ORPHANED REVENUE ASSET DETECTION (Sitebulb-level crawl intelligence)
+    if products and len(products) > 0:
+        try:
+            hp_st_orphan, hp_html_orphan, _, _ = _fetch(f"https://{domain}/", "orphan_check", findings)
+            if hp_st_orphan == 200 and hp_html_orphan:
+                internal_links = _extract_links(hp_html_orphan, f"https://{domain}/")
+                internal_set = set(l.rstrip('/') for l in internal_links)
+                orphaned = [p for p in products[:20] if p.rstrip('/') not in internal_set]
+                if len(orphaned) > 0:
+                    findings["notes"] += f"orphaned_revenue_assets: {len(orphaned)}/{len(products[:20])} sampled products. "
+        except Exception:
+            pass
+
     return urls
 
 def _check_crawlability(domain, findings):
@@ -815,7 +829,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "AI agents are routed to payment/external domains and blocked before seeing catalog data.",
-                "difficulty": "Medium", "fix": "Enterprise Architecture/Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting Enterprise Security-filtered checkout shells."
+                "difficulty": "Medium", "fix": "Headless / Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting Security Gateway-filtered checkout shells."
             })
         elif (csr_pages / total_pages_crawled) > 0.5:
             issues.append({
@@ -886,6 +900,83 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
 
     findings["dimensions"]["entity_intelligence"] = max(0, entity_score)
 
+    # TOP 1 INDUSTRIAL: ENTITY DENSITY & PROMPT READINESS (Profound-level metric)
+    notes = findings.get("notes", "")
+    if "entity_density_checked" not in notes:
+        # Calculate density of definitional tags vs total word count
+        word_count = len(html[:50000].split())
+        def_tags = html[:50000].lower().count("<dfn") + html[:50000].lower().count("<dl") + html[:50000].lower().count("sameas")
+        if word_count > 100:
+            density = (def_tags / word_count) * 1000
+            if density < 0.5 and def_tags < 3:
+                findings["notes"] += "low_entity_density. "
+        findings["notes"] += "entity_density_checked. "
+        
+    if "low_entity_density" in notes:
+        issues.append({
+            "code": "low_entity_density",
+            "description": "Low Entity Density reduces LLM Citation Probability (Prompt Readiness).",
+            "evidence": "Homepage lacks sufficient definitional tags and explicit entity corroboration relative to content volume.",
+            "affected_urls": [f"https://{domain}/"], "severity": "medium", "confidence": "VERIFIED",
+            "business_impact": "AI engines (ChatGPT, Perplexity) require high entity density to confidently cite your brand in generated answers.",
+            "difficulty": "Medium", "fix": "Increase entity density by adding explicit brand definitions, glossary sections, and robust sameAs trust chains to your homepage."
+        })
+
+    # TOP 1 INDUSTRIAL GUARDS: Semantic, LLM, Knowledge Graph
+    notes = findings.get("notes", "")
+    if "orphaned_knowledge_graph" in notes:
+        issues.append({"code": "orphaned_knowledge_graph", "description": "Product schema lacks @id linking to the Brand/Organization entity.", "evidence": "Product JSON-LD does not reference the Brand @id.", "affected_urls": products[:3], "severity": "medium", "confidence": "VERIFIED", "business_impact": "AI engines cannot connect your products to your brand entity.", "difficulty": "Medium", "fix": "Ensure Product schema includes a brand object with an @id that matches your Organization schema."})
+    if "semantic_html_blindspot" in notes:
+        issues.append({"code": "semantic_html_blindspot", "description": "Commercial data is trapped in non-semantic HTML structures.", "evidence": "Missing semantic HTML5 tags on product pages.", "affected_urls": products[:3], "severity": "medium", "confidence": "VERIFIED", "business_impact": "Vision AI and LLM extractors struggle to isolate product data.", "difficulty": "Medium", "fix": "Wrap product details in semantic HTML5 tags."})
+    if "llm_definition_blindspot" in notes:
+        issues.append({"code": "llm_definition_blindspot", "description": "Missing explicit entity definitions for LLM citation.", "evidence": "No definition lists found on homepage.", "affected_urls": [f"https://{domain}/"], "severity": "low", "confidence": "VERIFIED", "business_impact": "LLMs lack explicit definitional context.", "difficulty": "Easy", "fix": "Add an About the Brand section using definition tags."})
+
+
+    # TOP 1 INDUSTRIAL GUARDS: Semantic, LLM, Knowledge Graph
+    notes = findings.get("notes", "")
+    if "orphaned_knowledge_graph" in notes:
+        issues.append({
+            "code": "orphaned_knowledge_graph",
+            "description": "Product schema lacks @id linking to the Brand/Organization entity.",
+            "evidence": "Product JSON-LD does not reference the Brand @id.",
+            "affected_urls": products[:3], "severity": "medium", "confidence": "VERIFIED",
+            "business_impact": "AI engines cannot connect your products to your brand entity, reducing recommendation confidence.",
+            "difficulty": "Medium", "fix": "Ensure Product schema includes a brand object with an @id that matches your Organization schema."
+        })
+    if "semantic_html_blindspot" in notes:
+        issues.append({
+            "code": "semantic_html_blindspot",
+            "description": "Commercial data is trapped in <div> soup without semantic HTML5 tags.",
+            "evidence": "Missing <main> or <article> tags on product pages.",
+            "affected_urls": products[:3], "severity": "medium", "confidence": "VERIFIED",
+            "business_impact": "Vision AI and LLM extractors struggle to isolate product data from boilerplate navigation/footers.",
+            "difficulty": "Medium", "fix": "Wrap product details in <main> and <article> tags to improve AI extraction accuracy."
+        })
+    if "llm_definition_blindspot" in notes:
+        issues.append({
+            "code": "llm_definition_blindspot",
+            "description": "Missing explicit entity definitions (<dfn>, <dl>) for LLM citation.",
+            "evidence": "No <dfn> or <dl> tags found on homepage or product pages.",
+            "affected_urls": [f"https://{domain}/"], "severity": "low", "confidence": "VERIFIED",
+            "business_impact": "LLMs lack explicit definitional context to cite your brand in conversational answers.",
+            "difficulty": "Easy", "fix": "Add an 'About the Brand' section using <dl> (definition list) or <dfn> tags on your homepage."
+        })
+
+    # ORPHANED REVENUE ASSET ISSUE GENERATION
+    notes = findings.get("notes", "")
+    if "orphaned_revenue_assets" in notes:
+        import re as _re_orphan
+        orphan_count = _re_orphan.search(r'orphaned_revenue_assets: (\d+)/(\d+)', notes)
+        orphan_evidence = f"{orphan_count.group(1)} of {orphan_count.group(2)} sampled products have zero internal links from the homepage." if orphan_count else "Multiple products lack internal links."
+        issues.append({
+            "code": "orphaned_revenue_assets",
+            "description": "Products exist in the sitemap but have zero internal links from the homepage or navigation.",
+            "evidence": orphan_evidence,
+            "affected_urls": products[:3], "severity": "high", "confidence": "VERIFIED",
+            "business_impact": "AI discovery agents and search crawlers deprioritize unlinked entities. These products are invisible in AI-driven shopping recommendations.",
+            "difficulty": "Medium", "fix": "Add internal links from homepage, collection pages, or navigation menus to all commercial product URLs."
+        })
+
     # INDUSTRIAL GUARDS: Vision AI, NoIndex, Syntax
     notes = findings.get("notes", "")
     if "vision_ai_blindspot" in notes:
@@ -938,6 +1029,16 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                             has_prod = True
                             if node.get("name"): has_name = True
                             if node.get("image"): has_image = True
+                            # KNOWLEDGE GRAPH: Check for Orphaned Product Schema
+                            if t == "Product" and not node.get("brand", {}).get("@id"):
+                                findings["notes"] += "orphaned_knowledge_graph. "
+                            # SEMANTIC HTML5 & LLM DEFINITIONS (Run once per page)
+                            if "semantic_checked" not in findings["notes"]:
+                                if "<main" not in html[:50000].lower() or "<article" not in html[:50000].lower():
+                                    findings["notes"] += "semantic_html_blindspot. "
+                                if "<dfn" not in html[:50000].lower() and "<dl" not in html[:50000].lower():
+                                    findings["notes"] += "llm_definition_blindspot. "
+                                findings["notes"] += "semantic_checked. "
                             # VISION AI READINESS: Check for empty alt text in HTML
                             if "vision_ai_checked" not in findings["notes"]:
                                 img_tags = re.findall(r'<img[^>]+>', html[:50000].lower())
@@ -1442,6 +1543,8 @@ def audit_geo(domain: str) -> dict:
     # Evidence-Driven Confidence Calculation (Partner Directive #5)
     notes = findings.get("notes", "")
     if "timeout" in notes or "Security Gateway" in notes or "Security Access Verification" in notes or "binary_image" in notes or "unrecognized_format" in notes or "unknown" in findings.get("platform_detected", "").lower():
+        findings["score_confidence"] = "PARTIAL"
+    if any(i.get("confidence") == "UNVERIFIED" for i in findings.get("issues", [])):
         findings["score_confidence"] = "PARTIAL"
     elif not findings.get("dimensions_measured", {}).get("product_intelligence", True):
         findings["score_confidence"] = "UNVERIFIED"
