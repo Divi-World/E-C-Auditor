@@ -501,6 +501,17 @@ Allow: /</code></pre>"""
                 "geo_report_path": geo_report
             })
             print(f"    GEO score {geo_score}/10 -> {geo_report}")
+            
+            # PHASE 2: SAVE GEO HISTORY TO SQLITE (Zero CRO impact, fails silently if locked)
+            try:
+                import sqlite3
+                from revenue_leak_engine.audit.geo_audit import CACHE_DB
+                conn = sqlite3.connect(CACHE_DB)
+                conn.execute("INSERT INTO geo_history (domain, timestamp, geo_score, issue_count, exposure_tier) VALUES (?, ?, ?, ?, ?)",
+                             (domain, time.time(), geo_score, len(geo_findings.get("issues", [])), geo_findings.get("geo_revenue_exposure", "UNKNOWN")))
+                conn.commit()
+                conn.close()
+            except Exception: pass
             if geo_findings.get("score_confidence") in ["PARTIAL", "UNVERIFIED"]:
                 print(f"    note: Score variance detected due to Security Gateway/telemetry limitations. Manual verification recommended.")
 

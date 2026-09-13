@@ -20,6 +20,7 @@ def _init_cache():
     try:
         conn = sqlite3.connect(CACHE_DB)
         conn.execute("CREATE TABLE IF NOT EXISTS http_cache (url_hash TEXT PRIMARY KEY, status INTEGER, text TEXT, final_url TEXT, headers TEXT, timestamp REAL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS geo_history (domain TEXT, timestamp REAL, geo_score REAL, issue_count INTEGER, exposure_tier TEXT)")
         conn.commit()
         conn.close()
     except Exception: pass
@@ -1595,6 +1596,18 @@ def audit_geo(domain: str) -> dict:
         findings["score_confidence"] = "INCOMPLETE"
         findings["opp_tier"] = "INCOMPLETE"
         
+    # PHASE 2: AI REVENUE EXPOSURE TIER (Calculated from GEO metrics only)
+    prod_score = findings.get("dimensions", {}).get("product_intelligence", 10) or 10
+    crawl_score = findings.get("dimensions", {}).get("crawlability", 10) or 10
+    orphaned = "orphaned_revenue_assets" in findings.get("notes", "")
+    
+    if prod_score < 5 or crawl_score < 5 or orphaned:
+        findings["geo_revenue_exposure"] = "HIGH"
+    elif prod_score < 8 or findings.get("dimensions", {}).get("entity_intelligence", 10) < 8:
+        findings["geo_revenue_exposure"] = "MEDIUM"
+    else:
+        findings["geo_revenue_exposure"] = "LOW"
+
     # NORMALIZE CONFIDENCE FOR TEMPLATE (Jinja expects lowercase 'partial' or 'verified')
     raw_conf = str(findings.get("score_confidence", "verified")).lower()
     if raw_conf in ["partial", "unverified", "incomplete", "unreachable"]:

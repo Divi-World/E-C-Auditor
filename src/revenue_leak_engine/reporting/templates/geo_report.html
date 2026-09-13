@@ -67,6 +67,7 @@
             <div class="score-badge">
                 <div class="score-value">{{ overall_geo_score }}<span style="font-size: 24px; color: var(--text-muted);">/10</span></div>
                 <div style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">Commercial Opportunity: <strong style="color: {{ opp_color }}; font-size: 18px;">{{ opp_tier }}</strong></div>
+                <div style="margin-top: 8px; font-size: 14px; color: var(--text-muted);">AI Revenue Exposure: <strong style="color: {% if geo_revenue_exposure == 'HIGH' %}#ef4444{% elif geo_revenue_exposure == 'MEDIUM' %}#f59e0b{% else %}#10b981{% endif %}; font-size: 18px;">{{ geo_revenue_exposure | default('N/A') }}</strong></div>
                 {% if score_confidence == 'partial' %}
                 <div class="confidence-pill conf-partial">Partial Data</div>
                 {% else %}
