@@ -732,6 +732,7 @@ def _extract_real_assets(html, url, domain):
 def _analyze_entities_and_products(domain, sample_urls, findings):
     entity_score = 10.0
     issues = []
+    products = sample_urls.get("products", [])
     platform = findings.get("platform_detected", "unknown")
     is_commerce = bool(sample_urls.get("products") or sample_urls.get("collection") or platform in ["shopify", "woocommerce", "bigcommerce", "magento", "salesforce", "vtex"])
     
@@ -897,6 +898,21 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "difficulty": "Easy", "fix": "Add Wikipedia and social URLs to sameAs.",
             "fix_snippet": _generate_snippet("organization", domain, platform=findings.get("platform_detected", "unknown"))
         })
+
+    
+    # ROBUST ENTITY DENSITY / PROMPT READINESS (Profound-level AI visibility)
+    try:
+        hp_density_st, hp_density_html, _, _ = _fetch(f"https://{domain}/", "entity_density", findings)
+        if hp_density_st == 200 and hp_density_html:
+            text_len = max(len(hp_density_html), 1)
+            entity_signals = (hp_density_html.lower().count("schema.org") + hp_density_html.lower().count("sameas") + hp_density_html.lower().count("<dfn") + hp_density_html.lower().count("<dl") + hp_density_html.lower().count("faqpage"))
+            entity_density = round((entity_signals / (text_len / 1000)), 2)
+            findings["entity_density_score"] = entity_density
+            findings["prompt_readiness"] = "HIGH" if entity_density > 3.0 else ("MEDIUM" if entity_density > 1.0 else "LOW")
+            if entity_density < 1.0:
+                issues.append({"code": "low_entity_density", "description": "Homepage has insufficient entity density for LLM citation.", "evidence": f"Entity Density Score: {entity_density} signals per 1000 characters.", "affected_urls": [f"https://{domain}/"], "severity": "medium", "confidence": "VERIFIED", "business_impact": "Low entity density reduces probability of brand citation in AI answers.", "difficulty": "Medium", "fix": "Add Organization schema, FAQPage, and definition tags to increase entity density."})
+    except Exception:
+        pass
 
     findings["dimensions"]["entity_intelligence"] = max(0, entity_score)
 
