@@ -905,7 +905,11 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
     try:
         hp_density_st, hp_density_html, _, _ = _fetch(f"https://{domain}/", "entity_density", findings)
         if hp_density_st == 200 and hp_density_html:
-            text_len = max(len(hp_density_html), 1)
+            soup_density = BeautifulSoup(hp_density_html, "html.parser")
+            for tag in soup_density(["script", "style", "noscript"]):
+                tag.decompose()
+            visible_text = soup_density.get_text(" ", strip=True)
+            text_len = max(len(visible_text), 1)
             entity_signals = (hp_density_html.lower().count("schema.org") + hp_density_html.lower().count("sameas") + hp_density_html.lower().count("<dfn") + hp_density_html.lower().count("<dl") + hp_density_html.lower().count("faqpage"))
             entity_density = round((entity_signals / (text_len / 1000)), 2)
             findings["entity_density_score"] = entity_density
@@ -1428,7 +1432,7 @@ def audit_geo(domain: str) -> dict:
 
 
     # 2026 GEO COMMERCIAL HOOKS (Profound/Enterprise-level intelligence)
-    findings["business_interpretation"].append("2026 GEO Intelligence: Only 12.4% of registered domains have implemented structured data. By executing our Triple-Schema Stacking protocol (linking Product + FAQPage + ItemList via @graph), your brand positions itself to capture the 1.8x AI citation multiplier observed in high-intent commercial pages.")
+    findings["business_interpretation"].append("2026 GEO Intelligence: AI shopping engines rely on complete Product, Organization, and FAQPage signals to classify and recommend products. Executing our Triple-Schema Stacking protocol (linking entities via JSON-LD @graph) positions your brand for maximum AI citation probability.")
     findings["business_interpretation"].append("JSON-LD @graph linking is the specific technical mechanism that triggers compounding AI citation signals. Our recommended fixes provide the exact @graph-ready templates required for 2026 LLM visibility.")
 
     if dims.get("entity_intelligence") is not None and dims["entity_intelligence"] < 8:
@@ -1591,6 +1595,13 @@ def audit_geo(domain: str) -> dict:
         findings["score_confidence"] = "INCOMPLETE"
         findings["opp_tier"] = "INCOMPLETE"
         
+    # NORMALIZE CONFIDENCE FOR TEMPLATE (Jinja expects lowercase 'partial' or 'verified')
+    raw_conf = str(findings.get("score_confidence", "verified")).lower()
+    if raw_conf in ["partial", "unverified", "incomplete", "unreachable"]:
+        findings["score_confidence"] = "partial"
+    else:
+        findings["score_confidence"] = "verified"
+
     return findings
 
 

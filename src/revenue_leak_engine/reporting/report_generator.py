@@ -287,9 +287,9 @@ def generate_report(findings: dict) -> str:
     
     # PHASE D: NICHE BENCHMARKING DATA
     niche_benchmarks = {
-        "beauty": {"lcp_avg": 2800, "scripts_avg": 45, "lcp_label": "Beauty Avg"},
-        "apparel": {"lcp_avg": 2500, "scripts_avg": 50, "lcp_label": "Apparel Avg"},
-        "default": {"lcp_avg": 3000, "scripts_avg": 40, "lcp_label": "Industry Avg"}
+        "beauty": {"lcp_avg": 2800, "scripts_avg": 45, "lcp_label": "Beauty Reference"},
+        "apparel": {"lcp_avg": 2500, "scripts_avg": 50, "lcp_label": "Apparel Reference"},
+        "default": {"lcp_avg": 3000, "scripts_avg": 40, "lcp_label": "Reference Threshold"}
     }
     bench = niche_benchmarks.get(findings.get("niche", "default"), niche_benchmarks["default"])
     
