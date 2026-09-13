@@ -524,6 +524,23 @@ Allow: /</code></pre>"""
                 print(f"    note: Score variance detected due to Security Gateway/telemetry limitations. Manual verification recommended.")
 
             # Generate GEO outreach draft
+            # PHASE 4: AUTOMATED PR PAYLOAD GENERATION
+            try:
+                import json, os
+                pr_dir = os.path.join('data', 'pr_payloads')
+                os.makedirs(pr_dir, exist_ok=True)
+                top_issue = next((i for i in geo_findings.get("issues", []) if i.get("severity") == "high" and i.get("fix_snippet")), None)
+                if top_issue:
+                    pr_payload = {
+                        "domain": domain, "issue_code": top_issue.get("code"),
+                        "description": top_issue.get("description"),
+                        "commit_message": f"fix(geo): resolve {top_issue.get('code')} for AI visibility",
+                        "implementation_snippet": top_issue.get("fix_snippet")
+                    }
+                    with open(os.path.join(pr_dir, f"{domain.replace('.', '_')}_pr.json"), "w", encoding="utf-8") as f:
+                        json.dump(pr_payload, f, indent=2)
+            except Exception: pass
+
             geo_draft = draft_geo_email(geo_findings, report_url=geo_report)
             append_draft_to_log(geo_draft)
 
@@ -535,6 +552,22 @@ Allow: /</code></pre>"""
             print(f"    note: non-commerce profile detected, included but flagged for manual review")
         else:
             lead_result["flagged_non_commerce"] = False
+
+        # PHASE 4: DEPLOYMENT REGRESSION ALERT (Self-Healing)
+        regression_status = "STABLE"
+        try:
+            import sqlite3
+            from revenue_leak_engine.audit.geo_audit import CACHE_DB
+            conn = sqlite3.connect(CACHE_DB)
+            prev_runs = conn.execute("SELECT geo_score, issue_count FROM geo_history WHERE domain=? ORDER BY timestamp DESC LIMIT 2", (domain,)).fetchall()
+            if len(prev_runs) == 2:
+                prev_score, prev_issues = prev_runs[1]
+                if prev_score is not None and geo_score_val is not None:
+                    if (prev_score - geo_score_val) >= 1.0 or (geo_issues_count - prev_issues) >= 3:
+                        regression_status = "DEPLOYMENT_REGRESSION"
+            conn.close()
+        except Exception: pass
+        lead_result["regression_status"] = regression_status
 
         lead_result["total_score"] = lead_result.get("cro_score", 0) + lead_result.get("geo_score", 0)
         
@@ -560,7 +593,7 @@ Allow: /</code></pre>"""
     fieldnames = [
         "lead_status", "opportunity_score", "total_score", "cro_score", "geo_score", "primary_leak", "fix_effort", "cro_status", "domain", "page_name",
         "platform_detected", "matched_keyword", "cro_report_path", "geo_report_path"
-    , "estimated_monthly_leak_usd", "outreach_draft"]
+    , "estimated_monthly_leak_usd", "outreach_draft", "regression_status"]
     with open(ranked_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

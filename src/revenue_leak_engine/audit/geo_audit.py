@@ -1482,6 +1482,19 @@ def audit_geo(domain: str) -> dict:
                 snippet = snippet.replace("REPLACE_WITH_PRICE", p_assets.get("price", "NOT_DETECTED"))
                 
             # P0 Directive Neutralized: Platform-native templates handle dynamic data at runtime.
+            # PHASE 4: LOCAL JSON-LD SYNTAX VALIDATION
+            try:
+                import re, json
+                json_match = re.search(r'\{[\s\S]*\}', snippet)
+                if json_match:
+                    dummy_json = re.sub(r'\{\{.*?\}\}', '"DUMMY"', json_match.group(0))
+                    dummy_json = re.sub(r'\{%.*?%\}', '', dummy_json)
+                    json.loads(dummy_json)
+                    issue["snippet_validated"] = True
+                else:
+                    issue["snippet_validated"] = True
+            except Exception:
+                issue["snippet_validated"] = False
             issue["fix_snippet"] = snippet
 
     # ENTERPRISE CLEANUP: Remove non_commerce_profile if commerce signals or Security Gateways were found
