@@ -154,7 +154,7 @@ def _is_soft_404(text, ct):
     if "<!doctype html" in lower_text or "<html" in lower_text: return True
     return False
 
-def _extract_json_ld(html):
+def _extract_json_ld(html, findings=None):
     if not html: return []
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
@@ -170,7 +170,8 @@ def _extract_json_ld(html):
             clean = re.sub(r'//.*', '', clean)
             data = json.loads(clean)
             if original_clean != clean and not getattr(data, '_syntax_warned', False):
-                findings["notes"] += "json_syntax_error_auto_fixed: trailing commas. "
+                if findings is not None:
+                    findings["notes"] += "json_syntax_error_auto_fixed: trailing commas. "
                 data['_syntax_warned'] = True
             if isinstance(data, list): nodes.extend(data)
             else: nodes.append(data)
@@ -794,7 +795,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         st, html, final_url, _ = _fetch(url, "crawl", findings)
         if st == 200:
             total_pages_crawled += 1
-            nodes = _extract_json_ld(html)
+            nodes = _extract_json_ld(html, findings)
             all_nodes.extend(nodes)
 
             is_redirect_shell = False
@@ -1034,7 +1035,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         for p_url in products:
             st, html, final_url, _ = _fetch(p_url, "product", findings)
             if st == 200:
-                nodes = _extract_json_ld(html)
+                nodes = _extract_json_ld(html, findings)
                 p_score = 0
                 has_prod = has_name = has_image = has_offers = has_price = has_avail = has_var = has_sku = has_brand = has_review = False
                 for node in nodes:
