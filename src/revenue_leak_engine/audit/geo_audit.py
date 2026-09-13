@@ -13,7 +13,7 @@ except ImportError:
     USE_STEALTH = False
 
 import sqlite3, hashlib, time, os
-CACHE_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data', 'http_cache.db')
+CACHE_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), 'data', 'http_cache.db')
 os.makedirs(os.path.dirname(CACHE_DB), exist_ok=True)
 
 def _init_cache():
@@ -596,9 +596,9 @@ def _check_crawlability(domain, findings):
             "evidence": f"Blocked: {', '.join(blocked_resources)}.",
             "affected_urls": list(resources.values()),
             "severity": "medium", "confidence": "UNVERIFIED",
-            "business_impact": "Crawlability is unknown. The site's Security Gateway may also be blocking legitimate AI Discovery Agents (e.g. GPTBot).",
+            "business_impact": "Crawlability is unknown. The site's Security Gateway may also be blocking legitimate Automated Indexing Agents (e.g. GPTBot).",
             "difficulty": "Medium",
-            "fix": "Infrastructure-Level Only: Platform could not be determined due to Security Gateway. Manually verify accessibility and check Automated Traffic Filtering rules. Re-run audit after allowlisting AI Discovery Agents.",
+            "fix": "Infrastructure-Level Only: Platform could not be determined due to Security Gateway. Manually verify accessibility and check Automated Traffic Filtering rules. Re-run audit after allowlisting Automated Indexing Agents.",
         })
 
     findings["dimensions"]["crawlability"] = max(0, score)
@@ -995,7 +995,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "description": "Products exist in the sitemap but have zero internal links from the homepage or navigation.",
             "evidence": orphan_evidence,
             "affected_urls": products[:3], "severity": "high", "confidence": "VERIFIED",
-            "business_impact": "AI discovery agents and search crawlers deprioritize unlinked entities. These products are invisible in AI-driven shopping recommendations.",
+            "business_impact": "automated indexing agents and search crawlers deprioritize unlinked entities. These products are invisible in AI-driven shopping recommendations.",
             "difficulty": "Medium", "fix": "Add internal links from homepage, collection pages, or navigation menus to all commercial product URLs."
         })
 

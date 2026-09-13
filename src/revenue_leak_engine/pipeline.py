@@ -318,7 +318,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 default_sop = "<strong>Infrastructure/Security Gateway Guide:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) or CMS admin to resolve this infrastructure block. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues." if platform_key == "unknown" else "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history."
                 sop_text = issue_sops.get(code, {}).get(platform_key.lower(), default_sop)
                 # ANTI-GENERIC GUARD: Eradicate "Inject JSON-LD" for known CMS platforms
-                if "Inject JSON-LD into global" in sop_text and platform_key.lower() not in ["unknown", "enterprise commerce platform", "api_first", "enterprise architecture"]:
+                if "Inject JSON-LD into global" in sop_text and platform_key.lower() not in ["unknown", "enterprise commerce platform", "api_first", "headless commerce"]:
                     sop_text = "<strong>Native CMS Admin Path:</strong> Access your " + platform.title() + " admin dashboard (Pages/Products/Settings) to update this content natively. Use the developer snippet below only if you have direct code access."
                 inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {sop_text}</div>'
                 issue["fix"] = issue.get("fix", "") + inst_html
@@ -516,7 +516,10 @@ Allow: /</code></pre>"""
                              (domain, _geo_time.time(), geo_score, len(geo_findings.get("issues", [])), geo_findings.get("geo_revenue_exposure", "UNKNOWN")))
                 conn.commit()
                 conn.close()
-            except Exception: pass
+            except Exception as e:
+                import traceback
+                print(f"[SQLITE FATAL ERROR IN PIPELINE] {e}")
+                traceback.print_exc()
             if geo_findings.get("score_confidence") in ["PARTIAL", "UNVERIFIED"]:
                 print(f"    note: Score variance detected due to Security Gateway/telemetry limitations. Manual verification recommended.")
 
