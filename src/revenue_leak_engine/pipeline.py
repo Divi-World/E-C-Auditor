@@ -311,6 +311,18 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "woocommerce": "<strong>Server Config:</strong> Ensure llms.txt is served from the root domain via Nginx/Apache config, not a subdomain.",
                     "bigcommerce": "<strong>File Hosting:</strong> Upload llms.txt to the root directory via FTP/WebDAV.",
                     "magento": "<strong>File Hosting:</strong> Place llms.txt in the pub/ directory and ensure routing serves it from the primary domain."
+                },
+                "missing_knowledge_graph_entity": {
+                    "shopify": "<strong>Exact Path:</strong> Add your Wikidata and Wikipedia URLs to the <code>sameAs</code> array in your Organization schema inside <code>layout/theme.liquid</code>.",
+                    "woocommerce": "<strong>Exact Path:</strong> Go to Yoast SEO / RankMath &gt; Search Appearance &gt; General. Add your Wikidata and Wikipedia URLs to the Organization social profiles / sameAs fields.",
+                    "wordpress": "<strong>Exact Path:</strong> Update your global Organization schema via your SEO plugin or <code>functions.php</code> to include Wikidata and Wikipedia in the <code>sameAs</code> array.",
+                    "unknown": "<strong>Implementation:</strong> Add Wikidata and Wikipedia URLs to the <code>sameAs</code> array of your global Organization JSON-LD schema."
+                },
+                "serp_visibility_gap": {
+                    "shopify": "<strong>Strategy:</strong> Create a new Page in <code>Online Store &gt; Pages</code> titled 'The Ultimate Guide to [Core Product]'. Use semantic HTML, FAQ schema, and internal links to your top collections to signal topical authority to AI engines.",
+                    "woocommerce": "<strong>Strategy:</strong> Create a pillar post via <code>Posts &gt; Add New</code> or a dedicated Landing Page. Embed ProductGroup schema and link heavily to your core product categories.",
+                    "wordpress": "<strong>Strategy:</strong> Build a definitive pillar page targeting your core entity keywords. Use semantic definition tags and FAQ schema to capture AI conversational queries.",
+                    "unknown": "<strong>Strategy:</strong> Publish a comprehensive, text-rich pillar page targeting your core product keywords. Include FAQ schema and explicit entity definitions to capture AI discovery."
                 }
             }
             for issue in geo_findings.get("issues", []):
@@ -491,6 +503,49 @@ Allow: /</code></pre>"""
             # PHASE 3: COMMERCIAL INTELLIGENCE HOOK
             if geo_findings.get("geo_revenue_exposure") == "HIGH":
                 geo_findings["business_interpretation"].append(f"Commercial Intelligence: {domain} is actively funding paid media campaigns while core machine-readable commerce data remains incomplete, creating a measurable ROI leak in automated discovery channels.")
+            
+            # PHASE 3: HIGH-TECH SELF-AWARE ENTITY & SERP INTELLIGENCE
+            try:
+                from revenue_leak_engine.audit.llm_citation_tracker import track_entity_and_sov
+                # Pass homepage HTML if available in notes/cache, else tracker will fetch it
+                hp_html = geo_findings.get("homepage_html", "")
+                sov_data = track_entity_and_sov(domain, hp_html)
+                
+                core_prod = sov_data.get("core_product", niche)
+                
+                if sov_data["wikidata_exists"]:
+                    geo_findings["business_interpretation"].append(f"Knowledge Graph Validation: {sov_data['brand']} is verified in the global Wikidata Knowledge Graph (ID: {sov_data['wikidata_id']}), confirming baseline entity recognition by AI models.")
+                else:
+                    geo_findings["business_interpretation"].append(f"Knowledge Graph Gap: {sov_data['brand']} is currently missing from the Wikidata Knowledge Graph. AI engines rely on this graph for factual corroboration; absence severely limits citation accuracy.")
+                    geo_findings["issues"].append({
+                        "code": "missing_knowledge_graph_entity",
+                        "description": "Brand is missing from the global Wikidata Knowledge Graph.",
+                        "severity": "high", "confidence": "VERIFIED",
+                        "business_impact": "AI engines (ChatGPT, Perplexity) rely on Wikidata for factual corroboration. Absence severely limits citation accuracy and triggers hallucinations.",
+                        "evidence": f"Wikidata API returned 0 results for '{sov_data['brand']}'.",
+                        "difficulty": "Medium",
+                        "fix": "Register your brand entity on Wikidata and link it via the sameAs array in your Organization schema."
+                    })
+                
+                if sov_data["serp_rank"] > 0:
+                    geo_findings["business_interpretation"].append(f"Market Share Analysis: Your brand ranks #{sov_data['serp_rank']} organically for high-intent '{core_prod}' queries.")
+                else:
+                    import json as _json
+                    comps = _json.loads(sov_data["top_competitors"]) if sov_data["top_competitors"] != "[]" else []
+                    comp_str = ", ".join(comps) if comps else "market leaders"
+                    geo_findings["business_interpretation"].append(f"Market Share Gap: Your brand is absent from the Top 10 organic results for '{core_prod}' queries, while competitors like {comp_str} dominate the AI discovery surface.")
+                    geo_findings["issues"].append({
+                        "code": "serp_visibility_gap",
+                        "description": f"Brand is absent from Top 10 organic results for '{core_prod}' queries.",
+                        "severity": "high", "confidence": "VERIFIED",
+                        "business_impact": f"Competitors like {comp_str} dominate the AI discovery surface and organic market share for your core product category.",
+                        "evidence": f"Search query: 'best {core_prod} brands'. Brand not found in Top 10.",
+                        "difficulty": "Hard",
+                        "fix": f"Create a definitive 'Best {core_prod} Guide' pillar page targeting your core entity keywords to capture AI discovery and organic market share."
+                    })
+            except Exception as e:
+                print(f"    warning: Entity/SOV tracking skipped - {e}")
+
             geo_report = generate_geo_report(geo_findings)
             try:
                 with open(geo_report, 'r', encoding='utf-8') as f: html = f.read()
@@ -514,6 +569,17 @@ Allow: /</code></pre>"""
                 conn.execute("CREATE TABLE IF NOT EXISTS geo_history (domain TEXT, timestamp REAL, geo_score REAL, issue_count INTEGER, exposure_tier TEXT)")
                 conn.execute("INSERT INTO geo_history (domain, timestamp, geo_score, issue_count, exposure_tier) VALUES (?, ?, ?, ?, ?)",
                              (domain, _geo_time.time(), geo_score, len(geo_findings.get("issues", [])), geo_findings.get("geo_revenue_exposure", "UNKNOWN")))
+                
+                # PHASE 3: LIVE LLM CITATION TRACKING
+                try:
+                    conn.execute("""CREATE TABLE IF NOT EXISTS citation_history (
+                        domain TEXT, timestamp REAL, prompt TEXT, 
+                        brand_mentioned INTEGER, competitor_mentions INTEGER, 
+                        sentiment TEXT, source_url TEXT
+                    )""")
+                    from revenue_leak_engine.audit.llm_citation_tracker import track_llm_citations
+                    track_llm_citations(domain, niche)
+                except Exception: pass
                 conn.commit()
                 conn.close()
             except Exception as e:

@@ -34,6 +34,12 @@
         .confidence-pill { display: inline-block; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-top: 8px; }
         .conf-verified { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
         .conf-partial { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); border: 1px solid var(--accent-orange); }
+        .exp-high { color: #ef4444; font-weight: 700; }
+        .exp-medium { color: #f59e0b; font-weight: 700; }
+        .exp-low { color: #10b981; font-weight: 700; }
+        .status-pass { color: var(--accent-green); font-weight: 600; }
+        .status-fail { color: var(--accent-red); font-weight: 600; }
+        .status-muted { color: var(--text-muted); font-weight: 600; }
         .section-title { font-size: 18px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; margin-top: 40px; }
         .matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 40px; }
         .matrix-card { background: var(--bg-card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); }
@@ -67,7 +73,7 @@
             <div class="score-badge">
                 <div class="score-value">{{ overall_geo_score }}<span style="font-size: 24px; color: var(--text-muted);">/10</span></div>
                 <div style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">Commercial Opportunity: <strong style="color: {{ opp_color }}; font-size: 18px;">{{ opp_tier }}</strong></div>
-                <div style="margin-top: 8px; font-size: 14px; color: var(--text-muted);">AI Revenue Exposure: <strong style="color: {% if geo_revenue_exposure == 'HIGH' %}#ef4444{% elif geo_revenue_exposure == 'MEDIUM' %}#f59e0b{% else %}#10b981{% endif %}; font-size: 18px;">{{ geo_revenue_exposure | default('N/A') }}</strong></div>
+                <div style="margin-top: 8px; font-size: 14px; color: var(--text-muted);">AI Revenue Exposure: <strong class="exp-{{ geo_revenue_exposure | lower | default('low') }}" style="font-size: 18px;">{{ geo_revenue_exposure | default('N/A') }}</strong></div>
                 {% if score_confidence == 'partial' %}
                 <div class="confidence-pill conf-partial">Partial Data</div>
                 {% else %}
@@ -131,7 +137,7 @@
                 {% for endpoint, status in (crawlability_matrix | default({})).items() %}
                 <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
                     <span style="color: var(--text-muted);">{{ endpoint }}</span>
-                    <span style="color: {% if status == 200 %}var(--accent-green){% else %}var(--accent-red){% endif %}; font-weight: 600;">{{ status }}</span>
+                    <span class="{% if status == 200 %}status-pass{% else %}status-fail{% endif %}">{{ status }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -140,7 +146,7 @@
                 {% for cap, status in (agentic_capabilities | default({})).items() %}
                 <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;">
                     <span style="color: var(--text-muted);">{{ cap }}</span>
-                    <span style="color: {% if status == 'PASS' %}var(--accent-green){% elif status == 'FAIL' %}var(--accent-red){% else %}var(--text-muted){% endif %}; font-weight: 600;">{{ status }}</span>
+                    <span class="{% if status == 'PASS' %}status-pass{% elif status == 'FAIL' %}status-fail{% else %}status-muted{% endif %}">{{ status }}</span>
                 </div>
                 {% endfor %}
             </div>

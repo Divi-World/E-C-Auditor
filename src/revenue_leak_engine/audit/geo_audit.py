@@ -1485,7 +1485,7 @@ def audit_geo(domain: str) -> dict:
             # PHASE 4: LOCAL JSON-LD SYNTAX VALIDATION
             try:
                 import re, json
-                json_match = re.search(r'\{[\s\S]*\}', snippet)
+                json_match = re.search(r'{[\\s\\S]*}', snippet)
                 if json_match:
                     dummy_json = re.sub(r'\{\{.*?\}\}', '"DUMMY"', json_match.group(0))
                     dummy_json = re.sub(r'\{%.*?%\}', '', dummy_json)
