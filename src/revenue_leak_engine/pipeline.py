@@ -306,6 +306,12 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "wordpress": "<strong>Fix:</strong> Increase definitional content on your homepage. Use semantic HTML5 tags to explicitly define your brand entity.",
                     "unknown": "<strong>Fix:</strong> Increase the ratio of explicit entity definitions to total page content to improve LLM citation probability."
                 },
+                "llms_txt_syntax_invalid": {
+                    "shopify": "<strong>Exact Path:</strong> Create <code>templates/llms.txt.liquid</code> and format using standard Markdown headers (#) and metadata keys.",
+                    "woocommerce": "<strong>Exact Path:</strong> Create <code>llms.txt</code> in the root directory via FTP. Use standard Markdown formatting.",
+                    "wordpress": "<strong>Exact Path:</strong> Create <code>llms.txt</code> in the root directory. Ensure it follows the llmstxt.org specification with Markdown headers.",
+                    "unknown": "<strong>Implementation:</strong> Format llms.txt using standard Markdown headers (#) and include metadata keys (title, description, url)."
+                },
                 "llms_txt_checkout_routing": {
                     "shopify": "<strong>CDN/Routing:</strong> Host llms.txt on the primary brand domain via Shopify Markets, Cloudflare Page Rules, or a reverse proxy. Do not host on checkout subdomains.",
                     "woocommerce": "<strong>Server Config:</strong> Ensure llms.txt is served from the root domain via Nginx/Apache config, not a subdomain.",
@@ -499,6 +505,31 @@ Allow: /</code></pre>"""
             else:
                 geo_findings["opp_tier"] = "HIGH"
                 geo_findings["opp_color"] = "#ef4444"
+
+            # PHASE 4: DEPLOYMENT REGRESSION ALERT (Pre-Report Generation)
+            try:
+                import sqlite3
+                from revenue_leak_engine.audit.geo_audit import CACHE_DB
+                reg_conn = sqlite3.connect(CACHE_DB)
+                prev_runs = reg_conn.execute("SELECT geo_score, issue_count FROM geo_history WHERE domain=? ORDER BY timestamp DESC LIMIT 1", (domain,)).fetchall()
+                if prev_runs:
+                    prev_score, prev_issues = prev_runs[0]
+                    current_score = float(geo_findings.get("overall_geo_score", 0) or 0)
+                    current_issues = len(geo_findings.get("issues", []))
+                    if (prev_score - current_score) >= 1.0 or (current_issues - prev_issues) >= 3:
+                        geo_findings["is_regression"] = True
+                        geo_findings["regression_delta"] = round(prev_score - current_score, 1)
+                        geo_findings["issues"].insert(0, {
+                            "code": "deployment_regression",
+                            "description": "Critical: Structural commerce score dropped since last evaluation.",
+                            "severity": "high", "confidence": "VERIFIED",
+                            "business_impact": f"Recent deployment or configuration change has degraded AI discovery readiness. Score dropped by {round(prev_score - current_score, 1)} points.",
+                            "evidence": f"Previous score: {prev_score}. Current score: {current_score}.",
+                            "difficulty": "Medium",
+                            "fix": "Review recent code deployments, theme updates, or plugin installations that may have removed or corrupted structured data."
+                        })
+                reg_conn.close()
+            except Exception: pass
 
             # PHASE 3: COMMERCIAL INTELLIGENCE HOOK
             if geo_findings.get("geo_revenue_exposure") == "HIGH":

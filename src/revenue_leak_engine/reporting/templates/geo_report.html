@@ -64,6 +64,12 @@
 </head>
 <body>
     <div class="container">
+        {% if is_regression is defined and is_regression %}
+        <div style="background: rgba(239, 68, 68, 0.1); border: 2px solid var(--accent-red); padding: 20px; border-radius: 12px; margin-bottom: 30px;">
+            <h2 style="color: var(--accent-red); margin: 0 0 10px 0; font-size: 20px;">⚠️ Deployment Regression Detected</h2>
+            <p style="margin: 0; color: #fca5a5;">Your structural commerce score has dropped by <strong>{{ regression_delta }}</strong> points since the previous evaluation. A recent deployment or system update has likely corrupted critical AI discovery signals. Immediate engineering review is recommended.</p>
+        </div>
+        {% endif %}
         <div class="header">
             <div>
                 <h1>Structured Commerce Visibility Report</h1>

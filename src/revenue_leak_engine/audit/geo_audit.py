@@ -551,6 +551,22 @@ def _check_crawlability(domain, findings):
                         "difficulty": "Medium",
                         "fix": "DNS/CDN Routing Fix: Ensure llms.txt is hosted on the primary brand domain (e.g., via Shopify Markets, Cloudflare Page Rules, or reverse proxy), not a checkout subdomain."
                     })
+                
+                # PHASE 5: STRICT SYNTAX VALIDATION
+                elif st == 200 and text:
+                    has_headers = text.count('\n#') > 0 or text.startswith('#')
+                    has_metadata = any(k in text.lower() for k in ['title:', 'description:', 'url:', 'author:'])
+                    if not has_headers and not has_metadata:
+                        issues.append({
+                            "code": "llms_txt_syntax_invalid",
+                            "description": "llms.txt file exists but lacks valid Markdown structure or metadata.",
+                            "evidence": "File returned 200 OK but contains no standard Markdown headers (#) or metadata keys (title:, url:).",
+                            "affected_urls": [final_url or url],
+                            "severity": "medium", "confidence": "VERIFIED",
+                            "business_impact": "Discovery agents cannot parse the file correctly, rendering your AI routing instructions ineffective.",
+                            "difficulty": "Easy",
+                            "fix": "Format llms.txt using standard Markdown headers and include metadata keys like title, description, and url."
+                        })
             if name == "robots.txt":
                 ai_bots = [
                     "GPTBot", "ChatGPT-User", "OAI-SearchBot", # OpenAI
