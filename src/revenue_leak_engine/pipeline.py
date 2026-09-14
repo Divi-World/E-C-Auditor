@@ -59,7 +59,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
         seen.add(domain)
         
         # OG FIX: We no longer discard non-Shopify stores. 
-        # The v7.5 GEO Auditor is platform-agnostic (WooCommerce, BigCommerce, Headless Commerce).
+        # The v7.5 GEO Auditor is platform-agnostic (WooCommerce, BigCommerce, structural Commerce).
         # We still tag Shopify if detected, but we keep ALL e-commerce leads.
         try:
             result = is_shopify(domain)
@@ -224,22 +224,22 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                     "magento": "<strong>Admin Path:</strong> <code>Content &gt; Pages</code>. Create policy and FAQ CMS blocks.",
                     "unknown": "<strong>Enterprise CMS Admin Path:</strong> Access your CMS backend to create comprehensive Shipping, Returns, and FAQ pages (>200 words). Link them in the global footer. Do NOT inject JSON-LD until pages are created."
                 },
-                "ai_crawlers_blocked": {
-                    "shopify": "<strong>Exact Path:</strong> Create <code>templates/robots.txt.liquid</code>. Append AI bot allow rules (GPTBot, ClaudeBot, PerplexityBot, Applebot-Extended).",
-                    "woocommerce": "<strong>Exact Path:</strong> Yoast SEO &gt; Tools &gt; File Editor OR edit root <code>robots.txt</code> via FTP. Append AI bot allow rules.",
-                    "bigcommerce": "<strong>Exact Path:</strong> Edit root <code>robots.txt</code> via FTP/SSH. Append AI bot allow rules.",
-                    "magento": "<strong>Exact Path:</strong> Edit <code>pub/robots.txt</code> via SSH/FTP. Append AI bot allow rules.",
-                    "unknown": "<strong>Security Gateway Gateway/CDN Allowlist:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues."
+                "ai_discovery agents_blocked": {
+                    "shopify": "<strong>Exact Path:</strong> Create <code>templates/robots.txt.liquid</code>. Append AI discovery agent allow rules (GPTBot, ClaudeBot, PerplexityBot, Applebot-Extended).",
+                    "woocommerce": "<strong>Exact Path:</strong> Yoast SEO &gt; Tools &gt; File Editor OR edit root <code>robots.txt</code> via FTP. Append AI discovery agent allow rules.",
+                    "bigcommerce": "<strong>Exact Path:</strong> Edit root <code>robots.txt</code> via FTP/SSH. Append AI discovery agent allow rules.",
+                    "magento": "<strong>Exact Path:</strong> Edit <code>pub/robots.txt</code> via SSH/FTP. Append AI discovery agent allow rules.",
+                    "unknown": "<strong>Security Gateway Gateway/CDN Allowlist:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI discovery agent user-agents. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues."
                 },
                 "waf_blocking": {
-                    "shopify": "<strong>Security Gateway Allowlist:</strong> Contact Shopify Plus Support or your CDN (Cloudflare/Fastly) to whitelist AI bot user-agents (GPTBot, ClaudeBot) from Automated Traffic Filtering challenges.",
-                    "woocommerce": "<strong>Security Gateway Allowlist:</strong> Add AI bot user-agents to your Security Gateway/CDN whitelist (Cloudflare Page Rules, Wordfence, or Sucuri).",
-                    "bigcommerce": "<strong>Security Gateway Allowlist:</strong> Contact BigCommerce Support or your CDN to whitelist AI bot user-agents.",
-                    "magento": "<strong>Security Gateway Allowlist:</strong> Update your CDN/Security Gateway rules to allow AI bot user-agents to bypass Automated Traffic Filtering.",
-                    "unknown": "<strong>MCP & Security Gateway Allowlist:</strong> Expose a Model Context Protocol (MCP) endpoint at /.well-known/mcp.json so AI agents can execute cart/checkouts directly. Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI bot user-agents (GPTBot, ClaudeBot, PerplexityBot) from Automated Traffic Filtering challenges. Do NOT inject JSON-LD for Security Gateway issues."
+                    "shopify": "<strong>Security Gateway Allowlist:</strong> Contact Shopify Plus Support or your CDN (Cloudflare/Fastly) to whitelist AI discovery agent user-agents (GPTBot, ClaudeBot) from programmatic evaluation Filtering challenges.",
+                    "woocommerce": "<strong>Security Gateway Allowlist:</strong> Add AI discovery agent user-agents to your Security Gateway/CDN whitelist (Cloudflare Page Rules, Wordfence, or Sucuri).",
+                    "bigcommerce": "<strong>Security Gateway Allowlist:</strong> Contact BigCommerce Support or your CDN to whitelist AI discovery agent user-agents.",
+                    "magento": "<strong>Security Gateway Allowlist:</strong> Update your CDN/Security Gateway rules to allow AI discovery agent user-agents to bypass programmatic evaluation Filtering.",
+                    "unknown": "<strong>MCP & Security Gateway Allowlist:</strong> Expose a Model Context Protocol (MCP) endpoint at /.well-known/mcp.json so AI agents can execute cart/checkouts directly. Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) to whitelist AI discovery agent user-agents (GPTBot, ClaudeBot, PerplexityBot) from programmatic evaluation Filtering challenges. Do NOT inject JSON-LD for Security Gateway issues."
                 },
                 "redirect_shell_detected": {
-                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a Headless / Custom Storefront checkout, configure reverse proxy or Shopify Markets so AI agents don't hit Security Gateway-filtered checkout shells.",
+                    "shopify": "<strong>Shopify Markets/Proxy:</strong> Ensure core catalog pages resolve on the primary domain. If using a structural / Custom Storefront checkout, configure reverse proxy or Shopify Markets so AI agents don't hit Security Gateway-filtered checkout shells.",
                     "woocommerce": "<strong>Domain Routing:</strong> Ensure cart/checkout pages are on the same root domain or properly cross-linked with canonical tags.",
                     "bigcommerce": "<strong>Domain Routing:</strong> Verify checkout domain settings in BigCommerce Admin > Settings > DNS.",
                     "magento": "<strong>Domain Routing:</strong> Check Magento Admin > Stores > Configuration > Web to ensure base URLs are consistent."
@@ -330,7 +330,7 @@ def run(niche: str = DEFAULT_NICHE, limit: int = 30, country: str = DEFAULT_COUN
                 default_sop = "<strong>Infrastructure/Security Gateway Guide:</strong> Contact your CDN/Security Gateway vendor (Cloudflare, Akamai, Imperva) or CMS admin to resolve this infrastructure block. Do NOT inject JSON-LD for Security Gateway/Security Access Verification issues." if platform_key == "unknown" else "<strong>Implementation:</strong> Inject JSON-LD into global &lt;head&gt; template.<br><strong>Validation:</strong> Rich Results Test.<br><strong>Rollback:</strong> Git/CMS history."
                 sop_text = issue_sops.get(code, {}).get(platform_key.lower(), default_sop)
                 # ANTI-GENERIC GUARD: Eradicate "Inject JSON-LD" for known CMS platforms
-                if "Inject JSON-LD into global" in sop_text and platform_key.lower() not in ["unknown", "enterprise commerce platform", "api_first", "headless commerce"]:
+                if "Inject JSON-LD into global" in sop_text and platform_key.lower() not in ["unknown", "enterprise commerce platform", "api_first", "structural commerce"]:
                     sop_text = "<strong>Native CMS Admin Path:</strong> Access your " + platform.title() + " admin dashboard (Pages/Products/Settings) to update this content natively. Use the developer snippet below only if you have direct code access."
                 inst_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {sop_text}</div>'
                 issue["fix"] = issue.get("fix", "") + inst_html
@@ -470,7 +470,7 @@ To complete this implementation, please gather the following brand assets from y
 &lt;/script&gt;</code></pre>
 </div>"""
                     issue["fix"] += "<br><strong>FAQPage Metaobject Implementation:</strong><br>" + faq
-                if code == "ai_crawlers_blocked":
+                if code == "ai_discovery agents_blocked":
                     rob = """<pre style="background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;"><code>User-agent: GPTBot
 Allow: /
 User-agent: ChatGPT-User
@@ -573,6 +573,16 @@ Allow: /</code></pre>"""
                 conn.execute("CREATE TABLE IF NOT EXISTS geo_history (domain TEXT, timestamp REAL, geo_score REAL, issue_count INTEGER, exposure_tier TEXT)")
                 conn.execute("INSERT INTO geo_history (domain, timestamp, geo_score, issue_count, exposure_tier) VALUES (?, ?, ?, ?, ?)",
                              (domain, _geo_time.time(), geo_score, len(geo_findings.get("issues", [])), geo_findings.get("geo_revenue_exposure", "UNKNOWN")))
+                
+                # PHASE 3.3: HISTORICAL TELEMETRY (Calculate Deltas)
+                hist = conn.execute("SELECT geo_score, issue_count FROM geo_history WHERE domain=? ORDER BY timestamp ASC", (domain,)).fetchall()
+                if len(hist) > 1:
+                    first_score, first_issues = hist[0]
+                    geo_findings["score_delta"] = round(geo_score - first_score, 1)
+                    geo_findings["issue_delta"] = len(geo_findings.get("issues", [])) - first_issues
+                else:
+                    geo_findings["score_delta"] = 0.0
+                    geo_findings["issue_delta"] = 0
                 
                 # PHASE 3: LIVE LLM CITATION TRACKING
                 try:

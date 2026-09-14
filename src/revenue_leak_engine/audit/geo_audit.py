@@ -547,7 +547,7 @@ def _check_crawlability(domain, findings):
                         "evidence": f"Final URL: {final_url}",
                         "affected_urls": [final_url],
                         "severity": "medium", "confidence": "VERIFIED",
-                        "business_impact": "AI agents hitting payment domains may encounter strict Automated Traffic Filtering before catalog discovery.",
+                        "business_impact": "AI agents hitting payment domains may encounter strict programmatic evaluation Filtering before catalog discovery.",
                         "difficulty": "Medium",
                         "fix": "DNS/CDN Routing Fix: Ensure llms.txt is hosted on the primary brand domain (e.g., via Shopify Markets, Cloudflare Page Rules, or reverse proxy), not a checkout subdomain."
                     })
@@ -575,7 +575,7 @@ def _check_crawlability(domain, findings):
                 if blocked:
                     score -= 2.0
                     issues.append({
-                        "code": "ai_crawlers_blocked",
+                        "code": "ai_discovery agents_blocked",
                         "description": f"robots.txt explicitly blocks AI engines: {', '.join(blocked)}.",
                         "evidence": "Disallow: / under specific AI user-agents.",
                         "affected_urls": [url],
@@ -598,7 +598,7 @@ def _check_crawlability(domain, findings):
             "severity": "medium", "confidence": "UNVERIFIED",
             "business_impact": "Crawlability is unknown. The site's Security Gateway may also be blocking legitimate Automated Indexing Agents (e.g. GPTBot).",
             "difficulty": "Medium",
-            "fix": "Infrastructure-Level Only: Platform could not be determined due to Security Gateway. Manually verify accessibility and check Automated Traffic Filtering rules. Re-run audit after allowlisting Automated Indexing Agents.",
+            "fix": "Infrastructure-Level Only: Platform could not be determined due to Security Gateway. Manually verify accessibility and check programmatic evaluation Filtering rules. Re-run audit after allowlisting Automated Indexing Agents.",
         })
 
     findings["dimensions"]["crawlability"] = max(0, score)
@@ -832,7 +832,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "evidence": f"{redirect_shell_pages}/{total_pages_crawled} pages redirected to external domains without returning schema.",
                 "affected_urls": urls_to_crawl, "severity": "high", "confidence": "VERIFIED",
                 "business_impact": "AI agents are routed to payment/external domains and blocked before seeing catalog data.",
-                "difficulty": "Medium", "fix": "Headless / Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting Security Gateway-filtered checkout shells."
+                "difficulty": "Medium", "fix": "structural / Shopify Markets Fix: Configure reverse proxy or Shopify Markets so core catalog pages resolve on the primary domain, preventing AI agents from hitting Security Gateway-filtered checkout shells."
             })
         elif (csr_pages / total_pages_crawled) > 0.5:
             issues.append({
@@ -995,7 +995,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
             "description": "Products exist in the sitemap but have zero internal links from the homepage or navigation.",
             "evidence": orphan_evidence,
             "affected_urls": products[:3], "severity": "high", "confidence": "VERIFIED",
-            "business_impact": "automated indexing agents and search crawlers deprioritize unlinked entities. These products are invisible in AI-driven shopping recommendations.",
+            "business_impact": "automated indexing agents and search discovery agents deprioritize unlinked entities. These products are invisible in AI-driven shopping recommendations.",
             "difficulty": "Medium", "fix": "Add internal links from homepage, collection pages, or navigation menus to all commercial product URLs."
         })
 
@@ -1013,7 +1013,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
     if "schema_on_noindex_page" in notes:
         issues.append({
             "code": "schema_on_noindex_page",
-            "description": "Critical: Machine-readable schema detected on pages hidden from AI crawlers (noindex).",
+            "description": "Critical: Machine-readable schema detected on pages hidden from AI discovery agents (noindex).",
             "evidence": "<meta name='robots' content='noindex'> found alongside JSON-LD.",
             "affected_urls": products[:3], "severity": "high", "confidence": "VERIFIED",
             "business_impact": "AI engines will completely ignore your structured data. Revenue leak is 100% on these pages.",
@@ -1023,7 +1023,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
         issues.append({
             "code": "silent_json_syntax_failure",
             "description": "Existing JSON-LD contains syntax errors (trailing commas) that break native AI parsers.",
-            "evidence": "Engine auto-corrected malformed JSON to read the data. Native AI crawlers will fail.",
+            "evidence": "Engine auto-corrected malformed JSON to read the data. Native AI discovery agents will fail.",
             "affected_urls": [f"https://{domain}/"], "severity": "high", "confidence": "VERIFIED",
             "business_impact": "AI engines silently discard your schema. Your brand is invisible to LLM shopping graphs.",
             "difficulty": "Medium", "fix": "Validate existing schema via Schema Markup Validator and remove trailing commas or conflicting app outputs."
@@ -1182,7 +1182,7 @@ def _analyze_entities_and_products(domain, sample_urls, findings):
                 "evidence": f"Sampled {len(products)} products, but 0 returned valid schema.",
                 "affected_urls": products, "severity": "medium", "confidence": "UNVERIFIED",
                 "business_impact": "Product schema quality is unknown (Audit Limitation).",
-                "difficulty": "Medium", "fix": "Verify product pages are accessible to crawlers."
+                "difficulty": "Medium", "fix": "Verify product pages are accessible to discovery agents."
             })
     else:
         findings["dimensions_measured"]["product_intelligence"] = False
@@ -1566,7 +1566,7 @@ def audit_geo(domain: str) -> dict:
     # REMOVED: Blanket Security Gateway answerability suppression (Partner Fix #4)
         
     if findings.get("platform_detected") == "unknown" and is_waf_blocked:
-        findings["platform_detected"] = "Unknown (Headless Commerce)"
+        findings["platform_detected"] = "Unknown (structural Commerce)"
 
     # ENTITY GUARD: If massive timeouts/blocks occurred, entity score cannot be 10.0
     entity_notes = findings.get("notes", "")

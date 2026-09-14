@@ -55,7 +55,7 @@ def _geo_hook(geo_findings: dict, issue: dict) -> str:
 
     # Professional B2B E-commerce Hooks (Zero "AI Discovery" skepticism)
     hooks = {
-        "ai_crawlers_blocked": f"I reviewed {domain}'s routing directives (robots.txt) and noticed automated indexing agents are currently restricted. This limits your catalog's visibility in next-generation search environments.",
+        "ai_discovery agents_blocked": f"I reviewed {domain}'s routing directives (robots.txt) and noticed automated indexing agents are currently restricted. This limits your catalog's visibility in next-generation search environments.",
         "missing_faq_schema": f"While analyzing {domain}'s structured data layer, I noticed a gap in your definitional markup. This directly impacts how automated search systems extract and cite your commercial policies.",
         "missing_organization_entity": f"{domain} is currently missing unified Organization markup. This fragments your brand entity graph, reducing the confidence automated systems have when attributing your products in search results.",
         "incomplete_product_schema": f"I ran a structural telemetry check on {domain}'s product pages and found incomplete machine-readable commerce data. Without verified pricing and inventory schemas, automated shopping systems cannot accurately process your catalog.",
@@ -117,7 +117,7 @@ def draft_email(findings: dict, report_url: str = "") -> dict:
     subject = f"CRO Health Audit: {domain} ({score}/10 - Priority: {priority})"
     NL = chr(10)
     body = f"Hi Team,{NL}{NL}"
-    body += f"I was reviewing {domain}'s mobile checkout flow and ran a headless telemetry audit to benchmark your CRO Health against industry standards.{NL}{NL}"
+    body += f"I was reviewing {domain}'s mobile checkout flow and ran a structural commerce telemetry audit to benchmark your CRO Health against industry standards.{NL}{NL}"
     body += f"Your current CRO Health Score is {score}/10 (Priority: {priority}).{NL}{NL}"
     if ttfb is not None and ttfb > 800:
         body += f"1. Server Health (TTFB): Your Time to First Byte is {ttfb}ms. This indicates your hosting infrastructure is bottlenecking the frontend before the user even sees the page.{NL}"
