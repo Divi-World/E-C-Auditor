@@ -507,41 +507,45 @@ Allow: /</code></pre>"""
             # PHASE 3: HIGH-TECH SELF-AWARE ENTITY & SERP INTELLIGENCE
             try:
                 from revenue_leak_engine.audit.llm_citation_tracker import track_entity_and_sov
-                # Pass homepage HTML if available in notes/cache, else tracker will fetch it
                 hp_html = geo_findings.get("homepage_html", "")
                 sov_data = track_entity_and_sov(domain, hp_html)
                 
                 core_prod = sov_data.get("core_product", niche)
+                platform = geo_findings.get("platform_detected", "unknown")
+                platform_key = "unknown" if "unknown" in platform.lower() or "enterprise" in platform.lower() or "waf" in platform.lower() or "security gateway" in platform.lower() else platform
                 
                 if sov_data["wikidata_exists"]:
                     geo_findings["business_interpretation"].append(f"Knowledge Graph Validation: {sov_data['brand']} is verified in the global Wikidata Knowledge Graph (ID: {sov_data['wikidata_id']}), confirming baseline entity recognition by AI models.")
                 else:
                     geo_findings["business_interpretation"].append(f"Knowledge Graph Gap: {sov_data['brand']} is currently missing from the Wikidata Knowledge Graph. AI engines rely on this graph for factual corroboration; absence severely limits citation accuracy.")
+                    
+                    kg_sop = {"shopify": "Add your Wikidata and Wikipedia URLs to the <code>sameAs</code> array in your Organization schema inside <code>layout/theme.liquid</code>.", "woocommerce": "Go to Yoast SEO / RankMath &gt; Search Appearance &gt; General. Add your Wikidata and Wikipedia URLs to the Organization social profiles.", "wordpress": "Update your global Organization schema via your SEO plugin or <code>functions.php</code> to include Wikidata and Wikipedia in the <code>sameAs</code> array.", "unknown": "Add Wikidata and Wikipedia URLs to the <code>sameAs</code> array of your global Organization JSON-LD schema."}
+                    kg_fix_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {kg_sop.get(platform_key.lower(), kg_sop["unknown"])}</div>'
+                    
                     geo_findings["issues"].append({
-                        "code": "missing_knowledge_graph_entity",
-                        "description": "Brand is missing from the global Wikidata Knowledge Graph.",
-                        "severity": "high", "confidence": "VERIFIED",
+                        "code": "missing_knowledge_graph_entity", "description": "Brand is missing from the global Wikidata Knowledge Graph.",
+                        "severity": "high", "confidence": "VERIFIED", "difficulty": "Medium",
                         "business_impact": "AI engines (ChatGPT, Perplexity) rely on Wikidata for factual corroboration. Absence severely limits citation accuracy and triggers hallucinations.",
                         "evidence": f"Wikidata API returned 0 results for '{sov_data['brand']}'.",
-                        "difficulty": "Medium",
-                        "fix": "Register your brand entity on Wikidata and link it via the sameAs array in your Organization schema."
+                        "fix": f"Register your brand entity on Wikidata and link it via the sameAs array in your Organization schema.{kg_fix_html}"
                     })
                 
                 if sov_data["serp_rank"] > 0:
                     geo_findings["business_interpretation"].append(f"Market Share Analysis: Your brand ranks #{sov_data['serp_rank']} organically for high-intent '{core_prod}' queries.")
                 else:
-                    import json as _json
-                    comps = _json.loads(sov_data["top_competitors"]) if sov_data["top_competitors"] != "[]" else []
-                    comp_str = ", ".join(comps) if comps else "market leaders"
-                    geo_findings["business_interpretation"].append(f"Market Share Gap: Your brand is absent from the Top 10 organic results for '{core_prod}' queries, while competitors like {comp_str} dominate the AI discovery surface.")
+                    top_comp = sov_data.get("top_competitor", "market leaders")
+                    comp_schemas = sov_data.get("competitor_schema_count", 0)
+                    geo_findings["business_interpretation"].append(f"Market Share Gap: Your brand is absent from the Top 10 organic results for '{core_prod}' queries. Your top competitor, {top_comp}, ranks #1 and utilizes {comp_schemas} distinct schema types to dominate AI discovery.")
+                    
+                    serp_sop = {"shopify": f"Create a new Page in <code>Online Store &gt; Pages</code> titled 'The Ultimate Guide to {core_prod}'. Use semantic HTML, FAQ schema, and internal links to your top collections.", "woocommerce": f"Create a pillar post via <code>Posts &gt; Add New</code>. Embed ProductGroup schema and link heavily to your core product categories.", "wordpress": f"Build a definitive pillar page targeting your core entity keywords. Use semantic definition tags and FAQ schema.", "unknown": f"Publish a comprehensive, text-rich pillar page targeting your core product keywords. Include FAQ schema and explicit entity definitions."}
+                    serp_fix_html = f'<div style="background:rgba(59, 130, 246, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#93c5fd; border:1px solid rgba(59,130,246,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {serp_sop.get(platform_key.lower(), serp_sop["unknown"])}</div>'
+                    
                     geo_findings["issues"].append({
-                        "code": "serp_visibility_gap",
-                        "description": f"Brand is absent from Top 10 organic results for '{core_prod}' queries.",
-                        "severity": "high", "confidence": "VERIFIED",
-                        "business_impact": f"Competitors like {comp_str} dominate the AI discovery surface and organic market share for your core product category.",
-                        "evidence": f"Search query: 'best {core_prod} brands'. Brand not found in Top 10.",
-                        "difficulty": "Hard",
-                        "fix": f"Create a definitive 'Best {core_prod} Guide' pillar page targeting your core entity keywords to capture AI discovery and organic market share."
+                        "code": "serp_visibility_gap", "description": f"Brand is absent from Top 10 organic results for '{core_prod}' queries.",
+                        "severity": "high", "confidence": "VERIFIED", "difficulty": "Hard",
+                        "business_impact": f"Competitors like {top_comp} dominate the AI discovery surface and organic market share for your core product category.",
+                        "evidence": f"Search query: 'best {core_prod} brands'. Brand not found in Top 10. Top competitor '{top_comp}' utilizes {comp_schemas} schema types.",
+                        "fix": f"Create a definitive 'Best {core_prod} Guide' pillar page targeting your core entity keywords to capture AI discovery and organic market share.{serp_fix_html}"
                     })
             except Exception as e:
                 print(f"    warning: Entity/SOV tracking skipped - {e}")
