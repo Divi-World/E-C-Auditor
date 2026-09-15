@@ -1,6 +1,5 @@
 """
-Phase 3: High-Tech Self-Aware Entity & SERP Intelligence Tracker
-Dynamically studies the site, scrapes competitors, and calculates exact market gaps.
+Phase 3 & 6: Unified Entity, SERP, and LLM Citation Engine.
 """
 import sqlite3, time, os, re, json, urllib.parse
 from pathlib import Path
@@ -13,14 +12,11 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 def init_db():
     try:
         conn = sqlite3.connect(DB_PATH)
-        # Base table creation (respects existing file)
         conn.execute("""CREATE TABLE IF NOT EXISTS entity_sov_history (
             domain TEXT, timestamp REAL, brand TEXT, core_product TEXT,
             wikidata_exists INTEGER, wikipedia_exists INTEGER, wikidata_id TEXT,
             serp_rank INTEGER, top_competitors TEXT, sov_percentage REAL
         )""")
-        
-        # SCHEMA DRIFT FIX: Safely add missing columns to existing physical DB
         cols = [row[1] for row in conn.execute("PRAGMA table_info(entity_sov_history)").fetchall()]
         if "top_competitor" not in cols:
             conn.execute("ALTER TABLE entity_sov_history ADD COLUMN top_competitor TEXT")
@@ -93,7 +89,6 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
             if resp.status_code == 200: html = resp.text
         except: pass
 
-    # 1. WIKIDATA
     try:
         wd_url = f"https://www.wikidata.org/w/api.php?action=wbsearchentities&search={urllib.parse.quote(brand)}&language=en&format=json"
         wd_resp = cffi_requests.get(wd_url, headers=headers, timeout=10, impersonate="chrome120")
@@ -105,7 +100,6 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
     except Exception as e:
         print(f"[WIKIDATA ERROR] {e}")
 
-    # 2. SERP & COMPETITOR TEARDOWN (Fixed DDG Redirect Parsing)
     try:
         query = f"best {core_product} brands"
         serp_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
@@ -121,14 +115,13 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
             for i, link in enumerate(results[:10]):
                 href = link.get("href", "")
                 text = link.get_text(strip=True)
-                
-                # BULLETPROOF FIX: Decode DuckDuckGo redirect wrappers (/l/?uddg=...)
+
                 if "uddg=" in href:
                     parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
                     actual_url = urllib.parse.unquote(parsed.get("uddg", [""])[0])
                 else:
                     actual_url = urllib.parse.unquote(href)
-                    
+
                 if domain in actual_url or brand.lower() in text.lower():
                     rank = i + 1
                     domain_found = True
@@ -142,7 +135,6 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
             result["serp_rank"] = rank
             result["sov_percentage"] = 100.0 if domain_found else 0.0
 
-            # COMPETITOR MICRO-TEARDOWN
             if competitors:
                 top_comp = competitors[0]
                 result["top_competitor"] = top_comp
@@ -156,7 +148,6 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
     except Exception as e:
         print(f"[SERP ERROR] {e}")
 
-    # 3. SAVE (Now guaranteed to match physical DB schema)
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.execute("""INSERT INTO entity_sov_history
@@ -173,9 +164,7 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
 
     return result
 
-
 def query_llm_citation(domain: str, core_product: str) -> dict:
-    """Phase 6: Live LLM Citation Engine"""
     brand = domain.split('.')[0].replace('-', ' ').title()
     prompt = f"List the top 3 recommended brands for {core_product} in 2026 and explain why."
     

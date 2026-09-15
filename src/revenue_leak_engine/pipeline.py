@@ -535,6 +535,7 @@ Allow: /</code></pre>"""
             if geo_findings.get("geo_revenue_exposure") == "HIGH":
                 geo_findings["business_interpretation"].append(f"Commercial Intelligence: {domain} is actively funding paid media campaigns while core machine-readable commerce data remains incomplete, creating a measurable ROI leak in automated discovery channels.")
             
+
             # PHASE 3: HIGH-TECH SELF-AWARE ENTITY & SERP INTELLIGENCE
             try:
                 from revenue_leak_engine.audit.llm_citation_tracker import track_entity_and_sov
