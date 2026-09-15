@@ -596,6 +596,40 @@ Allow: /</code></pre>"""
                         geo_findings["business_interpretation"].append(f"Generative AI Gap: AI models ({llm_data['model']}) were asked to recommend '{core_prod_for_llm}' but did not cite {sov_data['brand']}. Competitors are dominating the generative answer space.")
             except Exception as e:
                 print(f"    warning: LLM Citation tracking skipped - {e}")
+            # PHASE 9: AGENTIC COMMERCE (MCP CONFIGURATION GENERATOR)
+            try:
+                has_mcp = any(i.get("code") == "agentic_commerce_partial" for i in geo_findings.get("issues", []))
+                if not has_mcp and platform_key not in ["unknown", "waf", "security gateway"]:
+                    mcp_config = {
+                        "name": f"{sov_data['brand']} Commerce API",
+                        "description": f"Agentic commerce endpoint for {sov_data['brand']} {core_prod} inventory and checkout.",
+                        "tools": [
+                            {"name": "search_inventory", "description": f"Search available {core_prod} by SKU or keyword."},
+                            {"name": "get_product_details", "description": "Fetch pricing, availability, and schemas for a specific product."},
+                            {"name": "initiate_checkout", "description": "Generate a secure cart and checkout session for AI agents."}
+                        ]
+                    }
+                    mcp_json = json.dumps(mcp_config, indent=2)
+                    
+                    mcp_sop = {
+                        "shopify": "Deploy this configuration via a custom app or reverse proxy at <code>/.well-known/mcp.json</code>.",
+                        "woocommerce": "Upload this JSON to your root directory via FTP or expose it via a custom WP REST API endpoint.",
+                        "wordpress": "Expose this JSON at <code>/.well-known/mcp.json</code> using a custom rewrite rule or static file.",
+                        "unknown": "Host this JSON at <code>/.well-known/mcp.json</code> on your primary domain to enable AI agent transactions."
+                    }
+                    mcp_fix_html = f'<div style="background:rgba(16, 185, 129, 0.1); padding:10px; border-radius:6px; margin:15px 0 5px 0; font-size:13px; color:#6ee7b7; border:1px solid rgba(16,185,129,0.3);"><strong>Platform Guide ({platform.title()}):</strong> {mcp_sop.get(platform_key.lower(), mcp_sop["unknown"])}</div>'
+                    
+                    geo_findings["issues"].append({
+                        "code": "missing_mcp_configuration",
+                        "description": "Missing Model Context Protocol (MCP) configuration for Agentic Commerce.",
+                        "severity": "high", "confidence": "VERIFIED", "difficulty": "Medium",
+                        "business_impact": "AI shopping agents cannot securely query your inventory or execute checkouts. You are invisible to next-generation transactional AI.",
+                        "evidence": "No /.well-known/mcp.json detected on primary domain.",
+                        "fix": f"Deploy the following MCP configuration to enable AI agent transactions:<br><pre style=\"background:#020617;color:#e2e8f0;padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;border:1px solid #334155;\"><code>{mcp_json.replace('<', '&lt;').replace('>', '&gt;')}</code></pre>{mcp_fix_html}"
+                    })
+            except Exception as e:
+                pass
+
 
             geo_report = generate_geo_report(geo_findings)
             try:

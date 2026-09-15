@@ -25,8 +25,11 @@ def init_db():
             
         conn.execute("""CREATE TABLE IF NOT EXISTS llm_citations (
             domain TEXT, timestamp REAL, model TEXT, prompt TEXT,
-            brand_mentioned INTEGER, citation_count INTEGER, raw_response TEXT
+            brand_mentioned INTEGER, citation_count INTEGER, citation_urls TEXT, raw_response TEXT
         )""")
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(llm_citations)").fetchall()]
+        if "citation_urls" not in cols:
+            conn.execute("ALTER TABLE llm_citations ADD COLUMN citation_urls TEXT")
         conn.commit()
         conn.close()
     except Exception as e:
@@ -165,26 +168,47 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
     return result
 
 def query_llm_citation(domain: str, core_product: str) -> dict:
+    """Phase 7: Prompt Matrix & Source URL Extraction"""
     brand = domain.split('.')[0].replace('-', ' ').title()
-    prompt = f"List the top 3 recommended brands for {core_product} in 2026 and explain why."
+    
+    # 5-Prompt High-Intent Matrix
+    prompts = [
+        f"List the top 3 recommended brands for {core_product} in 2026 and explain why.",
+        f"What are the best sustainable {core_product} brands currently on the market?",
+        f"Which {core_product} brands have the highest customer satisfaction ratings?",
+        f"Recommend the top {core_product} companies for everyday use.",
+        f"Who are the market leaders in the {core_product} industry right now?"
+    ]
     
     result = {
-        "domain": domain, "model": "N/A", "prompt": prompt,
-        "brand_mentioned": 0, "citation_count": 0, "raw_response": "SKIPPED"
+        "domain": domain, "model": "N/A", "prompt": "MATRIX",
+        "brand_mentioned": 0, "citation_count": 0, "citation_urls": "[]", "raw_response": "SKIPPED"
     }
 
     try:
         import g4f
-        response = g4f.ChatCompletion.create(
-            model=g4f.models.gpt_4,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = str(response)
+        full_text = ""
+        for p in prompts:
+            try:
+                response = g4f.ChatCompletion.create(
+                    model=g4f.models.gpt_4,
+                    messages=[{"role": "user", "content": p}],
+                )
+                full_text += str(response) + "\n"
+            except: pass
+            
         result["model"] = "GPT-4-Free"
-        result["raw_response"] = text
-        if brand.lower() in text.lower():
+        result["raw_response"] = full_text
+        
+        # Extract URLs (Source Citation Tracking)
+        urls = re.findall(r'https?://[^\s\)\"]+', full_text)
+        # Filter out common generic domains
+        urls = [u for u in urls if not any(x in u for x in ['google.com', 'wikipedia.org', 'g4f', 'github'])]
+        result["citation_urls"] = json.dumps(list(set(urls))[:5]) # Top 5 unique sources
+        
+        if brand.lower() in full_text.lower():
             result["brand_mentioned"] = 1
-            result["citation_count"] = text.lower().count(brand.lower())
+            result["citation_count"] = full_text.lower().count(brand.lower())
         return result
     except Exception:
         pass
@@ -200,7 +224,7 @@ def save_llm_citation(llm_data: dict):
                         (domain, timestamp, model, prompt, brand_mentioned, citation_count, raw_response)
                         VALUES (?, ?, ?, ?, ?, ?, ?)""",
                      (llm_data["domain"], time.time(), llm_data["model"], llm_data["prompt"],
-                      llm_data["brand_mentioned"], llm_data["citation_count"], llm_data["raw_response"]))
+                      llm_data["brand_mentioned"], llm_data["citation_count"], llm_data.get("citation_urls", "[]"), llm_data["raw_response"]))
         conn.commit()
         conn.close()
     except Exception as e:
