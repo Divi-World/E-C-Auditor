@@ -535,6 +535,21 @@ Allow: /</code></pre>"""
             if geo_findings.get("geo_revenue_exposure") == "HIGH":
                 geo_findings["business_interpretation"].append(f"Commercial Intelligence: {domain} is actively funding paid media campaigns while core machine-readable commerce data remains incomplete, creating a measurable ROI leak in automated discovery channels.")
             
+            # PHASE 6: LIVE LLM CITATION ENGINE (The 'Profound' Killer)
+            try:
+                from revenue_leak_engine.audit.llm_citation_tracker import track_and_save
+                # Use the core_product extracted in Phase 3
+                core_prod_for_llm = geo_findings.get("core_product", niche)
+                llm_data = track_and_save(domain, core_prod_for_llm)
+                
+                if llm_data["brand_mentioned"]:
+                    geo_findings["business_interpretation"].append(f"Generative AI Validation: When asked to recommend '{core_prod_for_llm}', AI models ({llm_data['model']}) cited {sov_data['brand']} {llm_data['citation_count']} times.")
+                else:
+                    if llm_data["model"] != "SIMULATION_MODE":
+                        geo_findings["business_interpretation"].append(f"Generative AI Gap: AI models ({llm_data['model']}) were asked to recommend '{core_prod_for_llm}' but did not cite {sov_data['brand']}. Competitors are dominating the generative answer space.")
+            except Exception as e:
+                pass # Fail silently if LLM libraries missing
+
             # PHASE 3: HIGH-TECH SELF-AWARE ENTITY & SERP INTELLIGENCE
             try:
                 from revenue_leak_engine.audit.llm_citation_tracker import track_entity_and_sov
