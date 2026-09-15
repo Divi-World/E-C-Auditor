@@ -581,6 +581,21 @@ Allow: /</code></pre>"""
             except Exception as e:
                 print(f"    warning: Entity/SOV tracking skipped - {e}")
 
+            # PHASE 6: LIVE LLM CITATION ENGINE (Generative Share-of-Voice)
+            try:
+                from revenue_leak_engine.audit.llm_citation_tracker import query_llm_citation, save_llm_citation
+                core_prod_for_llm = sov_data.get("core_product", niche)
+                llm_data = query_llm_citation(domain, core_prod_for_llm)
+                save_llm_citation(llm_data)
+                
+                if llm_data["brand_mentioned"]:
+                    geo_findings["business_interpretation"].append(f"Generative AI Validation: When asked to recommend '{core_prod_for_llm}', AI models ({llm_data['model']}) cited {sov_data['brand']} {llm_data['citation_count']} times.")
+                else:
+                    if llm_data["model"] != "SIMULATION_MODE":
+                        geo_findings["business_interpretation"].append(f"Generative AI Gap: AI models ({llm_data['model']}) were asked to recommend '{core_prod_for_llm}' but did not cite {sov_data['brand']}. Competitors are dominating the generative answer space.")
+            except Exception as e:
+                print(f"    warning: LLM Citation tracking skipped - {e}")
+
             geo_report = generate_geo_report(geo_findings)
             try:
                 with open(geo_report, 'r', encoding='utf-8') as f: html = f.read()

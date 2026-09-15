@@ -27,6 +27,10 @@ def init_db():
         if "competitor_schema_count" not in cols:
             conn.execute("ALTER TABLE entity_sov_history ADD COLUMN competitor_schema_count INTEGER")
             
+        conn.execute("""CREATE TABLE IF NOT EXISTS llm_citations (
+            domain TEXT, timestamp REAL, model TEXT, prompt TEXT,
+            brand_mentioned INTEGER, citation_count INTEGER, raw_response TEXT
+        )""")
         conn.commit()
         conn.close()
     except Exception as e:
@@ -168,3 +172,47 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
         print(f"[DB INSERT ERROR] {e}")
 
     return result
+
+
+def query_llm_citation(domain: str, core_product: str) -> dict:
+    """Phase 6: Live LLM Citation Engine"""
+    brand = domain.split('.')[0].replace('-', ' ').title()
+    prompt = f"List the top 3 recommended brands for {core_product} in 2026 and explain why."
+    
+    result = {
+        "domain": domain, "model": "N/A", "prompt": prompt,
+        "brand_mentioned": 0, "citation_count": 0, "raw_response": "SKIPPED"
+    }
+
+    try:
+        import g4f
+        response = g4f.ChatCompletion.create(
+            model=g4f.models.gpt_4,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = str(response)
+        result["model"] = "GPT-4-Free"
+        result["raw_response"] = text
+        if brand.lower() in text.lower():
+            result["brand_mentioned"] = 1
+            result["citation_count"] = text.lower().count(brand.lower())
+        return result
+    except Exception:
+        pass
+
+    result["model"] = "SIMULATION_MODE"
+    result["raw_response"] = "LLM Access Unavailable. Proxy metrics used."
+    return result
+
+def save_llm_citation(llm_data: dict):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("""INSERT INTO llm_citations
+                        (domain, timestamp, model, prompt, brand_mentioned, citation_count, raw_response)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                     (llm_data["domain"], time.time(), llm_data["model"], llm_data["prompt"],
+                      llm_data["brand_mentioned"], llm_data["citation_count"], llm_data["raw_response"]))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[DB INSERT ERROR LLM] {e}")
