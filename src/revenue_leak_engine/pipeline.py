@@ -664,6 +664,10 @@ Allow: /</code></pre>"""
         else:
             lead_result["flagged_non_commerce"] = False
 
+        # Lead Status Classification & Regression Variables (Moved UP to fix scoping bug)
+        geo_score_val = geo_findings.get("overall_geo_score", 0) or 0
+        geo_issues_count = len(geo_findings.get("issues", []))
+
         # PHASE 4: DEPLOYMENT REGRESSION ALERT (Self-Healing)
         regression_status = "STABLE"
         try:
@@ -681,10 +685,6 @@ Allow: /</code></pre>"""
         lead_result["regression_status"] = regression_status
 
         lead_result["total_score"] = lead_result.get("cro_score", 0) + lead_result.get("geo_score", 0)
-        
-        # Lead Status Classification (Partner Directive #2)
-        geo_score_val = geo_findings.get("overall_geo_score", 0) or 0
-        geo_issues_count = len(geo_findings.get("issues", []))
         cro_stat = lead_result.get("cro_status", "unknown")
         conf = geo_findings.get("score_confidence", "full")
         
