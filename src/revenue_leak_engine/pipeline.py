@@ -631,7 +631,15 @@ Allow: /</code></pre>"""
                 pass
 
 
-            geo_report = generate_geo_report(geo_findings)
+            # PHASE 8: DASHBOARD DATA INJECTION
+                try:
+                    hist = conn.execute("SELECT timestamp, geo_score FROM geo_history WHERE domain=? ORDER BY timestamp ASC", (domain,)).fetchall()
+                    if hist:
+                        geo_findings["history_chart_data"] = json.dumps([{"x": _geo_time.strftime('%Y-%m-%d %H:%M', _geo_time.localtime(t)), "y": s} for t, s in hist])
+                except: pass
+                
+                geo_findings['domain'] = domain  # FORCE DOMAIN ISOLATION
+            geo_report = generate_geo_report(geo_findings, target_domain=domain)
             try:
                 with open(geo_report, 'r', encoding='utf-8') as f: html = f.read()
                 if html.count('Enterprise Revenue Leak Engine') > 1:

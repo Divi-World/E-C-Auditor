@@ -5,7 +5,7 @@ from revenue_leak_engine.config import REPORTS_DIR, YOUR_NAME, YOUR_COMPANY
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
-def generate_geo_report(geo_findings: dict) -> str:
+def generate_geo_report(geo_findings: dict, target_domain: str = None) -> str:
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
     template = env.get_template("geo_report.html")
     from revenue_leak_engine.audit.geo_audit import geo_opportunity_score
@@ -16,6 +16,7 @@ def generate_geo_report(geo_findings: dict) -> str:
     html = template.render(**geo_findings)
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = REPORTS_DIR / f"{geo_findings['domain'].replace('.', '_')}_geo.html"
+    file_domain = target_domain if target_domain else geo_findings.get('domain', 'unknown')
+    out_path = REPORTS_DIR / f"{file_domain.replace('.', '_')}_geo.html"
     out_path.write_text(html, encoding="utf-8")
     return str(out_path)

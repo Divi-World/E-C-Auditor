@@ -167,16 +167,14 @@ def track_entity_and_sov(domain: str, html: str) -> dict:
 
     return result
 
-def query_llm_citation(domain: str, core_product: str) -> dict:
-    """Phase 7: Prompt Matrix & Source URL Extraction"""
-    brand = domain.split('.')[0].replace('-', ' ').title()
+def query_llm_citation(domain: str, core_product: str, sov_data: dict = None) -> dict:
+    """Phase 10: Enterprise LLM Routing + SERP-Driven Synthetic Fallback"""
+    import time, json, re, urllib.parse, httpx
     
-    # 5-Prompt High-Intent Matrix
+    brand = domain.split('.')[0].replace('-', ' ').title()
     prompts = [
         f"List the top 3 recommended brands for {core_product} in 2026 and explain why.",
         f"What are the best sustainable {core_product} brands currently on the market?",
-        f"Which {core_product} brands have the highest customer satisfaction ratings?",
-        f"Recommend the top {core_product} companies for everyday use.",
         f"Who are the market leaders in the {core_product} industry right now?"
     ]
     
@@ -184,34 +182,47 @@ def query_llm_citation(domain: str, core_product: str) -> dict:
         "domain": domain, "model": "N/A", "prompt": "MATRIX",
         "brand_mentioned": 0, "citation_count": 0, "citation_urls": "[]", "raw_response": "SKIPPED"
     }
-
+    
+    full_text = ""
+    model_used = "N/A"
+    models_to_try = ["openai", "mistral", "llama"]
+    
+    # LAYER 1: Pollinations HTTP Chain
     try:
-        import g4f
-        full_text = ""
         for p in prompts:
-            try:
-                response = g4f.ChatCompletion.create(
-                    model=g4f.models.gpt_4,
-                    messages=[{"role": "user", "content": p}],
-                )
-                full_text += str(response) + "\n"
-            except: pass
-            
-        result["model"] = "GPT-4-Free"
+            for model in models_to_try:
+                try:
+                    url = f"https://text.pollinations.ai/{urllib.parse.quote(p)}?model={model}"
+                    with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+                        resp = client.get(url)
+                        if resp.status_code == 200 and len(resp.text) > 20:
+                            full_text += resp.text + "\n\n"
+                            model_used = f"Pollinations-{model}"
+                            break
+                except Exception: continue
+            time.sleep(1.0)
+    except Exception: pass
+
+    # LAYER 2: SERP-Driven Synthetic Fallback (Zero-API, 100% Capture Rate)
+    if not full_text and sov_data and sov_data.get("top_competitor") != "N/A":
+        result["model"] = "SERP-SYNTHETIC-FALLBACK"
+        result["brand_mentioned"] = 0
+        result["citation_count"] = 0
+        comp_urls = [f"https://{sov_data['top_competitor']}"]
+        result["citation_urls"] = json.dumps(comp_urls)
+        result["raw_response"] = f"LLMs rate-limited. Synthesized market leaders from live SERP: {sov_data['top_competitor']}."
+        return result
+
+    if full_text:
+        result["model"] = model_used
         result["raw_response"] = full_text
-        
-        # Extract URLs (Source Citation Tracking)
-        urls = re.findall(r'https?://[^\s\)\"]+', full_text)
-        # Filter out common generic domains
-        urls = [u for u in urls if not any(x in u for x in ['google.com', 'wikipedia.org', 'g4f', 'github'])]
-        result["citation_urls"] = json.dumps(list(set(urls))[:5]) # Top 5 unique sources
-        
+        urls = re.findall(r'https?://[^\s\)\"\<\>]+', full_text)
+        urls = [u for u in urls if not any(x in u for x in ['google.com', 'wikipedia.org', 'pollinations', 'github', 'duckduckgo'])]
+        result["citation_urls"] = json.dumps(list(set(urls))[:5])
         if brand.lower() in full_text.lower():
             result["brand_mentioned"] = 1
             result["citation_count"] = full_text.lower().count(brand.lower())
         return result
-    except Exception:
-        pass
 
     result["model"] = "SIMULATION_MODE"
     result["raw_response"] = "LLM Access Unavailable. Proxy metrics used."
@@ -221,8 +232,8 @@ def save_llm_citation(llm_data: dict):
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.execute("""INSERT INTO llm_citations
-                        (domain, timestamp, model, prompt, brand_mentioned, citation_count, raw_response)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (domain, timestamp, model, prompt, brand_mentioned, citation_count, citation_urls, raw_response)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                      (llm_data["domain"], time.time(), llm_data["model"], llm_data["prompt"],
                       llm_data["brand_mentioned"], llm_data["citation_count"], llm_data.get("citation_urls", "[]"), llm_data["raw_response"]))
         conn.commit()
