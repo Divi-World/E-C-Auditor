@@ -1220,6 +1220,18 @@ def _check_agentic_commerce(domain, findings):
     capabilities = {"Discovery": "FAIL", "UCP": "FAIL", "MCP": "FAIL", "Catalog": "FAIL", "Cart/Checkout": "FAIL"}
     score = 0.0
 
+    # PHASE 12: LIVE MCP ENDPOINT DISCOVERY (Direct /.well-known/mcp.json)
+    st_mcp, mcp_body, _, _ = _fetch(f"https://{domain}/.well-known/mcp.json", "mcp_direct", findings)
+    if st_mcp == 200 and mcp_body and len(mcp_body) > 10:
+        try:
+            import json
+            mcp_data = json.loads(mcp_body)
+            if isinstance(mcp_data, dict) and any(k in mcp_data for k in ["tools", "resources", "prompts", "name"]):
+                capabilities["MCP"] = "PASS"
+                capabilities["Discovery"] = "PASS"
+                score += 5.0
+        except Exception: pass
+
     st_ucp, ucp_body, final_url, ct_ucp = _fetch(f"https://{domain}/.well-known/ucp", "ucp", findings)
     if st_ucp == 200 and not _is_soft_404(ucp_body, ct_ucp):
         capabilities["Discovery"] = "PASS"
