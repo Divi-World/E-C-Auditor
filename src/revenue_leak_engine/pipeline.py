@@ -586,7 +586,7 @@ Allow: /</code></pre>"""
             try:
                 from revenue_leak_engine.audit.llm_citation_tracker import query_llm_citation, save_llm_citation
                 core_prod_for_llm = sov_data.get("core_product", niche)
-                llm_data = query_llm_citation(domain, core_prod_for_llm)
+                llm_data = query_llm_citation(domain, core_prod_for_llm, sov_data)
                 save_llm_citation(llm_data)
                 
                 if llm_data["brand_mentioned"]:
@@ -631,13 +631,19 @@ Allow: /</code></pre>"""
                 pass
 
 
-            # PHASE 8: DASHBOARD DATA INJECTION
+                # PHASE 8: DASHBOARD DATA INJECTION
                 try:
-                    hist = conn.execute("SELECT timestamp, geo_score FROM geo_history WHERE domain=? ORDER BY timestamp ASC", (domain,)).fetchall()
+                    import sqlite3
+                    import time as _geo_time
+                    import json
+                    from revenue_leak_engine.audit.geo_audit import CACHE_DB
+                    chart_conn = sqlite3.connect(CACHE_DB)
+                    hist = chart_conn.execute("SELECT timestamp, geo_score FROM geo_history WHERE domain=? ORDER BY timestamp ASC", (domain,)).fetchall()
                     if hist:
                         geo_findings["history_chart_data"] = json.dumps([{"x": _geo_time.strftime('%Y-%m-%d %H:%M', _geo_time.localtime(t)), "y": s} for t, s in hist])
-                except: pass
-                
+                    chart_conn.close()
+                except Exception: pass
+
                 geo_findings['domain'] = domain  # FORCE DOMAIN ISOLATION
             geo_report = generate_geo_report(geo_findings, target_domain=domain)
             try:
@@ -680,8 +686,6 @@ Allow: /</code></pre>"""
                         brand_mentioned INTEGER, competitor_mentions INTEGER, 
                         sentiment TEXT, source_url TEXT
                     )""")
-                    from revenue_leak_engine.audit.llm_citation_tracker import track_llm_citations
-                    track_llm_citations(domain, niche)
                 except Exception: pass
                 conn.commit()
                 conn.close()
