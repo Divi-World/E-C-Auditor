@@ -70,7 +70,8 @@ def extract_core_product(html: str, brand: str) -> str:
     return "premium products"
 
 def track_entity_and_sov(domain: str, html: str) -> dict:
-    brand = domain.split('.')[0].replace('-', ' ').title()
+    clean_domain = domain.replace('www.', '').replace('shop.', '').replace('store.', '')
+    brand = clean_domain.split('.')[0].replace('-', ' ').replace('_', ' ').title()
     core_product = extract_core_product(html, brand)
 
     result = {
@@ -171,7 +172,8 @@ def query_llm_citation(domain: str, core_product: str, sov_data: dict = None) ->
     """Phase 10: Enterprise LLM Routing + SERP-Driven Synthetic Fallback"""
     import time, json, re, urllib.parse, httpx
     
-    brand = domain.split('.')[0].replace('-', ' ').title()
+    clean_domain = domain.replace('www.', '').replace('shop.', '').replace('store.', '')
+    brand = clean_domain.split('.')[0].replace('-', ' ').replace('_', ' ').title()
     prompts = [
         f"List the top 3 recommended brands for {core_product} in 2026 and explain why.",
         f"What are the best sustainable {core_product} brands currently on the market?",
@@ -195,7 +197,8 @@ def query_llm_citation(domain: str, core_product: str, sov_data: dict = None) ->
                     url = f"https://text.pollinations.ai/{urllib.parse.quote(p)}?model={model}"
                     with httpx.Client(timeout=20.0, follow_redirects=True) as client:
                         resp = client.get(url)
-                        if resp.status_code == 200 and len(resp.text) > 20:
+                        error_signals = ["reached its budget", "rate limit", "raise the key budget", "api key", "quota exceeded", "error occurred"]
+                        if resp.status_code == 200 and len(resp.text) > 20 and not any(sig in resp.text.lower() for sig in error_signals):
                             full_text += resp.text + "\n\n"
                             model_used = f"Pollinations-{model}"
                             break

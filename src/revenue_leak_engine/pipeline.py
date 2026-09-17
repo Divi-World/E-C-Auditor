@@ -631,20 +631,24 @@ Allow: /</code></pre>"""
                 pass
 
 
-                # PHASE 8: DASHBOARD DATA INJECTION
-                try:
-                    import sqlite3
-                    import time as _geo_time
-                    import json
-                    from revenue_leak_engine.audit.geo_audit import CACHE_DB
-                    chart_conn = sqlite3.connect(CACHE_DB)
-                    hist = chart_conn.execute("SELECT timestamp, geo_score FROM geo_history WHERE domain=? ORDER BY timestamp ASC", (domain,)).fetchall()
-                    if hist:
-                        geo_findings["history_chart_data"] = json.dumps([{"x": _geo_time.strftime('%Y-%m-%d %H:%M', _geo_time.localtime(t)), "y": s} for t, s in hist])
-                    chart_conn.close()
-                except Exception: pass
 
                 geo_findings['domain'] = domain  # FORCE DOMAIN ISOLATION
+            # PHASE 8: DASHBOARD DATA INJECTION (Self-Contained Scope)
+            try:
+                import sqlite3
+                import time as _geo_time
+                import json
+                from revenue_leak_engine.audit.geo_audit import CACHE_DB
+                chart_conn = sqlite3.connect(CACHE_DB)
+                hist = chart_conn.execute("SELECT timestamp, geo_score FROM geo_history WHERE domain=? ORDER BY timestamp ASC", (domain,)).fetchall()
+                current_score = float(geo_findings.get("overall_geo_score", 0) or 0)
+                chart_data = [{"x": _geo_time.strftime('%Y-%m-%d %H:%M', _geo_time.localtime(t)), "y": s} for t, s in hist]
+                chart_data.append({"x": _geo_time.strftime('%Y-%m-%d %H:%M', _geo_time.localtime(_geo_time.time())), "y": current_score})
+                if len(chart_data) > 0:
+                    geo_findings["history_chart_data"] = json.dumps(chart_data)
+                chart_conn.close()
+            except Exception: pass
+
             geo_report = generate_geo_report(geo_findings, target_domain=domain)
             try:
                 with open(geo_report, 'r', encoding='utf-8') as f: html = f.read()
