@@ -1474,6 +1474,7 @@ def audit_geo(domain: str) -> dict:
 
     # ENTERPRISE SNIPPET INJECTION: Replace placeholders with real scraped assets
     hp_st, hp_html, _, _ = _fetch(f"https://{domain}/", "hp_snippet_assets", findings)
+    findings["homepage_html"] = hp_html
     findings["homepage_html"] = hp_html  # CRITICAL FIX: Expose to pipeline
     findings["homepage_html"] = hp_html # CRITICAL FIX: Expose to pipeline for SERP/LLM tracking
     real_assets = _extract_real_assets(hp_html, f"https://{domain}/", domain)
