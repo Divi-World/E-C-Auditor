@@ -1653,12 +1653,12 @@ def audit_geo(domain: str) -> dict:
     else:
         findings["geo_revenue_exposure"] = "LOW"
 
-    # NORMALIZE CONFIDENCE FOR TEMPLATE (Jinja expects lowercase 'partial' or 'verified')
-    raw_conf = str(findings.get("score_confidence", "verified")).lower()
+    # NORMALIZE CONFIDENCE FOR TEMPLATE (Jinja expects lowercase 'partial' or 'VERIFIED')
+    raw_conf = str(findings.get("score_confidence", "VERIFIED")).lower()
     if raw_conf in ["partial", "unverified", "incomplete", "unreachable"]:
         findings["score_confidence"] = "partial"
     else:
-        findings["score_confidence"] = "verified"
+        findings["score_confidence"] = "VERIFIED"
 
     return findings
 

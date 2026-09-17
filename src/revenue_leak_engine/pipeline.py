@@ -794,13 +794,6 @@ echo "[NEXT] Inject this JSON into your {target_file} <head> block."
         scored_leads.append(lead_result)
 
 
-    # PHASE 15: MULTI-TENANT AGENCY DASHBOARD
-    try:
-        from revenue_leak_engine.reporting.agency_dashboard import generate_agency_dashboard
-        generate_agency_dashboard()
-    except Exception as e:
-        print(f"  warning: Agency dashboard generation failed - {e}")
-
     # Sort by total score descending
     scored_leads.sort(key=lambda l: l["total_score"], reverse=True)
 
@@ -820,6 +813,35 @@ echo "[NEXT] Inject this JSON into your {target_file} <head> block."
     print(f"\n[4/4] Done. {len(scored_leads)} e-commerce leads audited. ({healthy_skipped} skipped as healthy/inconclusive).")
     print(f"  -> Skipped {healthy_skipped} completely healthy sites.")
     print(f"  -> {ranked_csv}")
+
+    # =====================================================================
+    # PHASE 15: MULTI-TENANT AGENCY DASHBOARD (INLINE)
+    # =====================================================================
+    try:
+        import csv as _csv15
+        portfolio_15 = []
+        total_leak_15 = 0
+        for csv_file in LEADS_DIR.glob("*_leads_ranked.csv"):
+            niche_15 = csv_file.stem.replace("_leads_ranked", "").title()
+            with open(csv_file, encoding="utf-8") as f:
+                for row in _csv15.DictReader(f):
+                    leak_15 = float(row.get("estimated_monthly_leak_usd", 0) or 0)
+                    total_leak_15 += leak_15
+                    portfolio_15.append({"domain": row.get("domain"), "niche": niche_15, "geo": float(row.get("geo_score", 0) or 0), "cro": float(row.get("cro_score", 0) or 0), "status": row.get("lead_status", "UNKNOWN")})
+        
+        if portfolio_15:
+            rows_15 = ""
+            for p_item in portfolio_15:
+                rows_15 += '<tr><td class="p-3">' + str(p_item["domain"]) + '</td><td class="p-3">' + str(p_item["niche"]) + '</td><td class="p-3">' + str(p_item["geo"]) + '</td><td class="p-3">' + str(p_item["cro"]) + '</td><td class="p-3">' + str(p_item["status"]) + '</td></tr>'
+            leak_str_15 = f"{total_leak_15:,.0f}"
+            html_15 = '<!DOCTYPE html><html><head><title>Agency Matrix</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-900 text-white p-8"><h1 class="text-3xl font-bold mb-4">Agency Portfolio Matrix</h1><div class="mb-6 text-xl">Total Portfolio Leak: <span class="text-red-400 font-bold">$' + leak_str_15 + '/mo</span></div><table class="w-full text-left border-collapse"><thead><tr class="border-b border-slate-700"><th class="p-3">Domain</th><th class="p-3">Niche</th><th class="p-3">GEO</th><th class="p-3">CRO</th><th class="p-3">Status</th></tr></thead><tbody class="divide-y divide-slate-800">' + rows_15 + '</tbody></table></body></html>'
+            out_15 = LEADS_DIR.parent / "reports" / "agency_dashboard.html"
+            out_15.parent.mkdir(parents=True, exist_ok=True)
+            out_15.write_text(html_15, encoding="utf-8")
+            print(f"  -> Phase 15 Agency Dashboard Generated: {out_15}")
+    except Exception as e:
+        print(f"  warning: Phase 15 dashboard failed - {e}")
+
 
 def cli():
     parser = argparse.ArgumentParser(description="Revenue Leak Engine")
