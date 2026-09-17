@@ -793,6 +793,14 @@ echo "[NEXT] Inject this JSON into your {target_file} <head> block."
             lead_result["lead_status"] = "QUALIFIED_LEAK"
         scored_leads.append(lead_result)
 
+
+    # PHASE 15: MULTI-TENANT AGENCY DASHBOARD
+    try:
+        from revenue_leak_engine.reporting.agency_dashboard import generate_agency_dashboard
+        generate_agency_dashboard()
+    except Exception as e:
+        print(f"  warning: Agency dashboard generation failed - {e}")
+
     # Sort by total score descending
     scored_leads.sort(key=lambda l: l["total_score"], reverse=True)
 
