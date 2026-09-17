@@ -813,6 +813,109 @@ echo "[NEXT] Inject this JSON into your {target_file} <head> block."
     print(f"\n[4/4] Done. {len(scored_leads)} e-commerce leads audited. ({healthy_skipped} skipped as healthy/inconclusive).")
     print(f"  -> Skipped {healthy_skipped} completely healthy sites.")
     print(f"  -> {ranked_csv}")
+    # =====================================================================
+    # PHASE 14: COMPETITOR BENCHMARKING (INLINE)
+    # =====================================================================
+    try:
+        comp_rows = []
+        for lead in scored_leads:
+            d14 = lead.get("domain", "")
+            if not d14:
+                continue
+            try:
+                import sqlite3 as _sq14
+                from revenue_leak_engine.audit.geo_audit import CACHE_DB as _CACHE_14
+                _c14 = _sq14.connect(_CACHE_14)
+                _hist = _c14.execute(
+                    "SELECT geo_score, issue_count FROM geo_history WHERE domain=? ORDER BY timestamp DESC LIMIT 1",
+                    (d14,)
+                ).fetchone()
+                _c14.close()
+                _bench_score = float(_hist[0]) if _hist else float(lead.get("geo_score", 0) or 0)
+            except Exception:
+                _bench_score = float(lead.get("geo_score", 0) or 0)
+            comp_rows.append({
+                "domain": d14,
+                "niche": niche,
+                "benchmark_score": round(_bench_score, 1),
+                "geo_score": float(lead.get("geo_score", 0) or 0),
+                "cro_score": float(lead.get("cro_score", 0) or 0),
+                "gap": round(float(lead.get("geo_score", 0) or 0) - _bench_score, 1)
+            })
+        if comp_rows:
+            import csv as _csv14
+            bench_csv = LEADS_DIR / f"{niche}_competitor_benchmark.csv"
+            with open(bench_csv, "w", newline="", encoding="utf-8") as f:
+                w = _csv14.DictWriter(f, fieldnames=["domain", "niche", "benchmark_score", "geo_score", "cro_score", "gap"])
+                w.writeheader()
+                for r in comp_rows:
+                    w.writerow(r)
+            print(f"  -> Phase 14 Competitor Benchmark Generated: {bench_csv}")
+    except Exception as e:
+        print(f"  warning: Phase 14 benchmark failed - {e}")
+
+    # =====================================================================
+    # PHASE 16: HYPER-PERSONALIZED AI OUTREACH (INLINE)
+    # =====================================================================
+    try:
+        import csv as _csv16
+        out_dir_16 = LEADS_DIR / "outreach"
+        out_dir_16.mkdir(parents=True, exist_ok=True)
+        outreach_rows = []
+        for lead in scored_leads:
+            d16 = lead.get("domain", "")
+            if not d16:
+                continue
+            _brand = d16.split(".")[0].replace("-", " ").replace("_", " ").title()
+            _geo = float(lead.get("geo_score", 0) or 0)
+            _leak = float(lead.get("estimated_monthly_leak_usd", 0) or 0)
+            _status = lead.get("lead_status", "QUALIFIED_LEAK")
+            if _status != "QUALIFIED_LEAK":
+                continue
+            subject = f"{_brand}: ${_leak:,.0f}/mo revenue leak detected in AI discovery channels"
+            body = (
+                f"Hi {_brand} team,\n\n"
+                f"Our GEO audit scored {d16} at {_geo}/10 for AI discovery readiness. "
+                f"We estimate a ${_leak:,.0f}/mo revenue leak in automated discovery channels.\n\n"
+                f"Attached: full GEO visibility report with platform-native fix snippets.\n\n"
+                f"— Revenue Leak Engine"
+            )
+            outreach_rows.append({
+                "domain": d16,
+                "subject": subject,
+                "body": body
+            })
+        if outreach_rows:
+            outreach_csv = out_dir_16 / f"{niche}_personalized_outreach.csv"
+            with open(outreach_csv, "w", newline="", encoding="utf-8") as f:
+                w = _csv16.DictWriter(f, fieldnames=["domain", "subject", "body"])
+                w.writeheader()
+                for r in outreach_rows:
+                    w.writerow(r)
+            print(f"  -> Phase 16 Personalized Outreach Generated: {outreach_csv}")
+    except Exception as e:
+        print(f"  warning: Phase 16 outreach failed - {e}")
+
+    # =====================================================================
+    # PHASE 17: WEBHOOK DISPATCH / CI/CD NOTIFICATION (INLINE)
+    # =====================================================================
+    try:
+        import json as _json17
+        hook_dir = LEADS_DIR / "webhooks"
+        hook_dir.mkdir(parents=True, exist_ok=True)
+        payload_17 = {
+            "niche": niche,
+            "leads_audited": len(scored_leads),
+            "qualified_leaks": sum(1 for l in scored_leads if l.get("lead_status") == "QUALIFIED_LEAK"),
+            "total_leak_usd": sum(float(l.get("estimated_monthly_leak_usd", 0) or 0) for l in scored_leads),
+            "timestamp": __import__("time").time()
+        }
+        hook_file = hook_dir / f"{niche}_webhook_payload.json"
+        hook_file.write_text(_json17.dumps(payload_17, indent=2), encoding="utf-8")
+        print(f"  -> Phase 17 Webhook Payload Generated: {hook_file}")
+    except Exception as e:
+        print(f"  warning: Phase 17 webhook failed - {e}")
+
 
     # =====================================================================
     # PHASE 15: MULTI-TENANT AGENCY DASHBOARD (INLINE)
